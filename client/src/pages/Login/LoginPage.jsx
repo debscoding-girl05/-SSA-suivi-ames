@@ -2,13 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { HeartHandshake } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function LoginPage() {
@@ -37,18 +31,23 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-neutral-50 px-4 py-8">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl text-violet-700">SSA</CardTitle>
-          <CardDescription>Suivi des Âmes — connexion</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-neutral-50 px-4 py-8">
+      {/* soft brand glow */}
+      <div className="pointer-events-none absolute -top-24 left-1/2 size-[34rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+
+      <div className="relative w-full max-w-sm">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25">
+            <HeartHandshake className="size-7" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Suivi des Âmes</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Connectez-vous pour continuer</p>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
-              </label>
+              <label htmlFor="email" className="text-sm font-medium">Email</label>
               <Input
                 id="email"
                 type="email"
@@ -63,9 +62,7 @@ export default function LoginPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="password" className="text-sm font-medium">
-                Mot de passe
-              </label>
+              <label htmlFor="password" className="text-sm font-medium">Mot de passe</label>
               <Input
                 id="password"
                 type="password"
@@ -78,17 +75,21 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p role="alert" className="text-sm text-destructive">
+              <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">
                 {error}
               </p>
             )}
 
-            <Button type="submit" size="lg" disabled={submitting} className="w-full">
+            <Button type="submit" size="lg" disabled={submitting} className="mt-1 w-full">
               {submitting ? 'Connexion…' : 'Se connecter'}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Démo : <span className="font-medium text-foreground">admin@ssa.app</span> / admin1234
+        </p>
+      </div>
     </main>
   );
 }

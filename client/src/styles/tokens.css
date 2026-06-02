@@ -1,72 +1,55 @@
 /*
   SSA — Design System Tokens
-  Palette, typographie et espacement centralisés pour le projet.
+  Palette claire inspirée du design system fourni (primaire #2277db).
+  Les variables brutes sont définies ici ; le mapping Tailwind (@theme)
+  se trouve dans index.css.
 */
 
-@theme {
-  /* ── Couleurs de marque ── */
-  --color-primary: #7c3aed; /* violet principal */
-  --color-primary-50: #f5f3ff;
-  --color-primary-100: #ede9fe;
-  --color-primary-200: #ddd6fe;
-  --color-primary-500: #8b5cf6;
-  --color-primary-600: #7c3aed;
-  --color-primary-700: #6d28d9;
-  --color-primary-900: #4c1d95;
+:root {
+  --neutral: #f8f7fb;
+  --neutral-foreground: #46474a;
+  --neutral-foreground-light: #76777a;
 
-  /* ── Neutres ── */
-  --color-neutral-50: #fafafa;
-  --color-neutral-100: #f4f4f5;
-  --color-neutral-200: #e4e4e7;
-  --color-neutral-300: #d4d4d8;
-  --color-neutral-400: #a1a1aa;
-  --color-neutral-500: #71717a;
-  --color-neutral-600: #52525b;
-  --color-neutral-700: #3f3f46;
-  --color-neutral-800: #27272a;
-  --color-neutral-900: #18181b;
+  --background: #ffffff;
+  --foreground: #051323;
 
-  /* ── Statuts ── */
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
+  --card: #ffffff;
+  --card-foreground: #09090b;
 
-  /* ── Typographie ── */
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-heading: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  --popover: #ffffff;
+  --popover-foreground: #09090b;
 
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.5rem;
-  --text-3xl: 1.875rem;
-  --text-4xl: 2.25rem;
+  --primary: #534ab7; /* violet — spec SSA */
+  --primary-dark: #3c3489;
+  --primary-mid-dark: #cecbf6;
+  --primary-transparent: #eeedfe;
+  --primary-foreground: #ffffff;
 
-  /* ── Espacement ── */
-  --spacing-px: 1px;
-  --spacing-1: 0.25rem;
-  --spacing-2: 0.5rem;
-  --spacing-3: 0.75rem;
-  --spacing-4: 1rem;
-  --spacing-6: 1.5rem;
-  --spacing-8: 2rem;
-  --spacing-12: 3rem;
-  --spacing-16: 4rem;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #5d5e61;
 
-  /* ── Bordures ── */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-full: 9999px;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
 
-  /* ── Ombres ── */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg:
-    0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --accent: #f1f5ff;
+  --accent-foreground: #18181b;
+
+  --success: #e1f5ee; /* teal-50 */
+  --success-foreground: #085041;
+  --success-foreground-light: #1d9e75;
+
+  --warning: #faeeda; /* amber-50 */
+  --warning-foreground: #633806;
+  --warning-foreground-light: #ef9f27;
+
+  --destructive: #fcebeb; /* red-50 */
+  --destructive-foreground: #791f1f;
+  --destructive-dark: #e24b4a;
+
+  --border: #e7e7ec;
+  --input: #ffffff;
+  --ring: #534ab7;
+
+  --radius: 0.75rem;
+  --shadow-card: 0px 2px 3px 0px #00000014;
 }

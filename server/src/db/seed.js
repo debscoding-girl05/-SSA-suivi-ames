@@ -13,6 +13,18 @@ const DEMO_USERS = [
   { email: "volunteer@ssa.app", password: "volunteer1234", fullName: "Bénévole SSA", role: "volunteer" },
 ];
 
+// Realistic demo members across departments (department by name → resolved to id).
+const DEMO_MEMBERS = [
+  { firstName: "Marie", lastName: "Nkolo", phone: "+237 6 99 11 22 33", email: "marie.nkolo@example.com", department: "Accueil", status: "actif", notes: "Très impliquée dans l'accueil du dimanche." },
+  { firstName: "Jean", lastName: "Mballa", phone: "+237 6 77 44 55 66", email: "jean.mballa@example.com", department: "Louange", status: "actif", notes: "Guitariste." },
+  { firstName: "Esther", lastName: "Fotso", phone: "+237 6 90 12 34 56", email: "esther.fotso@example.com", department: "Jeunesse", status: "actif", notes: "" },
+  { firstName: "Daniel", lastName: "Owona", phone: "+237 6 55 66 77 88", email: "", department: "Intercession", status: "actif", notes: "Disponible le mercredi soir." },
+  { firstName: "Grâce", lastName: "Tchami", phone: "+237 6 98 76 54 32", email: "grace.tchami@example.com", department: "Évangélisation", status: "nouveau", notes: "Nouvelle convertie, à suivre." },
+  { firstName: "Samuel", lastName: "Eboa", phone: "", email: "samuel.eboa@example.com", department: "Accueil", status: "inactif", notes: "Déménagé, à recontacter." },
+  { firstName: "Ruth", lastName: "Ndongo", phone: "+237 6 71 23 45 67", email: "", department: "Jeunesse", status: "nouveau", notes: "" },
+  { firstName: "Paul", lastName: "Atangana", phone: "+237 6 80 90 10 20", email: "paul.atangana@example.com", department: "Louange", status: "actif", notes: "Responsable technique son." },
+];
+
 async function seed({ silent = false } = {}) {
   const log = (...args) => {
     if (!silent) console.log(...args); // eslint-disable-line no-console
@@ -42,11 +54,34 @@ async function seed({ silent = false } = {}) {
     log(`  + utilisateur créé: ${u.email} (${u.role})`);
   }
 
-  log(`Seed terminé (${created} créé(s), backend: ${db.isPostgres ? "postgres" : "memory"}).`);
-  return { created };
+  // Members — only seed when the table is empty, to stay idempotent.
+  let membersCreated = 0;
+  const { total: existingMembers } = await db.members.list({ limit: 1 });
+  if (existingMembers === 0) {
+    const departments = await db.departments.list();
+    const deptByName = new Map(departments.map((d) => [d.name, d.id]));
+    for (const m of DEMO_MEMBERS) {
+      await db.members.create({
+        firstName: m.firstName,
+        lastName: m.lastName,
+        phone: m.phone || null,
+        email: m.email || null,
+        departmentId: deptByName.get(m.department) ?? null,
+        status: m.status,
+        notes: m.notes || null,
+      });
+      membersCreated += 1;
+    }
+    log(`  + ${membersCreated} membre(s) créé(s)`);
+  }
+
+  log(
+    `Seed terminé (${created} utilisateur(s), ${membersCreated} membre(s), backend: ${db.isPostgres ? "postgres" : "memory"}).`
+  );
+  return { created, membersCreated };
 }
 
-module.exports = { seed, DEMO_USERS };
+module.exports = { seed, DEMO_USERS, DEMO_MEMBERS };
 
 // Allow standalone execution.
 if (require.main === module) {
