@@ -1,0 +1,4 @@
+// Hooks personnalisés — ajouter ici les hooks réutilisables
+// Exemple : useAuth, useFetch, useLocalStorage
+
+export {};

@@ -1,0 +1,4 @@
+// Couche API — clients HTTP centralisés
+// Exemple : axiosClient, authApi, soulsApi
+
+export {};

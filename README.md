@@ -68,6 +68,9 @@ npm run dev
 Scripts disponibles dans `server`:
 
 - `npm run dev` : demarrer avec Nodemon
+- `npm run tasks:mine` : lister les taches Notion assignees (role/user)
+- `npm run tasks:today` : lister les taches Notion dues aujourd'hui ou en retard
+- `npm run tasks:update -- --id <page_id> --status <status>` : mettre a jour le statut d'une tache
 - `npm test` : script placeholder a remplacer
 
 Note: actuellement, le backend est encore en phase de setup (pas de fichier d'entree API present dans le depot). Creez par exemple `server/index.js` pour exposer vos routes Express.
@@ -75,6 +78,34 @@ Note: actuellement, le backend est encore en phase de setup (pas de fichier d'en
 ## Variables d'environnement
 
 Le fichier `.env.example` est present a la racine. Copiez-le vers `.env` et adaptez les valeurs selon votre environnement.
+
+Variables Notion utilisees:
+
+- `NOTION_TOKEN` : token de l'integration Notion
+- `NOTION_DATABASE_ID` : id de la base de taches Notion
+- `NOTION_ROLE` : role a filtrer (ex: `Leader`, `Evangelisation`)
+- `NOTION_USER_ID` : id utilisateur Notion pour filtrer les assignations `people`
+- `NOTION_STATUS_PROPERTY` : nom de la colonne statut (defaut: `Status`)
+- `NOTION_DUE_DATE_PROPERTY` : nom de la colonne date d'echeance (defaut: `Due`)
+- `NOTION_ROLE_PROPERTY` : nom de la colonne role (defaut: `Role`)
+- `NOTION_ASSIGNEE_PROPERTY` : nom de la colonne assignee (defaut: `Assignee`)
+- `NOTION_TITLE_PROPERTY` : nom de la colonne titre (defaut: `Name`)
+
+## Setup Notion
+
+1. Creez une integration sur Notion Developers et copiez le token.
+2. Partagez la base de donnees de taches avec cette integration.
+3. Renseignez `.env` a partir de `.env.example`.
+4. Lancez les commandes depuis `server`.
+
+Exemples:
+
+```bash
+cd server
+npm run tasks:mine
+npm run tasks:today
+npm run tasks:update -- --id <page_id> --status Done
+```
 
 ## Git: correction de l'erreur d'upstream
 
