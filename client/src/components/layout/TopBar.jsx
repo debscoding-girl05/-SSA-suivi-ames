@@ -1,31 +1,22 @@
 import { Link } from 'react-router-dom';
 import { HeartHandshake } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { Avatar } from '@/components/ui/avatar';
 
 // Mobile top bar (visible < md): brand + avatar shortcut to profile.
 export default function TopBar() {
   const { user } = useAuth();
-  const initials = (user?.fullName || user?.email || '?')
-    .split(' ')
-    .map((s) => s[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card/95 px-4 py-3 backdrop-blur-md md:hidden">
+    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card/85 px-4 py-3 backdrop-blur-md md:hidden">
       <div className="flex items-center gap-2">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-primary-gradient text-primary-foreground shadow-primary">
           <HeartHandshake className="size-4" />
         </div>
-        <span className="text-sm font-medium">Suivi des Âmes</span>
+        <span className="text-sm font-semibold">Suivi des Âmes</span>
       </div>
-      <Link
-        to="/profile"
-        aria-label="Profil"
-        className="flex size-8 items-center justify-center rounded-full bg-primary-transparent text-xs font-medium text-primary"
-      >
-        {initials}
+      <Link to="/profile" aria-label="Profil" className="rounded-full">
+        <Avatar name={user?.fullName || user?.email} size="sm" />
       </Link>
     </header>
   );

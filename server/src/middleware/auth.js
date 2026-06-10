@@ -22,7 +22,7 @@ function requireAuth(req, _res, next) {
 }
 
 /**
- * Role guard — use after requireAuth. `requireRole("admin", "leader")`.
+ * Role guard — use after requireAuth. `requireRole("pasteur", "pr")`.
  */
 function requireRole(...allowed) {
   return (req, _res, next) => {

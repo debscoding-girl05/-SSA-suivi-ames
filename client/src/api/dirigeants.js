@@ -1,0 +1,35 @@
+import { request } from './client';
+
+function toQuery(params = {}) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') search.set(key, value);
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export function listDirigeants(filters) {
+  return request(`/api/dirigeants${toQuery(filters)}`);
+}
+
+export function getDirigeant(id) {
+  return request(`/api/dirigeants/${id}`);
+}
+
+export function updateDirigeant(id, payload) {
+  return request(`/api/dirigeants/${id}`, { method: 'PUT', body: payload });
+}
+
+// Assignés (nested under a dirigeant)
+export function createAssigne(dirigeantId, payload) {
+  return request(`/api/dirigeants/${dirigeantId}/assignes`, { method: 'POST', body: payload });
+}
+
+export function updateAssigne(dirigeantId, assigneId, payload) {
+  return request(`/api/dirigeants/${dirigeantId}/assignes/${assigneId}`, { method: 'PUT', body: payload });
+}
+
+export function deleteAssigne(dirigeantId, assigneId) {
+  return request(`/api/dirigeants/${dirigeantId}/assignes/${assigneId}`, { method: 'DELETE' });
+}

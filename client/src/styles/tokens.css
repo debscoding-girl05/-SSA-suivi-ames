@@ -46,10 +46,19 @@
   --destructive-foreground: #791f1f;
   --destructive-dark: #e24b4a;
 
-  --border: #e7e7ec;
+  --border: #e9e8f1;
   --input: #ffffff;
   --ring: #534ab7;
 
-  --radius: 0.75rem;
-  --shadow-card: 0px 2px 3px 0px #00000014;
+  /* Surface (fond d'application) */
+  --surface: #f5f4fb;
+
+  --radius: 0.875rem;
+
+  /* Dégradé de marque + échelle d'ombres douces (profondeur) */
+  --gradient-primary: linear-gradient(135deg, #7a72e3 0%, #534ab7 55%, #3c3489 100%);
+  --shadow-card: 0 1px 2px rgba(20, 14, 54, 0.06);
+  --shadow-soft: 0 6px 18px -6px rgba(20, 14, 54, 0.12), 0 2px 6px -2px rgba(20, 14, 54, 0.06);
+  --shadow-float: 0 18px 40px -12px rgba(20, 14, 54, 0.22), 0 6px 14px -6px rgba(20, 14, 54, 0.1);
+  --shadow-primary: 0 12px 28px -8px rgba(83, 74, 183, 0.5);
 }

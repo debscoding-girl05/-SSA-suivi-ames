@@ -1,13 +1,17 @@
 const express = require("express");
 const authRoutes = require("./auth");
-const membersRoutes = require("./members");
+const dirigeantsRoutes = require("./dirigeants");
+const rapportsRoutes = require("./rapports");
 const departmentsRoutes = require("./departments");
+const annuaireRoutes = require("./annuaire");
 
 // API router mounted under /api. /health is mounted at the app root.
 const router = express.Router();
 
 router.use("/auth", authRoutes);
-router.use("/members", membersRoutes);
+router.use("/dirigeants", dirigeantsRoutes);
+router.use("/rapports", rapportsRoutes);
 router.use("/departments", departmentsRoutes);
+router.use("/annuaire", annuaireRoutes);
 
 module.exports = router;

@@ -21,7 +21,7 @@ async function start() {
     console.log(`  DB       : ${db.isPostgres ? "postgres" : "in-memory (dev fallback)"}`);
     console.log(`  CORS     : ${config.corsOrigin}`);
     if (!config.isProduction) {
-      console.log("  Demo     : admin@ssa.app / admin1234");
+      console.log("  Demo     : pasteur@ssa.app / pasteur1234 (+ pr@ / leader@ / encadreur@)");
     }
     /* eslint-enable no-console */
   });

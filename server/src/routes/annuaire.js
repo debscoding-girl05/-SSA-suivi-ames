@@ -1,12 +1,10 @@
 const express = require("express");
 const asyncHandler = require("../utils/asyncHandler");
 const { requireAuth } = require("../middleware/auth");
-const departments = require("../controllers/departmentsController");
+const annuaire = require("../controllers/annuaireController");
 
 const router = express.Router();
-
 router.use(requireAuth);
-router.get("/overview", asyncHandler(departments.overview));
-router.get("/", asyncHandler(departments.list));
+router.get("/", asyncHandler(annuaire.list));
 
 module.exports = router;

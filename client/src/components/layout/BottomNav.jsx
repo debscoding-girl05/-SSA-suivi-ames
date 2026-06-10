@@ -6,7 +6,7 @@ import { visibleNavItems } from './navItems';
 // Mobile bottom tab bar (visible < md). Fixed at the bottom, 44px+ tap targets.
 export default function BottomNav() {
   const { user } = useAuth();
-  const items = visibleNavItems(user?.role);
+  const items = visibleNavItems(user?.role).filter((item) => item.mobile !== false);
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 backdrop-blur-md md:hidden">

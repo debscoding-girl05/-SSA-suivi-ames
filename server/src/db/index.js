@@ -1,53 +1,58 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const config = require("../config/env");
 
 /**
- * Database access layer.
+ * Database access layer (SSA v2 — dirigeants / assignés / rapports).
  *
  * Two interchangeable backends behind one interface:
  *  - Postgres (when DATABASE_URL is set) via `pg`.
- *  - An in-memory store (dev/demo fallback) when no DATABASE_URL is present,
- *    so the API boots and login works out of the box.
- *
- * Consumers use the high-level `users` / `roles` repositories rather than raw
- * SQL, which keeps both backends in sync.
+ *  - An in-memory store (dev/demo fallback) otherwise, so the API boots
+ *    and the demo works out of the box.
  */
 
 const isPostgres = Boolean(config.db.url);
-
 let pool = null;
 
-// --- In-memory store (dev fallback) --------------------------------------
+const newUuid = () => crypto.randomUUID();
+
+// --- In-memory store -------------------------------------------------------
 const memory = {
   roles: [
-    { id: 1, name: "admin", description: "Administrateur — accès complet" },
-    { id: 2, name: "leader", description: "Responsable / Leader" },
-    { id: 3, name: "volunteer", description: "Bénévole — saisie de terrain" },
+    { id: 1, name: "pasteur", description: "Pasteur (Daddy)" },
+    { id: 2, name: "pr", description: "Première Responsable" },
+    { id: 3, name: "leader", description: "Leader principal" },
+    { id: 4, name: "encadreur", description: "Encadreur / Sous-leader" },
+    { id: 5, name: "leader_cellule", description: "Leader de cellule" },
   ],
   departments: [
-    { id: 1, name: "Accueil", description: "Équipe d'accueil et intégration" },
-    { id: 2, name: "Louange", description: "Louange et musique" },
-    { id: 3, name: "Jeunesse", description: "Ministère des jeunes" },
-    { id: 4, name: "Intercession", description: "Groupe de prière et intercession" },
-    { id: 5, name: "Évangélisation", description: "Évangélisation et suivi des nouveaux" },
+    { id: 1, name: "Faiseurs de Disciples", description: "Intégration des nouveaux venus (7 leçons)" },
+    { id: 2, name: "Chorale", description: "Animation musicale des cultes" },
+    { id: 3, name: "Audiovisuel", description: "Captation et diffusion des services" },
+    { id: 4, name: "Protocole", description: "Protocole et accueil des fidèles" },
+    { id: 5, name: "Intercession / Prière", description: "Animation des temps de prière" },
+    { id: 6, name: "Évangélisation", description: "Témoignage et recrutement" },
+    { id: 7, name: "Ecodim", description: "École du dimanche" },
+    { id: 8, name: "Jeunes", description: "Animation et suivi des jeunes membres" },
+    { id: 9, name: "Femmes", description: "Encadrement du groupe des femmes" },
+    { id: 10, name: "Diaconesse", description: "Diaconat féminin et soutien pastoral" },
+    { id: 11, name: "Nettoyage / Logistique", description: "Nettoyage et gestion matérielle" },
+    { id: 12, name: "Sécurité Audiovisuelle", description: "Sécurité audiovisuelle et technique" },
+    { id: 13, name: "Suivi", description: "Intégration des nouveaux venus et suivi des 7 leçons" },
   ],
-  users: [], // populated by the seed script
-  members: [], // populated by the seed script
+  users: [], // comptes (dirigeants) — populated by seed
+  assignes: [],
+  rapports: [],
 };
 
-function newUuid() {
-  // Real UUID so the in-memory store matches the Postgres schema (UUID PKs)
-  // and the OpenAPI id (format: uuid).
-  return require("crypto").randomUUID();
-}
+// Rôles ayant une vue "administrative" globale (CDC : Pasteur + PR).
+const ADMIN_ROLES = ["pasteur", "pr"];
 
 // --- Postgres helpers ------------------------------------------------------
 function getPool() {
   if (!isPostgres) return null;
   if (pool) return pool;
-
-  // Lazy require so the `pg` dependency is only needed when actually used.
   const { Pool } = require("pg");
   pool = new Pool({
     connectionString: config.db.url,
@@ -58,20 +63,15 @@ function getPool() {
 
 async function query(text, params) {
   const p = getPool();
-  if (!p) {
-    throw new Error("query() called without a Postgres connection");
-  }
+  if (!p) throw new Error("query() called without a Postgres connection");
   return p.query(text, params);
 }
 
 // --- Lifecycle -------------------------------------------------------------
 let initialized = false;
 
-// Idempotent: safe to call multiple times (server boot + standalone seed).
 async function init() {
-  if (initialized) {
-    return { backend: isPostgres ? "postgres" : "memory" };
-  }
+  if (initialized) return { backend: isPostgres ? "postgres" : "memory" };
   if (!isPostgres) {
     initialized = true;
     return { backend: "memory" };
@@ -83,9 +83,7 @@ async function init() {
 }
 
 async function healthcheck() {
-  if (!isPostgres) {
-    return { backend: "memory", ok: true };
-  }
+  if (!isPostgres) return { backend: "memory", ok: true };
   try {
     await query("SELECT 1");
     return { backend: "postgres", ok: true };
@@ -101,7 +99,7 @@ async function close() {
   }
 }
 
-// --- Repositories ----------------------------------------------------------
+// --- Mappers ---------------------------------------------------------------
 function mapUserRow(row) {
   if (!row) return null;
   return {
@@ -109,111 +107,40 @@ function mapUserRow(row) {
     email: row.email,
     passwordHash: row.password_hash,
     fullName: row.full_name ?? null,
+    phone: row.phone ?? null,
     roleId: row.role_id,
     role: row.role ?? null,
+    departmentId: row.department_id ?? null,
+    departmentName: row.department_name ?? null,
     isActive: row.is_active,
     createdAt: row.created_at ?? null,
   };
 }
 
-const roles = {
-  async findByName(name) {
-    if (!isPostgres) {
-      return memory.roles.find((r) => r.name === name) || null;
-    }
-    const { rows } = await query("SELECT * FROM roles WHERE name = $1", [name]);
-    return rows[0] || null;
-  },
-};
-
-const users = {
-  async findByEmail(email) {
-    const normalized = String(email || "").trim().toLowerCase();
-    if (!isPostgres) {
-      const user = memory.users.find((u) => u.email === normalized);
-      if (!user) return null;
-      const role = memory.roles.find((r) => r.id === user.roleId);
-      return mapUserRow({ ...user, password_hash: user.passwordHash, full_name: user.fullName, role_id: user.roleId, is_active: user.isActive, role: role?.name });
-    }
-    const { rows } = await query(
-      `SELECT u.*, r.name AS role
-         FROM users u JOIN roles r ON r.id = u.role_id
-        WHERE u.email = $1`,
-      [normalized]
-    );
-    return mapUserRow(rows[0]);
-  },
-
-  async findById(id) {
-    if (!isPostgres) {
-      const user = memory.users.find((u) => u.id === id);
-      if (!user) return null;
-      const role = memory.roles.find((r) => r.id === user.roleId);
-      return mapUserRow({ ...user, password_hash: user.passwordHash, full_name: user.fullName, role_id: user.roleId, is_active: user.isActive, role: role?.name });
-    }
-    const { rows } = await query(
-      `SELECT u.*, r.name AS role
-         FROM users u JOIN roles r ON r.id = u.role_id
-        WHERE u.id = $1`,
-      [id]
-    );
-    return mapUserRow(rows[0]);
-  },
-
-  async create({ email, passwordHash, fullName, roleId }) {
-    const normalized = String(email).trim().toLowerCase();
-    if (!isPostgres) {
-      const user = {
-        id: newUuid(),
-        email: normalized,
-        passwordHash,
-        fullName: fullName ?? null,
-        roleId,
-        isActive: true,
-        createdAt: null,
-      };
-      memory.users.push(user);
-      return this.findById(user.id);
-    }
-    const { rows } = await query(
-      `INSERT INTO users (email, password_hash, full_name, role_id)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id`,
-      [normalized, passwordHash, fullName ?? null, roleId]
-    );
-    return this.findById(rows[0].id);
-  },
-};
-
-function mapDepartmentRow(row) {
-  if (!row) return null;
+function memUserToRow(u) {
+  const role = memory.roles.find((r) => r.id === u.roleId);
+  const dept = memory.departments.find((d) => d.id === u.departmentId);
   return {
-    id: row.id,
-    name: row.name,
-    description: row.description ?? null,
+    id: u.id,
+    email: u.email,
+    password_hash: u.passwordHash,
+    full_name: u.fullName,
+    phone: u.phone,
+    role_id: u.roleId,
+    role: role?.name,
+    department_id: u.departmentId,
+    department_name: dept?.name,
+    is_active: u.isActive,
+    created_at: u.createdAt,
   };
 }
 
-const departments = {
-  async list() {
-    if (!isPostgres) {
-      return memory.departments.map(mapDepartmentRow);
-    }
-    const { rows } = await query("SELECT * FROM departments ORDER BY name ASC");
-    return rows.map(mapDepartmentRow);
-  },
+function mapDepartmentRow(row) {
+  if (!row) return null;
+  return { id: row.id, name: row.name, description: row.description ?? null };
+}
 
-  async findById(id) {
-    const numId = Number(id);
-    if (!isPostgres) {
-      return mapDepartmentRow(memory.departments.find((d) => d.id === numId));
-    }
-    const { rows } = await query("SELECT * FROM departments WHERE id = $1", [numId]);
-    return mapDepartmentRow(rows[0]);
-  },
-};
-
-function mapMemberRow(row) {
+function mapAssigneRow(row) {
   if (!row) return null;
   return {
     id: row.id,
@@ -221,152 +148,449 @@ function mapMemberRow(row) {
     lastName: row.last_name,
     phone: row.phone ?? null,
     email: row.email ?? null,
-    departmentId: row.department_id ?? null,
-    departmentName: row.department_name ?? null,
-    status: row.status,
+    dirigeantId: row.dirigeant_id,
     notes: row.notes ?? null,
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
   };
 }
 
-const members = {
-  // Returns { data, total } with filtering (search/status/departmentId) + pagination.
-  async list({ search, status, departmentId, page = 1, limit = 20 } = {}) {
-    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
-    const safePage = Math.max(Number(page) || 1, 1);
-    const offset = (safePage - 1) * safeLimit;
+function mapRapportRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    dirigeantId: row.dirigeant_id,
+    dirigeantName: row.dirigeant_name ?? null,
+    departmentName: row.department_name ?? null,
+    year: row.year,
+    week: row.week,
+    presentCount: row.present_count,
+    absents: row.absents ?? null,
+    remarques: row.remarques ?? null,
+    status: row.status,
+    submittedAt: row.submitted_at ?? null,
+  };
+}
+
+// --- Reference repositories ------------------------------------------------
+const roles = {
+  async findByName(name) {
+    if (!isPostgres) return memory.roles.find((r) => r.name === name) || null;
+    const { rows } = await query("SELECT * FROM roles WHERE name = $1", [name]);
+    return rows[0] || null;
+  },
+};
+
+const departments = {
+  async list() {
+    if (!isPostgres) return memory.departments.map(mapDepartmentRow);
+    const { rows } = await query("SELECT * FROM departments ORDER BY name ASC");
+    return rows.map(mapDepartmentRow);
+  },
+  async findById(id) {
+    const numId = Number(id);
+    if (!isPostgres) return mapDepartmentRow(memory.departments.find((d) => d.id === numId));
+    const { rows } = await query("SELECT * FROM departments WHERE id = $1", [numId]);
+    return mapDepartmentRow(rows[0]);
+  },
+
+  // Per-department stats for { year, week }: dirigeant/assigné counts + submitted.
+  async listWithStats({ year, week } = {}) {
+    if (!isPostgres) {
+      return memory.departments
+        .map((dep) => {
+          const dirs = memory.users.filter((u) => {
+            const role = memory.roles.find((r) => r.id === u.roleId);
+            return role && !ADMIN_ROLES.includes(role.name) && u.departmentId === dep.id;
+          });
+          const dirIds = new Set(dirs.map((d) => d.id));
+          const assigneCount = memory.assignes.filter((a) => dirIds.has(a.dirigeantId)).length;
+          const soumis = dirs.filter((d) =>
+            memory.rapports.some(
+              (r) => r.dirigeantId === d.id && r.year === year && r.week === week && r.status === "soumis"
+            )
+          ).length;
+          return {
+            id: dep.id,
+            name: dep.name,
+            description: dep.description ?? null,
+            dirigeantCount: dirs.length,
+            assigneCount,
+            soumis,
+            total: dirs.length,
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+    }
+    const { rows } = await query(
+      `SELECT d.id, d.name, d.description,
+              (SELECT COUNT(*) FROM users u JOIN roles r ON r.id = u.role_id
+                 WHERE u.department_id = d.id AND r.name NOT IN ('pasteur','pr'))::int AS dirigeant_count,
+              (SELECT COUNT(*) FROM assignes a JOIN users u ON u.id = a.dirigeant_id
+                 WHERE u.department_id = d.id)::int AS assigne_count,
+              (SELECT COUNT(*) FROM users u JOIN roles r ON r.id = u.role_id
+                 JOIN rapports rep ON rep.dirigeant_id = u.id AND rep.year = $1 AND rep.week = $2 AND rep.status = 'soumis'
+                 WHERE u.department_id = d.id AND r.name NOT IN ('pasteur','pr'))::int AS soumis
+         FROM departments d
+        ORDER BY d.name ASC`,
+      [year, week]
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description ?? null,
+      dirigeantCount: row.dirigeant_count,
+      assigneCount: row.assigne_count,
+      soumis: row.soumis,
+      total: row.dirigeant_count,
+    }));
+  },
+};
+
+// --- Users (auth) ----------------------------------------------------------
+const users = {
+  async findByEmail(email) {
+    const normalized = String(email || "").trim().toLowerCase();
+    if (!isPostgres) {
+      const u = memory.users.find((x) => x.email === normalized);
+      return u ? mapUserRow(memUserToRow(u)) : null;
+    }
+    const { rows } = await query(
+      `SELECT u.*, r.name AS role, d.name AS department_name
+         FROM users u JOIN roles r ON r.id = u.role_id
+         LEFT JOIN departments d ON d.id = u.department_id
+        WHERE u.email = $1`,
+      [normalized]
+    );
+    return mapUserRow(rows[0]);
+  },
+
+  // Login identifier = email OR phone (CDC EF-02). Phone is matched on digits
+  // only, so "+237 6 99 11 22 33" and "+237699112233" are equivalent.
+  async findByIdentifier(identifier) {
+    const raw = String(identifier || "").trim();
+    const asEmail = raw.toLowerCase();
+    const digits = raw.replace(/\D/g, "");
+    const phoneLookup = digits.length >= 6 ? digits : null; // avoid matching emails
 
     if (!isPostgres) {
-      let rows = memory.members.slice();
-      if (status) rows = rows.filter((m) => m.status === status);
-      if (departmentId) rows = rows.filter((m) => m.departmentId === Number(departmentId));
-      if (search) {
-        const q = String(search).toLowerCase();
-        rows = rows.filter((m) =>
-          `${m.firstName} ${m.lastName} ${m.email || ""} ${m.phone || ""}`.toLowerCase().includes(q)
-        );
-      }
-      rows.sort((a, b) =>
-        `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, "fr")
+      const u = memory.users.find(
+        (x) =>
+          x.email === asEmail ||
+          (phoneLookup && x.phone && x.phone.replace(/\D/g, "") === phoneLookup)
       );
-      const total = rows.length;
-      const paged = rows.slice(offset, offset + safeLimit).map((m) => {
-        const dept = memory.departments.find((d) => d.id === m.departmentId);
-        return mapMemberRow({
-          ...m,
-          first_name: m.firstName,
-          last_name: m.lastName,
-          department_id: m.departmentId,
-          department_name: dept?.name,
-          created_at: m.createdAt,
-          updated_at: m.updatedAt,
-        });
-      });
-      return { data: paged, total };
+      return u ? mapUserRow(memUserToRow(u)) : null;
     }
 
-    const where = [];
-    const params = [];
-    if (status) {
-      params.push(status);
-      where.push(`m.status = $${params.length}`);
+    const clauses = ["u.email = $1"];
+    const params = [asEmail];
+    if (phoneLookup) {
+      params.push(phoneLookup);
+      clauses.push(`regexp_replace(COALESCE(u.phone,''), '\\D', '', 'g') = $${params.length}`);
+    }
+    const { rows } = await query(
+      `SELECT u.*, r.name AS role, d.name AS department_name
+         FROM users u JOIN roles r ON r.id = u.role_id
+         LEFT JOIN departments d ON d.id = u.department_id
+        WHERE ${clauses.join(" OR ")}`,
+      params
+    );
+    return mapUserRow(rows[0]);
+  },
+
+  async findById(id) {
+    if (!isPostgres) {
+      const u = memory.users.find((x) => x.id === id);
+      return u ? mapUserRow(memUserToRow(u)) : null;
+    }
+    const { rows } = await query(
+      `SELECT u.*, r.name AS role, d.name AS department_name
+         FROM users u JOIN roles r ON r.id = u.role_id
+         LEFT JOIN departments d ON d.id = u.department_id
+        WHERE u.id = $1`,
+      [id]
+    );
+    return mapUserRow(rows[0]);
+  },
+
+  async create({ email, passwordHash, fullName, phone, roleId, departmentId }) {
+    const normalized = String(email).trim().toLowerCase();
+    if (!isPostgres) {
+      const u = {
+        id: newUuid(),
+        email: normalized,
+        passwordHash,
+        fullName: fullName ?? null,
+        phone: phone ?? null,
+        roleId,
+        departmentId: departmentId ?? null,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+      memory.users.push(u);
+      return this.findById(u.id);
+    }
+    const { rows } = await query(
+      `INSERT INTO users (email, password_hash, full_name, phone, role_id, department_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [normalized, passwordHash, fullName ?? null, phone ?? null, roleId, departmentId ?? null]
+    );
+    return this.findById(rows[0].id);
+  },
+};
+
+// --- Dirigeants (users with role leader/encadreur, + aggregates) -----------
+const dirigeants = {
+  // List dirigeants (leaders/encadreurs/cell leaders — never Pasteur/PR) with
+  // department, assigné count, and report status for { year, week }.
+  // `scope` enforces RBAC visibility: { departmentId } (leader) or { selfId }.
+  async list({ search, departmentId, year, week, scope } = {}) {
+    if (!isPostgres) {
+      let rows = memory.users.filter((u) => {
+        const role = memory.roles.find((r) => r.id === u.roleId);
+        return role && !ADMIN_ROLES.includes(role.name);
+      });
+      if (scope?.selfId) rows = rows.filter((u) => u.id === scope.selfId);
+      if (scope?.departmentId) rows = rows.filter((u) => u.departmentId === scope.departmentId);
+      if (departmentId) rows = rows.filter((u) => u.departmentId === Number(departmentId));
+      if (search) {
+        const q = String(search).toLowerCase();
+        rows = rows.filter((u) =>
+          `${u.fullName || ""} ${u.email}`.toLowerCase().includes(q)
+        );
+      }
+      const mapped = rows.map((u) => {
+        const base = mapUserRow(memUserToRow(u));
+        const assigneCount = memory.assignes.filter((a) => a.dirigeantId === u.id).length;
+        const rep = memory.rapports.find(
+          (r) => r.dirigeantId === u.id && r.year === year && r.week === week
+        );
+        return {
+          id: base.id,
+          fullName: base.fullName,
+          email: base.email,
+          phone: base.phone,
+          role: base.role,
+          departmentId: base.departmentId,
+          departmentName: base.departmentName,
+          assigneCount,
+          reportStatus: rep ? rep.status : null,
+        };
+      });
+      mapped.sort((a, b) => String(a.fullName).localeCompare(String(b.fullName), "fr"));
+      return mapped;
+    }
+
+    const params = [year, week];
+    const where = ["r.name NOT IN ('pasteur','pr')"];
+    if (scope?.selfId) {
+      params.push(scope.selfId);
+      where.push(`u.id = $${params.length}`);
+    }
+    if (scope?.departmentId) {
+      params.push(scope.departmentId);
+      where.push(`u.department_id = $${params.length}`);
     }
     if (departmentId) {
       params.push(Number(departmentId));
-      where.push(`m.department_id = $${params.length}`);
+      where.push(`u.department_id = $${params.length}`);
+    }
+    if (search) {
+      params.push(`%${String(search).toLowerCase()}%`);
+      where.push(`(LOWER(COALESCE(u.full_name,'')) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length})`);
+    }
+    const { rows } = await query(
+      `SELECT u.id, u.full_name, u.email, u.phone, u.department_id,
+              r.name AS role, d.name AS department_name,
+              (SELECT COUNT(*) FROM assignes a WHERE a.dirigeant_id = u.id)::int AS assigne_count,
+              rep.status AS report_status
+         FROM users u
+         JOIN roles r ON r.id = u.role_id
+         LEFT JOIN departments d ON d.id = u.department_id
+         LEFT JOIN rapports rep ON rep.dirigeant_id = u.id AND rep.year = $1 AND rep.week = $2
+        WHERE ${where.join(" AND ")}
+        ORDER BY u.full_name ASC`,
+      params
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      fullName: row.full_name,
+      email: row.email,
+      phone: row.phone,
+      role: row.role,
+      departmentId: row.department_id,
+      departmentName: row.department_name,
+      assigneCount: row.assigne_count,
+      reportStatus: row.report_status ?? null,
+    }));
+  },
+
+  // Detail = the user record (reuse users.findById).
+  findById(id) {
+    return users.findById(id);
+  },
+
+  async update(id, fields) {
+    const allowed = {
+      fullName: "full_name",
+      phone: "phone",
+      departmentId: "department_id",
+    };
+    if (!isPostgres) {
+      const u = memory.users.find((x) => x.id === id);
+      if (!u) return null;
+      for (const key of Object.keys(allowed)) {
+        if (fields[key] !== undefined) u[key] = fields[key];
+      }
+      return users.findById(id);
+    }
+    const sets = [];
+    const params = [];
+    for (const [key, column] of Object.entries(allowed)) {
+      if (fields[key] !== undefined) {
+        params.push(fields[key]);
+        sets.push(`${column} = $${params.length}`);
+      }
+    }
+    if (!sets.length) return users.findById(id);
+    sets.push("updated_at = now()");
+    params.push(id);
+    const { rowCount } = await query(`UPDATE users SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
+    if (!rowCount) return null;
+    return users.findById(id);
+  },
+};
+
+// --- Assignés (rattachés à un dirigeant) -----------------------------------
+const assignes = {
+  // Global directory (annuaire) of assignés, enriched with dirigeant + department.
+  // `scope`: { dirigeantId } (encadreur — own) or { departmentId } (leader).
+  async listAll({ search, departmentId, scope } = {}) {
+    if (!isPostgres) {
+      let rows = memory.assignes.map((a) => {
+        const dir = memory.users.find((u) => u.id === a.dirigeantId);
+        const dept = dir && memory.departments.find((d) => d.id === dir.departmentId);
+        return {
+          ...mapAssigneRow({
+            ...a, first_name: a.firstName, last_name: a.lastName,
+            dirigeant_id: a.dirigeantId, created_at: a.createdAt, updated_at: a.updatedAt,
+          }),
+          dirigeantName: dir?.fullName ?? null,
+          departmentId: dir?.departmentId ?? null,
+          departmentName: dept?.name ?? null,
+        };
+      });
+      if (scope?.dirigeantId) rows = rows.filter((r) => r.dirigeantId === scope.dirigeantId);
+      if (scope?.departmentId) rows = rows.filter((r) => r.departmentId === scope.departmentId);
+      if (departmentId) rows = rows.filter((r) => r.departmentId === Number(departmentId));
+      if (search) {
+        const q = String(search).toLowerCase();
+        rows = rows.filter((r) =>
+          `${r.firstName} ${r.lastName} ${r.phone || ""} ${r.email || ""}`.toLowerCase().includes(q)
+        );
+      }
+      return rows.sort((a, b) =>
+        `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, "fr")
+      );
+    }
+
+    const params = [];
+    const where = [];
+    if (scope?.dirigeantId) {
+      params.push(scope.dirigeantId);
+      where.push(`a.dirigeant_id = $${params.length}`);
+    }
+    if (scope?.departmentId) {
+      params.push(scope.departmentId);
+      where.push(`u.department_id = $${params.length}`);
+    }
+    if (departmentId) {
+      params.push(Number(departmentId));
+      where.push(`u.department_id = $${params.length}`);
     }
     if (search) {
       params.push(`%${String(search).toLowerCase()}%`);
       const i = params.length;
       where.push(
-        `(LOWER(m.first_name) LIKE $${i} OR LOWER(m.last_name) LIKE $${i} OR LOWER(COALESCE(m.email,'')) LIKE $${i} OR LOWER(COALESCE(m.phone,'')) LIKE $${i})`
+        `(LOWER(a.first_name) LIKE $${i} OR LOWER(a.last_name) LIKE $${i} OR LOWER(COALESCE(a.phone,'')) LIKE $${i} OR LOWER(COALESCE(a.email,'')) LIKE $${i})`
       );
     }
-    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
-    const countRes = await query(`SELECT COUNT(*)::int AS total FROM members m ${whereSql}`, params);
-    const total = countRes.rows[0].total;
-
-    params.push(safeLimit, offset);
     const { rows } = await query(
-      `SELECT m.*, d.name AS department_name
-         FROM members m LEFT JOIN departments d ON d.id = m.department_id
-         ${whereSql}
-        ORDER BY m.last_name ASC, m.first_name ASC
-        LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      `SELECT a.*, u.full_name AS dirigeant_name, u.department_id, d.name AS department_name
+         FROM assignes a
+         JOIN users u ON u.id = a.dirigeant_id
+         LEFT JOIN departments d ON d.id = u.department_id
+         ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+        ORDER BY a.last_name ASC, a.first_name ASC`,
       params
     );
-    return { data: rows.map(mapMemberRow), total };
+    return rows.map((r) => ({
+      ...mapAssigneRow(r),
+      dirigeantName: r.dirigeant_name ?? null,
+      departmentId: r.department_id ?? null,
+      departmentName: r.department_name ?? null,
+    }));
+  },
+
+  async listByDirigeant(dirigeantId) {
+    if (!isPostgres) {
+      return memory.assignes
+        .filter((a) => a.dirigeantId === dirigeantId)
+        .map((a) => mapAssigneRow({
+          ...a, first_name: a.firstName, last_name: a.lastName,
+          dirigeant_id: a.dirigeantId, created_at: a.createdAt, updated_at: a.updatedAt,
+        }))
+        .sort((x, y) => `${x.lastName} ${x.firstName}`.localeCompare(`${y.lastName} ${y.firstName}`, "fr"));
+    }
+    const { rows } = await query(
+      `SELECT * FROM assignes WHERE dirigeant_id = $1 ORDER BY last_name ASC, first_name ASC`,
+      [dirigeantId]
+    );
+    return rows.map(mapAssigneRow);
   },
 
   async findById(id) {
     if (!isPostgres) {
-      const m = memory.members.find((x) => x.id === id);
-      if (!m) return null;
-      const dept = memory.departments.find((d) => d.id === m.departmentId);
-      return mapMemberRow({
-        ...m,
-        first_name: m.firstName,
-        last_name: m.lastName,
-        department_id: m.departmentId,
-        department_name: dept?.name,
-        created_at: m.createdAt,
-        updated_at: m.updatedAt,
-      });
+      const a = memory.assignes.find((x) => x.id === id);
+      return a ? mapAssigneRow({
+        ...a, first_name: a.firstName, last_name: a.lastName,
+        dirigeant_id: a.dirigeantId, created_at: a.createdAt, updated_at: a.updatedAt,
+      }) : null;
     }
-    const { rows } = await query(
-      `SELECT m.*, d.name AS department_name
-         FROM members m LEFT JOIN departments d ON d.id = m.department_id
-        WHERE m.id = $1`,
-      [id]
-    );
-    return mapMemberRow(rows[0]);
+    const { rows } = await query("SELECT * FROM assignes WHERE id = $1", [id]);
+    return mapAssigneRow(rows[0]);
   },
 
-  async create({ firstName, lastName, phone, email, departmentId, status, notes }) {
+  async create({ firstName, lastName, phone, email, dirigeantId, notes }) {
     if (!isPostgres) {
-      const member = {
-        id: newUuid(),
-        firstName,
-        lastName,
-        phone: phone ?? null,
-        email: email ?? null,
-        departmentId: departmentId ?? null,
-        status: status || "nouveau",
-        notes: notes ?? null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      const a = {
+        id: newUuid(), firstName, lastName, phone: phone ?? null, email: email ?? null,
+        dirigeantId, notes: notes ?? null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
-      memory.members.push(member);
-      return this.findById(member.id);
+      memory.assignes.push(a);
+      return this.findById(a.id);
     }
     const { rows } = await query(
-      `INSERT INTO members (first_name, last_name, phone, email, department_id, status, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [firstName, lastName, phone ?? null, email ?? null, departmentId ?? null, status || "nouveau", notes ?? null]
+      `INSERT INTO assignes (first_name, last_name, phone, email, dirigeant_id, notes)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [firstName, lastName, phone ?? null, email ?? null, dirigeantId, notes ?? null]
     );
     return this.findById(rows[0].id);
   },
 
   async update(id, fields) {
     const allowed = {
-      firstName: "first_name",
-      lastName: "last_name",
-      phone: "phone",
-      email: "email",
-      departmentId: "department_id",
-      status: "status",
-      notes: "notes",
+      firstName: "first_name", lastName: "last_name",
+      phone: "phone", email: "email", notes: "notes",
     };
-
     if (!isPostgres) {
-      const member = memory.members.find((x) => x.id === id);
-      if (!member) return null;
+      const a = memory.assignes.find((x) => x.id === id);
+      if (!a) return null;
       for (const key of Object.keys(allowed)) {
-        if (fields[key] !== undefined) member[key] = fields[key];
+        if (fields[key] !== undefined) a[key] = fields[key];
       }
-      member.updatedAt = new Date().toISOString();
+      a.updatedAt = new Date().toISOString();
       return this.findById(id);
     }
     const sets = [];
@@ -380,23 +604,113 @@ const members = {
     if (!sets.length) return this.findById(id);
     sets.push("updated_at = now()");
     params.push(id);
-    const { rowCount } = await query(
-      `UPDATE members SET ${sets.join(", ")} WHERE id = $${params.length}`,
-      params
-    );
+    const { rowCount } = await query(`UPDATE assignes SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
     if (!rowCount) return null;
     return this.findById(id);
   },
 
   async remove(id) {
     if (!isPostgres) {
-      const idx = memory.members.findIndex((x) => x.id === id);
-      if (idx === -1) return false;
-      memory.members.splice(idx, 1);
+      const i = memory.assignes.findIndex((x) => x.id === id);
+      if (i === -1) return false;
+      memory.assignes.splice(i, 1);
       return true;
     }
-    const { rowCount } = await query("DELETE FROM members WHERE id = $1", [id]);
+    const { rowCount } = await query("DELETE FROM assignes WHERE id = $1", [id]);
     return rowCount > 0;
+  },
+};
+
+// --- Rapports hebdomadaires ------------------------------------------------
+const rapports = {
+  async findByDirigeantWeek(dirigeantId, year, week) {
+    if (!isPostgres) {
+      const r = memory.rapports.find(
+        (x) => x.dirigeantId === dirigeantId && x.year === year && x.week === week
+      );
+      return r ? mapRapportRow({
+        ...r, dirigeant_id: r.dirigeantId, present_count: r.presentCount, submitted_at: r.submittedAt,
+      }) : null;
+    }
+    const { rows } = await query(
+      "SELECT * FROM rapports WHERE dirigeant_id = $1 AND year = $2 AND week = $3",
+      [dirigeantId, year, week]
+    );
+    return mapRapportRow(rows[0]);
+  },
+
+  async listByDirigeant(dirigeantId) {
+    if (!isPostgres) {
+      return memory.rapports
+        .filter((r) => r.dirigeantId === dirigeantId)
+        .map((r) => mapRapportRow({ ...r, dirigeant_id: r.dirigeantId, present_count: r.presentCount, submitted_at: r.submittedAt }))
+        .sort((a, b) => b.year - a.year || b.week - a.week);
+    }
+    const { rows } = await query(
+      "SELECT * FROM rapports WHERE dirigeant_id = $1 ORDER BY year DESC, week DESC",
+      [dirigeantId]
+    );
+    return rows.map(mapRapportRow);
+  },
+
+  // Create or update the report for a dirigeant + week (upsert), marking it submitted.
+  async submit({ dirigeantId, year, week, presentCount, absents, remarques }) {
+    const submittedAt = new Date().toISOString();
+    if (!isPostgres) {
+      let r = memory.rapports.find(
+        (x) => x.dirigeantId === dirigeantId && x.year === year && x.week === week
+      );
+      if (!r) {
+        r = { id: newUuid(), dirigeantId, year, week };
+        memory.rapports.push(r);
+      }
+      Object.assign(r, {
+        presentCount: presentCount ?? 0,
+        absents: absents ?? null,
+        remarques: remarques ?? null,
+        status: "soumis",
+        submittedAt,
+      });
+      return this.findByDirigeantWeek(dirigeantId, year, week);
+    }
+    const { rows } = await query(
+      `INSERT INTO rapports (dirigeant_id, year, week, present_count, absents, remarques, status, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'soumis', now())
+       ON CONFLICT (dirigeant_id, year, week)
+       DO UPDATE SET present_count = EXCLUDED.present_count, absents = EXCLUDED.absents,
+                     remarques = EXCLUDED.remarques, status = 'soumis',
+                     submitted_at = now(), updated_at = now()
+       RETURNING id`,
+      [dirigeantId, year, week, presentCount ?? 0, absents ?? null, remarques ?? null]
+    );
+    const { rows: full } = await query("SELECT * FROM rapports WHERE id = $1", [rows[0].id]);
+    return mapRapportRow(full[0]);
+  },
+
+  // All submitted reports for a given week (joined with dirigeant + department).
+  async listByWeek(year, week) {
+    if (!isPostgres) {
+      return memory.rapports
+        .filter((r) => r.year === year && r.week === week)
+        .map((r) => {
+          const u = memory.users.find((x) => x.id === r.dirigeantId);
+          const dept = u && memory.departments.find((d) => d.id === u.departmentId);
+          return mapRapportRow({
+            ...r, dirigeant_id: r.dirigeantId, present_count: r.presentCount, submitted_at: r.submittedAt,
+            dirigeant_name: u?.fullName, department_name: dept?.name,
+          });
+        });
+    }
+    const { rows } = await query(
+      `SELECT rep.*, u.full_name AS dirigeant_name, d.name AS department_name
+         FROM rapports rep
+         JOIN users u ON u.id = rep.dirigeant_id
+         LEFT JOIN departments d ON d.id = u.department_id
+        WHERE rep.year = $1 AND rep.week = $2
+        ORDER BY u.full_name ASC`,
+      [year, week]
+    );
+    return rows.map(mapRapportRow);
   },
 };
 
@@ -407,9 +721,11 @@ module.exports = {
   healthcheck,
   close,
   roles,
-  users,
   departments,
-  members,
-  // Exposed for the seed script's idempotency checks in memory mode.
+  users,
+  dirigeants,
+  assignes,
+  rapports,
+  ADMIN_ROLES,
   _memory: memory,
 };

@@ -1,9 +1,9 @@
 import { request } from './client';
 
-export function login(email, password) {
+export function login(identifier, password) {
   return request('/api/auth/login', {
     method: 'POST',
-    body: { email, password },
+    body: { identifier, password },
     auth: false,
   });
 }
