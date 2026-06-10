@@ -88,6 +88,28 @@ CREATE TABLE IF NOT EXISTS presences (
 
 CREATE INDEX IF NOT EXISTS idx_presences_rapport ON presences (rapport_id);
 
+-- Rapports (documents) : synthèses narratives qui remontent leader → PR → Pasteur.
+-- Distinct des fiches de présence ; contenu libre (ou agrégé), exportable PDF.
+CREATE TABLE IF NOT EXISTS reports (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  author_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  level          TEXT NOT NULL DEFAULT 'departement'
+                 CHECK (level IN ('departement', 'synthese')),
+  department_id  INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+  title          TEXT NOT NULL,
+  content        TEXT NOT NULL DEFAULT '',
+  year           INTEGER NOT NULL,
+  week           INTEGER NOT NULL,
+  status         TEXT NOT NULL DEFAULT 'brouillon'
+                 CHECK (status IN ('brouillon', 'transmis')),
+  transmitted_at TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reports_author ON reports (author_id);
+CREATE INDEX IF NOT EXISTS idx_reports_week ON reports (year, week);
+
 -- Rôles (hiérarchie pastorale — CDC v1.1 §3.1 / Annexe D, idempotent).
 INSERT INTO roles (name, description) VALUES
   ('pasteur',        'Pasteur (Daddy) — super administrateur, lecture de tout'),

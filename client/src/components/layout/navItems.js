@@ -1,14 +1,15 @@
-import { Home, Users, Building2, BookUser, FileText, User } from 'lucide-react';
+import { Home, Users, Building2, BookUser, ClipboardCheck, FileText, User } from 'lucide-react';
 
 // Single source of truth for navigation (sidebar + bottom nav).
 // `roles` (optional) restricts visibility; `mobile: false` hides from the
 // mobile bottom bar (kept in the desktop sidebar only).
 export const NAV_ITEMS = [
   { to: '/dashboard', label: 'Accueil', icon: Home },
-  { to: '/dirigeants', label: 'Dirigeants', icon: Users },
+  { to: '/dirigeants', label: 'Dirigeants', icon: Users, mobile: false },
   { to: '/departements', label: 'Départements', icon: Building2, mobile: false },
   { to: '/annuaire', label: 'Annuaire', icon: BookUser },
-  { to: '/rapports', label: 'Rapports', icon: FileText },
+  { to: '/fiches', label: 'Fiches', icon: ClipboardCheck },
+  { to: '/rapports', label: 'Rapports', icon: FileText, roles: ['leader', 'pr', 'pasteur'] },
   { to: '/profile', label: 'Profil', icon: User },
 ];
 

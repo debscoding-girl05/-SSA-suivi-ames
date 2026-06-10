@@ -45,6 +45,7 @@ const memory = {
   assignes: [],
   rapports: [],
   presences: [],
+  reports: [],
 };
 
 // Rôles ayant une vue "administrative" globale (CDC : Pasteur + PR).
@@ -808,6 +809,149 @@ const rapports = {
   },
 };
 
+// --- Rapports-documents (synthèses narratives, Module 6) -------------------
+function mapReportRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    authorId: row.author_id,
+    authorName: row.author_name ?? null,
+    level: row.level,
+    departmentId: row.department_id ?? null,
+    departmentName: row.department_name ?? null,
+    title: row.title,
+    content: row.content ?? "",
+    year: row.year,
+    week: row.week,
+    status: row.status,
+    transmittedAt: row.transmitted_at ?? null,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? null,
+  };
+}
+
+function memReportToRow(r) {
+  const author = memory.users.find((u) => u.id === r.authorId);
+  const dept = memory.departments.find((d) => d.id === r.departmentId);
+  return {
+    ...r,
+    author_id: r.authorId,
+    author_name: author?.fullName ?? null,
+    department_id: r.departmentId,
+    department_name: dept?.name ?? null,
+    transmitted_at: r.transmittedAt,
+    created_at: r.createdAt,
+    updated_at: r.updatedAt,
+  };
+}
+
+const reports = {
+  // scope: undefined (PR/Pasteur → tout) | { departmentId } (leader → son dépt).
+  async list({ scope } = {}) {
+    if (!isPostgres) {
+      let rows = memory.reports.slice();
+      if (scope?.departmentId != null) rows = rows.filter((r) => r.departmentId === scope.departmentId);
+      return rows
+        .map(memReportToRow)
+        .map(mapReportRow)
+        .sort((a, b) => b.year - a.year || b.week - a.week || (b.createdAt || "").localeCompare(a.createdAt || ""));
+    }
+    const params = [];
+    let where = "";
+    if (scope?.departmentId != null) {
+      params.push(scope.departmentId);
+      where = `WHERE r.department_id = $${params.length}`;
+    }
+    const { rows } = await query(
+      `SELECT r.*, u.full_name AS author_name, d.name AS department_name
+         FROM reports r
+         JOIN users u ON u.id = r.author_id
+         LEFT JOIN departments d ON d.id = r.department_id
+         ${where}
+        ORDER BY r.year DESC, r.week DESC, r.created_at DESC`,
+      params
+    );
+    return rows.map(mapReportRow);
+  },
+
+  async findById(id) {
+    if (!isPostgres) {
+      const r = memory.reports.find((x) => x.id === id);
+      return r ? mapReportRow(memReportToRow(r)) : null;
+    }
+    const { rows } = await query(
+      `SELECT r.*, u.full_name AS author_name, d.name AS department_name
+         FROM reports r JOIN users u ON u.id = r.author_id
+         LEFT JOIN departments d ON d.id = r.department_id
+        WHERE r.id = $1`,
+      [id]
+    );
+    return mapReportRow(rows[0]);
+  },
+
+  async create({ authorId, level, departmentId, title, content, year, week }) {
+    if (!isPostgres) {
+      const r = {
+        id: newUuid(), authorId, level, departmentId: departmentId ?? null,
+        title, content: content ?? "", year, week, status: "brouillon",
+        transmittedAt: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      };
+      memory.reports.push(r);
+      return this.findById(r.id);
+    }
+    const { rows } = await query(
+      `INSERT INTO reports (author_id, level, department_id, title, content, year, week)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [authorId, level, departmentId ?? null, title, content ?? "", year, week]
+    );
+    return this.findById(rows[0].id);
+  },
+
+  async update(id, { title, content }) {
+    if (!isPostgres) {
+      const r = memory.reports.find((x) => x.id === id);
+      if (!r) return null;
+      if (title !== undefined) r.title = title;
+      if (content !== undefined) r.content = content;
+      r.updatedAt = new Date().toISOString();
+      return this.findById(id);
+    }
+    const sets = [];
+    const params = [];
+    if (title !== undefined) { params.push(title); sets.push(`title = $${params.length}`); }
+    if (content !== undefined) { params.push(content); sets.push(`content = $${params.length}`); }
+    if (!sets.length) return this.findById(id);
+    sets.push("updated_at = now()");
+    params.push(id);
+    await query(`UPDATE reports SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
+    return this.findById(id);
+  },
+
+  async transmit(id) {
+    if (!isPostgres) {
+      const r = memory.reports.find((x) => x.id === id);
+      if (!r) return null;
+      r.status = "transmis";
+      r.transmittedAt = new Date().toISOString();
+      r.updatedAt = r.transmittedAt;
+      return this.findById(id);
+    }
+    await query("UPDATE reports SET status = 'transmis', transmitted_at = now(), updated_at = now() WHERE id = $1", [id]);
+    return this.findById(id);
+  },
+
+  async remove(id) {
+    if (!isPostgres) {
+      const i = memory.reports.findIndex((x) => x.id === id);
+      if (i === -1) return false;
+      memory.reports.splice(i, 1);
+      return true;
+    }
+    const { rowCount } = await query("DELETE FROM reports WHERE id = $1", [id]);
+    return rowCount > 0;
+  },
+};
+
 module.exports = {
   isPostgres,
   query,
@@ -820,6 +964,7 @@ module.exports = {
   dirigeants,
   assignes,
   rapports,
+  reports,
   ADMIN_ROLES,
   _memory: memory,
 };
