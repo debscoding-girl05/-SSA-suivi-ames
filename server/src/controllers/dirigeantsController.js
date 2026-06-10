@@ -43,9 +43,10 @@ async function getOne(req, res) {
   if (!dirigeant || isAdmin(dirigeant.role)) throw ApiError.notFound("Dirigeant introuvable");
   if (!canView(req.user, dirigeant)) throw ApiError.notFound("Dirigeant introuvable");
 
-  const [assignes, rapports] = await Promise.all([
+  const [assignes, fiches, reports] = await Promise.all([
     db.assignes.listByDirigeant(dirigeant.id),
-    db.rapports.listByDirigeant(dirigeant.id),
+    db.rapports.listByDirigeant(dirigeant.id), // fiches de présence (historique)
+    db.reports.listByAuthor(dirigeant.id), // rapports hebdomadaires (documents)
   ]);
 
   res.json({
@@ -59,7 +60,8 @@ async function getOne(req, res) {
       departmentName: dirigeant.departmentName,
     },
     assignes,
-    rapports,
+    fiches,
+    reports,
   });
 }
 

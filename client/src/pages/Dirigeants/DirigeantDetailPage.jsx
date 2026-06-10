@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Pencil, Trash2, Phone, Mail, Users, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Phone, Mail, Users, FileText, ClipboardCheck, ChevronRight } from 'lucide-react';
 import { getDirigeant, deleteAssigne } from '../../api/dirigeants';
 import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import AssigneForm from './AssigneForm';
+import ReportView from '../Reports/ReportView';
+import ReportStatusBadge from '../../components/ReportStatusBadge';
 import { Avatar } from '@/components/ui/avatar';
 import { roleLabel, isAdminRole } from '@/lib/roles';
 
@@ -20,6 +22,7 @@ export default function DirigeantDetailPage() {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [viewReport, setViewReport] = useState(null);
 
   // Mirrors backend: Pasteur/PR, the dirigeant himself, or a leader of the
   // same department may edit assignés.
@@ -137,26 +140,59 @@ export default function DirigeantDetailPage() {
             )}
           </div>
 
-          {/* Historique des rapports */}
+          {/* Fiches de présence (hebdomadaires) */}
           <div className="flex flex-col gap-3">
             <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <FileText className="size-4" /> Rapports ({data.rapports.length})
+              <ClipboardCheck className="size-4" /> Fiches de présence ({data.fiches.length})
             </h2>
-            {data.rapports.length === 0 ? (
+            {data.fiches.length === 0 ? (
               <p className="rounded-xl border border-dashed border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-                Aucun rapport soumis pour le moment.
+                Aucune fiche de présence pour le moment.
               </p>
             ) : (
-              <ul className="overflow-hidden rounded-xl border border-border bg-card">
-                {data.rapports.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-0">
-                    <div>
-                      <p className="text-sm font-medium">Semaine {r.week} · {r.year}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {r.presentCount} présent{r.presentCount > 1 ? 's' : ''}{r.remarques ? ` · ${r.remarques}` : ''}
+              <ul className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+                {data.fiches.map((f) => (
+                  <li key={f.id} className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-0">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Semaine {f.week} · {f.year}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {f.presentCount} présent{f.presentCount > 1 ? 's' : ''}{f.remarques ? ` · ${f.remarques}` : ''}
                       </p>
                     </div>
-                    <span className="shrink-0 rounded-md bg-success px-2 py-0.5 text-xs font-medium text-success-foreground">Soumis</span>
+                    <ReportStatusBadge status={f.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Rapports hebdomadaires (documents) */}
+          <div className="flex flex-col gap-3">
+            <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <FileText className="size-4" /> Rapports hebdomadaires ({data.reports.length})
+            </h2>
+            {data.reports.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+                Aucun rapport rédigé pour le moment.
+              </p>
+            ) : (
+              <ul className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+                {data.reports.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      onClick={() => setViewReport(r)}
+                      className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors last:border-0 hover:bg-muted/50"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{r.title}</p>
+                        <p className="text-xs text-muted-foreground">Semaine {r.week} · {r.year}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${r.status === 'transmis' ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'}`}>
+                        {r.status === 'transmis' ? 'Transmis' : 'Brouillon'}
+                      </span>
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -167,6 +203,10 @@ export default function DirigeantDetailPage() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Modifier l’assigné' : 'Ajouter un assigné'}>
         <AssigneForm dirigeantId={id} assigne={editing} onSaved={handleSaved} onCancel={() => setModalOpen(false)} />
+      </Modal>
+
+      <Modal open={Boolean(viewReport)} onClose={() => setViewReport(null)} title={viewReport?.title || 'Rapport'}>
+        {viewReport && <ReportView report={viewReport} canEdit={false} />}
       </Modal>
     </div>
   );

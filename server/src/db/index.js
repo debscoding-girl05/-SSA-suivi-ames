@@ -874,6 +874,25 @@ const reports = {
     return rows.map(mapReportRow);
   },
 
+  async listByAuthor(authorId) {
+    if (!isPostgres) {
+      return memory.reports
+        .filter((r) => r.authorId === authorId)
+        .map(memReportToRow)
+        .map(mapReportRow)
+        .sort((a, b) => b.year - a.year || b.week - a.week);
+    }
+    const { rows } = await query(
+      `SELECT r.*, u.full_name AS author_name, d.name AS department_name
+         FROM reports r JOIN users u ON u.id = r.author_id
+         LEFT JOIN departments d ON d.id = r.department_id
+        WHERE r.author_id = $1
+        ORDER BY r.year DESC, r.week DESC`,
+      [authorId]
+    );
+    return rows.map(mapReportRow);
+  },
+
   async findById(id) {
     if (!isPostgres) {
       const r = memory.reports.find((x) => x.id === id);

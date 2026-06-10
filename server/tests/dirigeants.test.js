@@ -153,7 +153,7 @@ test("5. GET /api/dirigeants?departmentId=<Chorale> (pasteur) → 3 (Marie, Jean
 });
 
 // --- 6. Detail (pasteur) ---------------------------------------------------
-test("6. GET /api/dirigeants/:id (Marie, pasteur) → { dirigeant, assignes[], rapports[] }", async () => {
+test("6. GET /api/dirigeants/:id (Marie, pasteur) → { dirigeant, assignes[], fiches[], reports[] }", async () => {
   const token = await pasteurToken();
   const marie = await findDirigeantByEmail(token, "leader@ssa.app");
   const { status, body } = await api("GET", `/api/dirigeants/${marie.id}`, token);
@@ -161,7 +161,8 @@ test("6. GET /api/dirigeants/:id (Marie, pasteur) → { dirigeant, assignes[], r
   assert.ok(body.dirigeant, "has dirigeant");
   assert.equal(body.dirigeant.fullName, "Marie Nkolo");
   assert.ok(Array.isArray(body.assignes), "assignes is an array");
-  assert.ok(Array.isArray(body.rapports), "rapports is an array");
+  assert.ok(Array.isArray(body.fiches), "fiches is an array");
+  assert.ok(Array.isArray(body.reports), "reports is an array");
   assert.ok(body.assignes.length > 0, "Marie should have non-empty assignes");
 });
 
