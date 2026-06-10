@@ -1,0 +1,64 @@
+/*
+  SSA — Design System Tokens
+  Palette claire inspirée du design system fourni (primaire #2277db).
+  Les variables brutes sont définies ici ; le mapping Tailwind (@theme)
+  se trouve dans index.css.
+*/
+
+:root {
+  --neutral: #f8f7fb;
+  --neutral-foreground: #46474a;
+  --neutral-foreground-light: #76777a;
+
+  --background: #ffffff;
+  --foreground: #051323;
+
+  --card: #ffffff;
+  --card-foreground: #09090b;
+
+  --popover: #ffffff;
+  --popover-foreground: #09090b;
+
+  --primary: #534ab7; /* violet — spec SSA */
+  --primary-dark: #3c3489;
+  --primary-mid-dark: #cecbf6;
+  --primary-transparent: #eeedfe;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f4f4f5;
+  --secondary-foreground: #5d5e61;
+
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+
+  --accent: #f1f5ff;
+  --accent-foreground: #18181b;
+
+  --success: #e1f5ee; /* teal-50 */
+  --success-foreground: #085041;
+  --success-foreground-light: #1d9e75;
+
+  --warning: #faeeda; /* amber-50 */
+  --warning-foreground: #633806;
+  --warning-foreground-light: #ef9f27;
+
+  --destructive: #fcebeb; /* red-50 */
+  --destructive-foreground: #791f1f;
+  --destructive-dark: #e24b4a;
+
+  --border: #e9e8f1;
+  --input: #ffffff;
+  --ring: #534ab7;
+
+  /* Surface (fond d'application) */
+  --surface: #f5f4fb;
+
+  --radius: 0.875rem;
+
+  /* Dégradé de marque + échelle d'ombres douces (profondeur) */
+  --gradient-primary: linear-gradient(135deg, #7a72e3 0%, #534ab7 55%, #3c3489 100%);
+  --shadow-card: 0 1px 2px rgba(20, 14, 54, 0.06);
+  --shadow-soft: 0 6px 18px -6px rgba(20, 14, 54, 0.12), 0 2px 6px -2px rgba(20, 14, 54, 0.06);
+  --shadow-float: 0 18px 40px -12px rgba(20, 14, 54, 0.22), 0 6px 14px -6px rgba(20, 14, 54, 0.1);
+  --shadow-primary: 0 12px 28px -8px rgba(83, 74, 183, 0.5);
+}
