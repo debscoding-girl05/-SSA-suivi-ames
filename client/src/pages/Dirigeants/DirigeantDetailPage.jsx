@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import AssigneForm from './AssigneForm';
+import FicheView from './FicheView';
 import ReportView from '../Reports/ReportView';
 import ReportStatusBadge from '../../components/ReportStatusBadge';
 import { Avatar } from '@/components/ui/avatar';
@@ -23,6 +24,7 @@ export default function DirigeantDetailPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewReport, setViewReport] = useState(null);
+  const [viewFiche, setViewFiche] = useState(null);
 
   // Mirrors backend: Pasteur/PR, the dirigeant himself, or a leader of the
   // same department may edit assignés.
@@ -152,14 +154,20 @@ export default function DirigeantDetailPage() {
             ) : (
               <ul className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
                 {data.fiches.map((f) => (
-                  <li key={f.id} className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-0">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">Semaine {f.week} · {f.year}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {f.presentCount} présent{f.presentCount > 1 ? 's' : ''}{f.remarques ? ` · ${f.remarques}` : ''}
-                      </p>
-                    </div>
-                    <ReportStatusBadge status={f.status} />
+                  <li key={f.id}>
+                    <button
+                      type="button"
+                      onClick={() => setViewFiche(f)}
+                      className="flex w-full items-center justify-between gap-3 border-b border-border px-4 py-3 text-left transition-colors last:border-0 hover:bg-muted/50"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">Semaine {f.week} · {f.year}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {f.presentCount} présent{f.presentCount > 1 ? 's' : ''}{f.remarques ? ` · ${f.remarques}` : ''}
+                        </p>
+                      </div>
+                      <ReportStatusBadge status={f.status} />
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -207,6 +215,12 @@ export default function DirigeantDetailPage() {
 
       <Modal open={Boolean(viewReport)} onClose={() => setViewReport(null)} title={viewReport?.title || 'Rapport'}>
         {viewReport && <ReportView report={viewReport} canEdit={false} />}
+      </Modal>
+
+      <Modal open={Boolean(viewFiche)} onClose={() => setViewFiche(null)} title="Fiche de présence">
+        {viewFiche && data && (
+          <FicheView dirigeantId={id} year={viewFiche.year} week={viewFiche.week} assignes={data.assignes} />
+        )}
       </Modal>
     </div>
   );
