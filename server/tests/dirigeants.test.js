@@ -343,3 +343,45 @@ test("17. GET /api/rapports/me as Daniel → rapport not null", async () => {
   assert.equal(status, 200);
   assert.notEqual(body.rapport, null, "rapport should not be null after submit");
 });
+
+test("Fiche: présences par assigné, present_count dérivé, brouillon/soumis + validation", async () => {
+  const token = await login("esther@ssa.app", "dirigeant1234"); // encadreur (Jeunes)
+  const me = await api("GET", "/api/auth/me", token);
+  const ass = await api("GET", `/api/dirigeants/${me.body.user.id}/assignes`, token);
+  const ids = ass.body.data.map((a) => a.id);
+  assert.ok(ids.length >= 2, "Esther a au moins 2 assignés");
+
+  // Soumettre avec présences → present_count dérivé (1 présent / 1 absent)
+  const sub = await api("POST", "/api/rapports", token, {
+    status: "soumis",
+    remarques: "Test fiche",
+    presences: [
+      { assigneId: ids[0], statut: "present" },
+      { assigneId: ids[1], statut: "absent" },
+    ],
+  });
+  assert.equal(sub.status, 201);
+  assert.equal(sub.body.status, "soumis");
+  assert.equal(sub.body.presentCount, 1);
+
+  // GET /me renvoie la fiche + présences
+  const mine = await api("GET", "/api/rapports/me", token);
+  assert.equal(mine.body.rapport.status, "soumis");
+  assert.equal(mine.body.presences.length, 2);
+
+  // Brouillon
+  const draft = await api("POST", "/api/rapports", token, {
+    status: "brouillon",
+    presences: [{ assigneId: ids[0], statut: "present" }],
+  });
+  assert.equal(draft.status, 201);
+  assert.equal(draft.body.status, "brouillon");
+
+  // Statut de présence invalide → 400
+  const bad = await api("POST", "/api/rapports", token, { presences: [{ assigneId: ids[0], statut: "xxx" }] });
+  assert.equal(bad.status, 400);
+
+  // Assigné d'un autre dirigeant → 400
+  const bad2 = await api("POST", "/api/rapports", token, { presences: [{ assigneId: "not-mine", statut: "present" }] });
+  assert.equal(bad2.status, 400);
+});
