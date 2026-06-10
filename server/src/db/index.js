@@ -169,8 +169,27 @@ function mapRapportRow(row) {
     absents: row.absents ?? null,
     remarques: row.remarques ?? null,
     status: row.status,
+    reviewComment: row.review_comment ?? null,
+    reviewedBy: row.reviewed_by ?? null,
+    reviewedByName: row.reviewed_by_name ?? null,
+    reviewedAt: row.reviewed_at ?? null,
     submittedAt: row.submitted_at ?? null,
   };
+}
+
+// Map an in-memory rapport object (camelCase) through mapRapportRow.
+function memRapportRow(r, extra = {}) {
+  if (!r) return null;
+  return mapRapportRow({
+    ...r,
+    dirigeant_id: r.dirigeantId,
+    present_count: r.presentCount,
+    review_comment: r.reviewComment,
+    reviewed_by: r.reviewedBy,
+    reviewed_at: r.reviewedAt,
+    submitted_at: r.submittedAt,
+    ...extra,
+  });
 }
 
 // --- Reference repositories ------------------------------------------------
@@ -624,14 +643,41 @@ const assignes = {
 
 // --- Rapports hebdomadaires ------------------------------------------------
 const rapports = {
+  async findById(id) {
+    if (!isPostgres) {
+      return memRapportRow(memory.rapports.find((x) => x.id === id));
+    }
+    const { rows } = await query("SELECT * FROM rapports WHERE id = $1", [id]);
+    return mapRapportRow(rows[0]);
+  },
+
+  // Validate a submitted fiche or send it back for correction.
+  // action: 'valide' | 'a_corriger'. Records the reviewer + comment.
+  async review(id, { action, comment, reviewerId }) {
+    const reviewedAt = new Date().toISOString();
+    if (!isPostgres) {
+      const r = memory.rapports.find((x) => x.id === id);
+      if (!r) return null;
+      r.status = action;
+      r.reviewComment = comment ?? null;
+      r.reviewedBy = reviewerId;
+      r.reviewedAt = reviewedAt;
+      return memRapportRow(r);
+    }
+    await query(
+      `UPDATE rapports SET status = $1, review_comment = $2, reviewed_by = $3, reviewed_at = $4, updated_at = now()
+        WHERE id = $5`,
+      [action, comment ?? null, reviewerId, reviewedAt, id]
+    );
+    return this.findById(id);
+  },
+
   async findByDirigeantWeek(dirigeantId, year, week) {
     if (!isPostgres) {
       const r = memory.rapports.find(
         (x) => x.dirigeantId === dirigeantId && x.year === year && x.week === week
       );
-      return r ? mapRapportRow({
-        ...r, dirigeant_id: r.dirigeantId, present_count: r.presentCount, submitted_at: r.submittedAt,
-      }) : null;
+      return r ? memRapportRow(r) : null;
     }
     const { rows } = await query(
       "SELECT * FROM rapports WHERE dirigeant_id = $1 AND year = $2 AND week = $3",
@@ -644,7 +690,7 @@ const rapports = {
     if (!isPostgres) {
       return memory.rapports
         .filter((r) => r.dirigeantId === dirigeantId)
-        .map((r) => mapRapportRow({ ...r, dirigeant_id: r.dirigeantId, present_count: r.presentCount, submitted_at: r.submittedAt }))
+        .map((r) => memRapportRow(r))
         .sort((a, b) => b.year - a.year || b.week - a.week);
     }
     const { rows } = await query(
@@ -696,6 +742,10 @@ const rapports = {
         remarques: remarques ?? null,
         status,
         submittedAt,
+        // A fresh save/submit supersedes any prior review.
+        reviewComment: null,
+        reviewedBy: null,
+        reviewedAt: null,
       });
       if (hasPresences) {
         memory.presences = memory.presences.filter((p) => p.rapportId !== r.id);
@@ -712,7 +762,8 @@ const rapports = {
        ON CONFLICT (dirigeant_id, year, week)
        DO UPDATE SET present_count = EXCLUDED.present_count, absents = EXCLUDED.absents,
                      remarques = EXCLUDED.remarques, status = EXCLUDED.status,
-                     submitted_at = EXCLUDED.submitted_at, updated_at = now()
+                     submitted_at = EXCLUDED.submitted_at, updated_at = now(),
+                     review_comment = NULL, reviewed_by = NULL, reviewed_at = NULL
        RETURNING id`,
       [dirigeantId, year, week, derivedCount, absents ?? null, remarques ?? null, status, submittedAt]
     );

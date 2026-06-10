@@ -19,7 +19,11 @@ export default function DashboardPage() {
   }, []);
 
   const s = overview?.summary;
-  const manquants = overview?.dirigeants.filter((d) => d.status === 'manquant') || [];
+  const rendu = (d) => d.status === 'soumis' || d.status === 'valide';
+  // À relancer = pas encore rendu (manquant) ou renvoyé pour correction.
+  const manquants = overview?.dirigeants.filter((d) => d.status === 'manquant' || d.status === 'a_corriger') || [];
+  const rendues = (s?.soumis ?? 0) + (s?.valide ?? 0);
+  const enRetard = (s?.manquant ?? 0) + (s?.aCorriger ?? 0);
 
   const byDept = useMemo(() => {
     const m = new Map();
@@ -27,7 +31,7 @@ export default function DashboardPage() {
       const k = d.departmentName || 'Sans département';
       const e = m.get(k) || { soumis: 0, total: 0 };
       e.total += 1;
-      if (d.status === 'soumis') e.soumis += 1;
+      if (rendu(d)) e.soumis += 1;
       m.set(k, e);
     }
     return [...m.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.total - a.total);
@@ -61,24 +65,24 @@ export default function DashboardPage() {
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Fiches de la semaine</p>
           <p className="mt-1 text-3xl font-semibold tracking-tight">
-            {s?.soumis ?? 0}<span className="text-xl text-muted-foreground">/{s?.total ?? 0}</span>
+            {rendues}<span className="text-xl text-muted-foreground">/{s?.total ?? 0}</span>
           </p>
           <p className="mt-1 text-sm">
-            {s?.manquant ? (
-              <span className="font-medium text-destructive-dark">{s.manquant} en retard</span>
+            {enRetard ? (
+              <span className="font-medium text-destructive-dark">{enRetard} à relancer</span>
             ) : (
               <span className="font-medium text-success-foreground-light">Tout est à jour 🎉</span>
             )}
           </p>
         </div>
-        <ProgressRing value={s?.soumis ?? 0} total={s?.total ?? 0} label="soumis" size={104} />
+        <ProgressRing value={rendues} total={s?.total ?? 0} label="rendues" size={104} />
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-3">
         <StatCard icon={Users} tint="violet" value={s?.total ?? 0} label="Dirigeants" />
-        <StatCard icon={Check} tint="emerald" value={s?.soumis ?? 0} label="Soumis" />
-        <StatCard icon={AlertCircle} tint="rose" value={s?.manquant ?? 0} label="En retard" />
+        <StatCard icon={Check} tint="emerald" value={rendues} label="Rendues" />
+        <StatCard icon={AlertCircle} tint="rose" value={enRetard} label="À relancer" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

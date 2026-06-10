@@ -1,11 +1,13 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Check, AlertCircle, Clock } from 'lucide-react';
+import { Check, AlertCircle, Clock, RotateCcw } from 'lucide-react';
 
 const STYLES = {
-  soumis: { label: 'Soumis', icon: Check, className: 'bg-success text-success-foreground border-transparent' },
+  valide: { label: 'Validé', icon: Check, className: 'bg-success text-success-foreground border-transparent' },
+  soumis: { label: 'À valider', icon: Clock, className: 'bg-primary-transparent text-primary border-transparent' },
+  a_corriger: { label: 'À corriger', icon: RotateCcw, className: 'bg-warning text-warning-foreground border-transparent' },
+  brouillon: { label: 'Brouillon', icon: Clock, className: 'bg-muted text-muted-foreground border-transparent' },
   manquant: { label: 'Manquant', icon: AlertCircle, className: 'bg-destructive text-destructive-foreground border-transparent' },
-  brouillon: { label: 'Brouillon', icon: Clock, className: 'bg-warning text-warning-foreground border-transparent' },
 };
 
 export default function ReportStatusBadge({ status }) {

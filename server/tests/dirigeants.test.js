@@ -344,44 +344,78 @@ test("17. GET /api/rapports/me as Daniel → rapport not null", async () => {
   assert.notEqual(body.rapport, null, "rapport should not be null after submit");
 });
 
-test("Fiche: présences par assigné, present_count dérivé, brouillon/soumis + validation", async () => {
-  const token = await login("esther@ssa.app", "dirigeant1234"); // encadreur (Jeunes)
+test("Fiche: présences, brouillon→soumis, validation des données + verrou", async () => {
+  const token = await login("grace@ssa.app", "dirigeant1234"); // leader, manquant au seed
   const me = await api("GET", "/api/auth/me", token);
   const ass = await api("GET", `/api/dirigeants/${me.body.user.id}/assignes`, token);
   const ids = ass.body.data.map((a) => a.id);
-  assert.ok(ids.length >= 2, "Esther a au moins 2 assignés");
+  assert.ok(ids.length >= 2);
 
-  // Soumettre avec présences → present_count dérivé (1 présent / 1 absent)
-  const sub = await api("POST", "/api/rapports", token, {
-    status: "soumis",
-    remarques: "Test fiche",
-    presences: [
-      { assigneId: ids[0], statut: "present" },
-      { assigneId: ids[1], statut: "absent" },
-    ],
-  });
+  // Validation (aucune fiche encore) : statut invalide → 400 ; assigné d'un autre → 400
+  assert.equal((await api("POST", "/api/rapports", token, { presences: [{ assigneId: ids[0], statut: "xxx" }] })).status, 400);
+  assert.equal((await api("POST", "/api/rapports", token, { presences: [{ assigneId: "not-mine", statut: "present" }] })).status, 400);
+
+  // Brouillon (1 présent / 1 absent)
+  const draft = await api("POST", "/api/rapports", token, { status: "brouillon", presences: [{ assigneId: ids[0], statut: "present" }, { assigneId: ids[1], statut: "absent" }] });
+  assert.equal(draft.status, 201);
+  assert.equal(draft.body.status, "brouillon");
+  assert.equal(draft.body.presentCount, 1);
+
+  // Soumettre (2 présents)
+  const sub = await api("POST", "/api/rapports", token, { status: "soumis", presences: [{ assigneId: ids[0], statut: "present" }, { assigneId: ids[1], statut: "present" }] });
   assert.equal(sub.status, 201);
   assert.equal(sub.body.status, "soumis");
-  assert.equal(sub.body.presentCount, 1);
+  assert.equal(sub.body.presentCount, 2);
 
-  // GET /me renvoie la fiche + présences
+  // /me reflète la fiche + présences
   const mine = await api("GET", "/api/rapports/me", token);
   assert.equal(mine.body.rapport.status, "soumis");
   assert.equal(mine.body.presences.length, 2);
 
-  // Brouillon
-  const draft = await api("POST", "/api/rapports", token, {
-    status: "brouillon",
-    presences: [{ assigneId: ids[0], statut: "present" }],
-  });
-  assert.equal(draft.status, 201);
-  assert.equal(draft.body.status, "brouillon");
+  // Verrou : re-soumettre une fiche soumise → 403
+  assert.equal((await api("POST", "/api/rapports", token, { status: "soumis", presences: [{ assigneId: ids[0], statut: "present" }] })).status, 403);
+});
 
-  // Statut de présence invalide → 400
-  const bad = await api("POST", "/api/rapports", token, { presences: [{ assigneId: ids[0], statut: "xxx" }] });
-  assert.equal(bad.status, 400);
+test("Validation: leader valide / demande correction, RBAC + self-validation interdite", async () => {
+  const marie = await login("leader@ssa.app", "leader1234");      // leader Chorale
+  const jeanTok = await login("encadreur@ssa.app", "encadreur1234"); // encadreur Chorale (soumis au seed)
+  const paul = await login("paul@ssa.app", "dirigeant1234");      // encadreur (non-reviewer)
+  const jeanId = (await api("GET", "/api/auth/me", jeanTok)).body.user.id;
 
-  // Assigné d'un autre dirigeant → 400
-  const bad2 = await api("POST", "/api/rapports", token, { presences: [{ assigneId: "not-mine", statut: "present" }] });
-  assert.equal(bad2.status, 400);
+  // Marie (leader même dépt) voit la fiche de Jean
+  const fiche = await api("GET", `/api/rapports/fiche/${jeanId}`, marie);
+  assert.equal(fiche.status, 200);
+  const ficheId = fiche.body.rapport.id;
+  assert.ok(ficheId);
+
+  // Paul (encadreur) ne peut pas valider → 403
+  assert.equal((await api("POST", `/api/rapports/${ficheId}/validate`, paul)).status, 403);
+  // Demande de correction sans commentaire → 400
+  assert.equal((await api("POST", `/api/rapports/${ficheId}/request-changes`, marie, {})).status, 400);
+  // Demande de correction → a_corriger
+  const rc = await api("POST", `/api/rapports/${ficheId}/request-changes`, marie, { comment: "À revoir" });
+  assert.equal(rc.status, 200);
+  assert.equal(rc.body.status, "a_corriger");
+
+  // Jean voit le retour
+  const jm = await api("GET", "/api/rapports/me", jeanTok);
+  assert.equal(jm.body.rapport.status, "a_corriger");
+  assert.equal(jm.body.rapport.reviewComment, "À revoir");
+
+  // Jean corrige et re-soumet
+  const aid = (await api("GET", `/api/dirigeants/${jeanId}/assignes`, jeanTok)).body.data[0].id;
+  const resub = await api("POST", "/api/rapports", jeanTok, { status: "soumis", presences: [{ assigneId: aid, statut: "present" }] });
+  assert.equal(resub.status, 201);
+  assert.equal(resub.body.status, "soumis");
+
+  // Marie valide
+  const val = await api("POST", `/api/rapports/${ficheId}/validate`, marie, { comment: "OK" });
+  assert.equal(val.status, 200);
+  assert.equal(val.body.status, "valide");
+
+  // Marie ne peut pas valider sa PROPRE fiche
+  const mm = await api("GET", "/api/rapports/me", marie);
+  if (mm.body.rapport) {
+    assert.equal((await api("POST", `/api/rapports/${mm.body.rapport.id}/validate`, marie, { comment: "x" })).status, 403);
+  }
 });
