@@ -73,6 +73,17 @@ CREATE TABLE IF NOT EXISTS rapports (
 CREATE INDEX IF NOT EXISTS idx_rapports_week ON rapports (year, week);
 CREATE INDEX IF NOT EXISTS idx_rapports_dirigeant ON rapports (dirigeant_id);
 
+-- Présence par assigné dans une fiche hebdomadaire (CDC EF-17/28).
+CREATE TABLE IF NOT EXISTS presences (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  rapport_id UUID NOT NULL REFERENCES rapports(id) ON DELETE CASCADE,
+  assigne_id UUID NOT NULL REFERENCES assignes(id) ON DELETE CASCADE,
+  statut     TEXT NOT NULL DEFAULT 'present' CHECK (statut IN ('present', 'absent', 'justifie')),
+  UNIQUE (rapport_id, assigne_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_presences_rapport ON presences (rapport_id);
+
 -- Rôles (hiérarchie pastorale — CDC v1.1 §3.1 / Annexe D, idempotent).
 INSERT INTO roles (name, description) VALUES
   ('pasteur',        'Pasteur (Daddy) — super administrateur, lecture de tout'),

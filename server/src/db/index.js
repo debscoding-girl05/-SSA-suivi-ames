@@ -44,6 +44,7 @@ const memory = {
   users: [], // comptes (dirigeants) — populated by seed
   assignes: [],
   rapports: [],
+  presences: [],
 };
 
 // Rôles ayant une vue "administrative" globale (CDC : Pasteur + PR).
@@ -653,9 +654,34 @@ const rapports = {
     return rows.map(mapRapportRow);
   },
 
-  // Create or update the report for a dirigeant + week (upsert), marking it submitted.
-  async submit({ dirigeantId, year, week, presentCount, absents, remarques }) {
-    const submittedAt = new Date().toISOString();
+  // Presences of a fiche, as [{ assigneId, statut }].
+  async getPresences(rapportId) {
+    if (!isPostgres) {
+      return memory.presences
+        .filter((p) => p.rapportId === rapportId)
+        .map((p) => ({ assigneId: p.assigneId, statut: p.statut }));
+    }
+    const { rows } = await query("SELECT assigne_id, statut FROM presences WHERE rapport_id = $1", [rapportId]);
+    return rows.map((r) => ({ assigneId: r.assigne_id, statut: r.statut }));
+  },
+
+  // The fiche for a dirigeant + week, with its presences.
+  async findFiche(dirigeantId, year, week) {
+    const rapport = await this.findByDirigeantWeek(dirigeantId, year, week);
+    if (!rapport) return { rapport: null, presences: [] };
+    return { rapport, presences: await this.getPresences(rapport.id) };
+  },
+
+  // Create/update the fiche (upsert) with optional per-assigné presences.
+  // status: 'soumis' (default) | 'brouillon'. When `presences` is provided,
+  // present_count is derived from it; otherwise `presentCount` is used (legacy).
+  async submit({ dirigeantId, year, week, presentCount, absents, remarques, status = "soumis", presences }) {
+    const hasPresences = Array.isArray(presences);
+    const derivedCount = hasPresences
+      ? presences.filter((p) => p.statut === "present").length
+      : presentCount ?? 0;
+    const submittedAt = status === "soumis" ? new Date().toISOString() : null;
+
     if (!isPostgres) {
       let r = memory.rapports.find(
         (x) => x.dirigeantId === dirigeantId && x.year === year && x.week === week
@@ -665,25 +691,42 @@ const rapports = {
         memory.rapports.push(r);
       }
       Object.assign(r, {
-        presentCount: presentCount ?? 0,
-        absents: absents ?? null,
+        presentCount: derivedCount,
+        absents: absents ?? r.absents ?? null,
         remarques: remarques ?? null,
-        status: "soumis",
+        status,
         submittedAt,
       });
+      if (hasPresences) {
+        memory.presences = memory.presences.filter((p) => p.rapportId !== r.id);
+        for (const p of presences) {
+          memory.presences.push({ id: newUuid(), rapportId: r.id, assigneId: p.assigneId, statut: p.statut });
+        }
+      }
       return this.findByDirigeantWeek(dirigeantId, year, week);
     }
+
     const { rows } = await query(
       `INSERT INTO rapports (dirigeant_id, year, week, present_count, absents, remarques, status, submitted_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'soumis', now())
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (dirigeant_id, year, week)
        DO UPDATE SET present_count = EXCLUDED.present_count, absents = EXCLUDED.absents,
-                     remarques = EXCLUDED.remarques, status = 'soumis',
-                     submitted_at = now(), updated_at = now()
+                     remarques = EXCLUDED.remarques, status = EXCLUDED.status,
+                     submitted_at = EXCLUDED.submitted_at, updated_at = now()
        RETURNING id`,
-      [dirigeantId, year, week, presentCount ?? 0, absents ?? null, remarques ?? null]
+      [dirigeantId, year, week, derivedCount, absents ?? null, remarques ?? null, status, submittedAt]
     );
-    const { rows: full } = await query("SELECT * FROM rapports WHERE id = $1", [rows[0].id]);
+    const rapportId = rows[0].id;
+    if (hasPresences) {
+      await query("DELETE FROM presences WHERE rapport_id = $1", [rapportId]);
+      for (const p of presences) {
+        await query(
+          "INSERT INTO presences (rapport_id, assigne_id, statut) VALUES ($1, $2, $3)",
+          [rapportId, p.assigneId, p.statut]
+        );
+      }
+    }
+    const { rows: full } = await query("SELECT * FROM rapports WHERE id = $1", [rapportId]);
     return mapRapportRow(full[0]);
   },
 

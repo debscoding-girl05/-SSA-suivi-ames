@@ -142,8 +142,8 @@ export default function RapportsPage() {
         </>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Rapport de la semaine">
-        <RapportForm existing={mine} onSaved={handleSaved} onCancel={() => setModalOpen(false)} />
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Fiche de la semaine">
+        <RapportForm onSaved={handleSaved} onCancel={() => setModalOpen(false)} />
       </Modal>
     </div>
   );
