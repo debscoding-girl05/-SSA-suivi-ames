@@ -56,17 +56,21 @@ CREATE INDEX IF NOT EXISTS idx_assignes_dirigeant ON assignes (dirigeant_id);
 
 -- Rapports hebdomadaires soumis par les dirigeants.
 CREATE TABLE IF NOT EXISTS rapports (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  dirigeant_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  year          INTEGER NOT NULL,
-  week          INTEGER NOT NULL,
-  present_count INTEGER NOT NULL DEFAULT 0,
-  absents       TEXT,
-  remarques     TEXT,
-  status        TEXT NOT NULL DEFAULT 'soumis' CHECK (status IN ('brouillon', 'soumis')),
-  submitted_at  TIMESTAMPTZ,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  dirigeant_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  year           INTEGER NOT NULL,
+  week           INTEGER NOT NULL,
+  present_count  INTEGER NOT NULL DEFAULT 0,
+  absents        TEXT,
+  remarques      TEXT,
+  status         TEXT NOT NULL DEFAULT 'soumis'
+                 CHECK (status IN ('brouillon', 'soumis', 'valide', 'a_corriger')),
+  review_comment TEXT,
+  reviewed_by    UUID REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at    TIMESTAMPTZ,
+  submitted_at   TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (dirigeant_id, year, week)
 );
 
