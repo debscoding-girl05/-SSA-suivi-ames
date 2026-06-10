@@ -90,8 +90,8 @@ export default function DashboardPage() {
         <div className="rounded-2xl border border-border bg-card shadow-card">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold">À relancer</h2>
-            <Link to="/rapports" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-              Rapports <ArrowRight className="size-3.5" />
+            <Link to="/fiches" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              Fiches <ArrowRight className="size-3.5" />
             </Link>
           </div>
           {manquants.length === 0 ? (

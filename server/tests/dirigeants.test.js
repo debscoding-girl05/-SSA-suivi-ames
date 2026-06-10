@@ -419,3 +419,39 @@ test("Validation: leader valide / demande correction, RBAC + self-validation int
     assert.equal((await api("POST", `/api/rapports/${mm.body.rapport.id}/validate`, marie, { comment: "x" })).status, 403);
   }
 });
+
+test("Rapports (documents): agrégation, création, transmission, scoping + lecture Pasteur", async () => {
+  const marie = await login("leader@ssa.app", "leader1234");
+  const pr = await login("pr@ssa.app", "pr1234");
+  const pasteur = await login("pasteur@ssa.app", "pasteur1234");
+  const jean = await login("encadreur@ssa.app", "encadreur1234");
+
+  // Agrégation depuis les fiches (leader) → titre + contenu suggérés
+  const agg = await api("GET", "/api/reports/aggregate", marie);
+  assert.equal(agg.status, 200);
+  assert.match(agg.body.title, /Rapport/);
+  assert.ok(agg.body.content.length > 0);
+
+  // Encadreur ne peut pas rédiger → 403 ; sa liste est vide
+  assert.equal((await api("POST", "/api/reports", jean, { title: "x" })).status, 403);
+  assert.equal((await api("GET", "/api/reports", jean)).body.data.length, 0);
+
+  // Marie crée un rapport (brouillon) puis le transmet
+  const created = await api("POST", "/api/reports", marie, { title: "Rapport Chorale", content: "RAS" });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.status, "brouillon");
+  const id = created.body.id;
+
+  const tx = await api("POST", `/api/reports/${id}/transmit`, marie);
+  assert.equal(tx.status, 200);
+  assert.equal(tx.body.status, "transmis");
+
+  // Édition après transmission → 400
+  assert.equal((await api("PUT", `/api/reports/${id}`, marie, { content: "modif" })).status, 400);
+
+  // PR voit tout ; Pasteur lit le rapport
+  assert.ok((await api("GET", "/api/reports", pr)).body.data.length >= 1);
+  const read = await api("GET", `/api/reports/${id}`, pasteur);
+  assert.equal(read.status, 200);
+  assert.equal(read.body.title, "Rapport Chorale");
+});

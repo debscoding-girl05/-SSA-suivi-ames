@@ -62,9 +62,9 @@ export default function RapportsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Rapports</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Fiches</h1>
           <p className="text-sm text-muted-foreground">
-            {overview ? `Semaine ${overview.week.week} · ${overview.week.year}` : 'Suivi hebdomadaire'}
+            {overview ? `Suivi des présences · semaine ${overview.week.week} · ${overview.week.year}` : 'Suivi hebdomadaire'}
           </p>
         </div>
         {canSubmit && (
