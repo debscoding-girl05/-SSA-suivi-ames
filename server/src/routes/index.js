@@ -5,6 +5,7 @@ const rapportsRoutes = require("./rapports");
 const departmentsRoutes = require("./departments");
 const annuaireRoutes = require("./annuaire");
 const reportsRoutes = require("./reports");
+const integrationRoutes = require("./integration");
 
 // API router mounted under /api. /health is mounted at the app root.
 const router = express.Router();
@@ -15,5 +16,6 @@ router.use("/rapports", rapportsRoutes);
 router.use("/departments", departmentsRoutes);
 router.use("/annuaire", annuaireRoutes);
 router.use("/reports", reportsRoutes);
+router.use("/integration", integrationRoutes);
 
 module.exports = router;

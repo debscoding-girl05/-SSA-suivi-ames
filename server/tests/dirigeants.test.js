@@ -94,11 +94,11 @@ async function choraleDepartmentId(token) {
 }
 
 // --- 1. List (pasteur) -----------------------------------------------------
-test("1. GET /api/dirigeants (pasteur) → 200, 6 dirigeants, no pasteur/pr, shape + week", async () => {
+test("1. GET /api/dirigeants (pasteur) → 200, 7 dirigeants, no pasteur/pr, shape + week", async () => {
   const token = await pasteurToken();
   const { status, body } = await api("GET", "/api/dirigeants", token);
   assert.equal(status, 200);
-  assert.equal(body.data.length, 6, "should be 6 dirigeants (pasteur/pr excluded)");
+  assert.equal(body.data.length, 7, "should be 7 dirigeants (pasteur/pr excluded)");
   assert.ok(!body.data.some((d) => d.role === "pasteur"), "no pasteur role in the list");
   assert.ok(!body.data.some((d) => d.role === "pr"), "no pr role in the list");
   for (const d of body.data) {
@@ -266,9 +266,9 @@ test("12. GET /api/rapports (pasteur) → summary total=6 soumis=3 manquant=3", 
   const token = await pasteurToken();
   const { status, body } = await api("GET", "/api/rapports", token);
   assert.equal(status, 200);
-  assert.equal(body.summary.total, 6);
+  assert.equal(body.summary.total, 7);
   assert.equal(body.summary.soumis, 3);
-  assert.equal(body.summary.manquant, 3);
+  assert.equal(body.summary.manquant, 4);
   for (const d of body.dirigeants) {
     assert.ok(["soumis", "manquant"].includes(d.status), "status is soumis|manquant");
   }
@@ -309,9 +309,9 @@ test("15. Daniel submits → 201; overview soumis 3→4, manquant 3→2", async 
   assert.equal(submit.body.status, "soumis");
 
   const { body } = await api("GET", "/api/rapports", pasteurTok);
-  assert.equal(body.summary.total, 6);
+  assert.equal(body.summary.total, 7);
   assert.equal(body.summary.soumis, 4);
-  assert.equal(body.summary.manquant, 2);
+  assert.equal(body.summary.manquant, 3);
 });
 
 // --- 16. Submit RBAC: Daniel→Paul 403; pasteur→Paul 201 --------------------
@@ -455,4 +455,43 @@ test("Rapports (documents): agrégation, création, transmission, scoping + lect
   const read = await api("GET", `/api/reports/${id}`, pasteur);
   assert.equal(read.status, 200);
   assert.equal(read.body.title, "Rapport Chorale");
+});
+
+test("Nouveaux venus / 7 leçons: scope FD, séquentiel, promotion", async () => {
+  const ruth = await login("suivi@ssa.app", "dirigeant1234"); // encadreur dépt Suivi
+  const jean = await login("encadreur@ssa.app", "encadreur1234"); // hors FD
+
+  // Liste FD (Ruth voit ses 3 nouveaux venus du seed)
+  const list = await api("GET", "/api/integration/nouveaux", ruth);
+  assert.equal(list.status, 200);
+  assert.ok(list.body.data.length >= 3);
+
+  // Hors FD : liste vide + enregistrement interdit
+  assert.equal((await api("GET", "/api/integration/nouveaux", jean)).body.data.length, 0);
+  assert.equal((await api("POST", "/api/integration/nouveaux", jean, { firstName: "X", lastName: "Y" })).status, 403);
+
+  // Enregistrement (FD) → statut nouveau
+  const created = await api("POST", "/api/integration/nouveaux", ruth, { firstName: "Test", lastName: "Venu" });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.statut, "nouveau");
+  const id = created.body.id;
+
+  // Séquentiel : leçon 2 d'emblée → 400 ; leçon 1 → ok
+  assert.equal((await api("POST", `/api/integration/nouveaux/${id}/valider`, ruth, { lecon: 2 })).status, 400);
+  const v1 = await api("POST", `/api/integration/nouveaux/${id}/valider`, ruth, { lecon: 1 });
+  assert.equal(v1.status, 200);
+  assert.equal(v1.body.validated, 1);
+
+  // Promotion avant 7/7 → 400
+  assert.equal((await api("POST", `/api/integration/nouveaux/${id}/promouvoir`, ruth)).status, 400);
+
+  // Clarisse (6/7 au seed) : valider la 7ᵉ puis promouvoir → régulier + sort de la liste
+  const clarisse = list.body.data.find((v) => v.firstName === "Clarisse");
+  assert.ok(clarisse, "Clarisse présente");
+  await api("POST", `/api/integration/nouveaux/${clarisse.id}/valider`, ruth, { lecon: 7 });
+  const promo = await api("POST", `/api/integration/nouveaux/${clarisse.id}/promouvoir`, ruth);
+  assert.equal(promo.status, 200);
+  assert.equal(promo.body.statut, "regulier");
+  const after = await api("GET", "/api/integration/nouveaux", ruth);
+  assert.ok(!after.body.data.some((v) => v.id === clarisse.id), "Clarisse n'est plus un nouveau venu");
 });
