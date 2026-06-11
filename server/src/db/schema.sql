@@ -41,18 +41,35 @@ CREATE INDEX IF NOT EXISTS idx_users_department ON users (department_id);
 
 -- Assignés (âmes suivies) rattachés à un dirigeant.
 CREATE TABLE IF NOT EXISTS assignes (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  first_name   TEXT NOT NULL,
-  last_name    TEXT NOT NULL,
-  phone        TEXT,
-  email        TEXT,
-  dirigeant_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  notes        TEXT,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  first_name      TEXT NOT NULL,
+  last_name       TEXT NOT NULL,
+  phone           TEXT,
+  email           TEXT,
+  dirigeant_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  notes           TEXT,
+  statut          TEXT NOT NULL DEFAULT 'regulier'
+                  CHECK (statut IN ('nouveau', 'regulier', 'inactif')),
+  first_seen_at   DATE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_assignes_dirigeant ON assignes (dirigeant_id);
+CREATE INDEX IF NOT EXISTS idx_assignes_statut ON assignes (statut);
+
+-- Parcours des 7 leçons (Faiseurs de Disciples / Suivi). Une ligne = leçon validée.
+CREATE TABLE IF NOT EXISTS progressions (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  assigne_id   UUID NOT NULL REFERENCES assignes(id) ON DELETE CASCADE,
+  lecon        INTEGER NOT NULL CHECK (lecon BETWEEN 1 AND 7),
+  statut       TEXT NOT NULL DEFAULT 'validee' CHECK (statut IN ('en_cours', 'validee')),
+  validated_at TIMESTAMPTZ,
+  validant_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE (assigne_id, lecon)
+);
+
+CREATE INDEX IF NOT EXISTS idx_progressions_assigne ON progressions (assigne_id);
 
 -- Rapports hebdomadaires soumis par les dirigeants.
 CREATE TABLE IF NOT EXISTS rapports (

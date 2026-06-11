@@ -75,6 +75,17 @@ const DIRIGEANTS = [
     ],
     report: null, // manquant
   },
+  {
+    // Encadreur du département "Suivi" (intégration des nouveaux venus, 7 leçons).
+    email: "suivi@ssa.app", phone: "+237 6 11 22 33 44", password: "dirigeant1234",
+    fullName: "Ruth Onana", role: "encadreur", department: "Suivi",
+    assignes: [
+      { firstName: "Aline", lastName: "Mbarga", phone: "+237 6 12 00 00 01", statut: "nouveau", firstSeenAt: "2026-05-24", lessons: 0 },
+      { firstName: "Boris", lastName: "Kana", phone: "+237 6 12 00 00 02", statut: "nouveau", firstSeenAt: "2026-05-03", lessons: 3, daysAgo: 4 },
+      { firstName: "Clarisse", lastName: "Eto'o", phone: "+237 6 12 00 00 03", statut: "nouveau", firstSeenAt: "2026-04-05", lessons: 6, daysAgo: 28 },
+    ],
+    report: null,
+  },
 ];
 
 async function seed({ silent = false } = {}) {
@@ -116,8 +127,16 @@ async function seed({ silent = false } = {}) {
     const existingAssignes = await db.assignes.listByDirigeant(user.id);
     if (existingAssignes.length === 0 && d.assignes.length) {
       for (const a of d.assignes) {
-        await db.assignes.create({ ...a, dirigeantId: user.id });
+        const { lessons, daysAgo, ...fields } = a;
+        const created = await db.assignes.create({ ...fields, dirigeantId: user.id });
         createdAssignes += 1;
+        // Seed lesson progress for nouveaux venus (FD/Suivi).
+        if (lessons) {
+          const at = new Date(Date.now() - (daysAgo || 0) * 86400000).toISOString();
+          for (let n = 1; n <= lessons; n += 1) {
+            await db.integration.validateLesson(created.id, n, user.id, at);
+          }
+        }
       }
     }
 

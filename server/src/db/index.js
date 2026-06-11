@@ -46,6 +46,7 @@ const memory = {
   rapports: [],
   presences: [],
   reports: [],
+  progressions: [],
 };
 
 // Rôles ayant une vue "administrative" globale (CDC : Pasteur + PR).
@@ -152,9 +153,27 @@ function mapAssigneRow(row) {
     email: row.email ?? null,
     dirigeantId: row.dirigeant_id,
     notes: row.notes ?? null,
+    statut: row.statut ?? "regulier",
+    firstSeenAt: row.first_seen_at ?? null,
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
   };
+}
+
+// Map an in-memory assigné (camelCase) through mapAssigneRow.
+function memAssigneRow(a, extra = {}) {
+  if (!a) return null;
+  return mapAssigneRow({
+    ...a,
+    first_name: a.firstName,
+    last_name: a.lastName,
+    dirigeant_id: a.dirigeantId,
+    statut: a.statut,
+    first_seen_at: a.firstSeenAt,
+    created_at: a.createdAt,
+    updated_at: a.updatedAt,
+    ...extra,
+  });
 }
 
 function mapRapportRow(row) {
@@ -492,10 +511,7 @@ const assignes = {
         const dir = memory.users.find((u) => u.id === a.dirigeantId);
         const dept = dir && memory.departments.find((d) => d.id === dir.departmentId);
         return {
-          ...mapAssigneRow({
-            ...a, first_name: a.firstName, last_name: a.lastName,
-            dirigeant_id: a.dirigeantId, created_at: a.createdAt, updated_at: a.updatedAt,
-          }),
+          ...memAssigneRow(a),
           dirigeantName: dir?.fullName ?? null,
           departmentId: dir?.departmentId ?? null,
           departmentName: dept?.name ?? null,
@@ -557,10 +573,7 @@ const assignes = {
     if (!isPostgres) {
       return memory.assignes
         .filter((a) => a.dirigeantId === dirigeantId)
-        .map((a) => mapAssigneRow({
-          ...a, first_name: a.firstName, last_name: a.lastName,
-          dirigeant_id: a.dirigeantId, created_at: a.createdAt, updated_at: a.updatedAt,
-        }))
+        .map((a) => memAssigneRow(a))
         .sort((x, y) => `${x.lastName} ${x.firstName}`.localeCompare(`${y.lastName} ${y.firstName}`, "fr"));
     }
     const { rows } = await query(
@@ -573,29 +586,27 @@ const assignes = {
   async findById(id) {
     if (!isPostgres) {
       const a = memory.assignes.find((x) => x.id === id);
-      return a ? mapAssigneRow({
-        ...a, first_name: a.firstName, last_name: a.lastName,
-        dirigeant_id: a.dirigeantId, created_at: a.createdAt, updated_at: a.updatedAt,
-      }) : null;
+      return a ? memAssigneRow(a) : null;
     }
     const { rows } = await query("SELECT * FROM assignes WHERE id = $1", [id]);
     return mapAssigneRow(rows[0]);
   },
 
-  async create({ firstName, lastName, phone, email, dirigeantId, notes }) {
+  async create({ firstName, lastName, phone, email, dirigeantId, notes, statut, firstSeenAt }) {
     if (!isPostgres) {
       const a = {
         id: newUuid(), firstName, lastName, phone: phone ?? null, email: email ?? null,
         dirigeantId, notes: notes ?? null,
+        statut: statut || "regulier", firstSeenAt: firstSeenAt ?? null,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       memory.assignes.push(a);
       return this.findById(a.id);
     }
     const { rows } = await query(
-      `INSERT INTO assignes (first_name, last_name, phone, email, dirigeant_id, notes)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [firstName, lastName, phone ?? null, email ?? null, dirigeantId, notes ?? null]
+      `INSERT INTO assignes (first_name, last_name, phone, email, dirigeant_id, notes, statut, first_seen_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [firstName, lastName, phone ?? null, email ?? null, dirigeantId, notes ?? null, statut || "regulier", firstSeenAt ?? null]
     );
     return this.findById(rows[0].id);
   },
@@ -603,7 +614,7 @@ const assignes = {
   async update(id, fields) {
     const allowed = {
       firstName: "first_name", lastName: "last_name",
-      phone: "phone", email: "email", notes: "notes",
+      phone: "phone", email: "email", notes: "notes", statut: "statut",
     };
     if (!isPostgres) {
       const a = memory.assignes.find((x) => x.id === id);
@@ -971,6 +982,112 @@ const reports = {
   },
 };
 
+// --- Intégration : nouveaux venus + 7 leçons (Module 4) --------------------
+const FD_DEPT_NAMES = ["Faiseurs de Disciples", "Suivi"];
+
+const integration = {
+  // Nouveaux venus (assignés statut 'nouveau') du périmètre FD/Suivi, enrichis.
+  async listNouveaux({ scope } = {}) {
+    if (!isPostgres) {
+      const fd = new Set(FD_DEPT_NAMES);
+      let rows = memory.assignes
+        .filter((a) => a.statut === "nouveau")
+        .map((a) => {
+          const dir = memory.users.find((u) => u.id === a.dirigeantId);
+          const dept = dir && memory.departments.find((d) => d.id === dir.departmentId);
+          return { a, dir, dept };
+        })
+        .filter(({ dept }) => dept && fd.has(dept.name));
+      if (scope?.dirigeantId) rows = rows.filter((r) => r.a.dirigeantId === scope.dirigeantId);
+      if (scope?.departmentId) rows = rows.filter((r) => r.dir?.departmentId === scope.departmentId);
+      return rows
+        .map(({ a, dir, dept }) => {
+          const progs = memory.progressions.filter((p) => p.assigneId === a.id);
+          const last = progs.reduce((m, p) => (p.validatedAt && (!m || p.validatedAt > m) ? p.validatedAt : m), null);
+          return {
+            ...memAssigneRow(a),
+            dirigeantName: dir?.fullName ?? null,
+            departmentName: dept?.name ?? null,
+            lessonsValidated: progs.length,
+            lastProgressAt: last,
+          };
+        })
+        .sort((x, y) => `${x.lastName} ${x.firstName}`.localeCompare(`${y.lastName} ${y.firstName}`, "fr"));
+    }
+    const params = [];
+    const where = ["a.statut = 'nouveau'", `d.name IN ('Faiseurs de Disciples','Suivi')`];
+    if (scope?.dirigeantId) { params.push(scope.dirigeantId); where.push(`a.dirigeant_id = $${params.length}`); }
+    if (scope?.departmentId) { params.push(scope.departmentId); where.push(`u.department_id = $${params.length}`); }
+    const { rows } = await query(
+      `SELECT a.*, u.full_name AS dirigeant_name, d.name AS department_name,
+              (SELECT COUNT(*) FROM progressions p WHERE p.assigne_id = a.id)::int AS lessons_validated,
+              (SELECT MAX(validated_at) FROM progressions p WHERE p.assigne_id = a.id) AS last_progress_at
+         FROM assignes a JOIN users u ON u.id = a.dirigeant_id JOIN departments d ON d.id = u.department_id
+        WHERE ${where.join(" AND ")}
+        ORDER BY a.last_name ASC, a.first_name ASC`,
+      params
+    );
+    return rows.map((r) => ({
+      ...mapAssigneRow(r),
+      dirigeantName: r.dirigeant_name ?? null,
+      departmentName: r.department_name ?? null,
+      lessonsValidated: r.lessons_validated,
+      lastProgressAt: r.last_progress_at ?? null,
+    }));
+  },
+
+  // 7-lesson progress, always returns lessons 1..7 (validee or a_effectuer).
+  async getProgress(assigneId) {
+    let stored = [];
+    if (!isPostgres) {
+      stored = memory.progressions
+        .filter((p) => p.assigneId === assigneId)
+        .map((p) => ({ ...p, validantName: memory.users.find((u) => u.id === p.validantId)?.fullName ?? null }));
+    } else {
+      const { rows } = await query(
+        `SELECT p.lecon, p.statut, p.validated_at, p.validant_id, u.full_name AS validant_name
+           FROM progressions p LEFT JOIN users u ON u.id = p.validant_id
+          WHERE p.assigne_id = $1`,
+        [assigneId]
+      );
+      stored = rows.map((r) => ({ lecon: r.lecon, statut: r.statut, validatedAt: r.validated_at, validantId: r.validant_id, validantName: r.validant_name }));
+    }
+    const byLecon = new Map(stored.map((p) => [p.lecon, p]));
+    return Array.from({ length: 7 }, (_, i) => {
+      const n = i + 1;
+      const p = byLecon.get(n);
+      return p
+        ? { lecon: n, statut: "validee", validatedAt: p.validatedAt ?? null, validantName: p.validantName ?? null }
+        : { lecon: n, statut: "a_effectuer", validatedAt: null, validantName: null };
+    });
+  },
+
+  async countValidated(assigneId) {
+    if (!isPostgres) return memory.progressions.filter((p) => p.assigneId === assigneId).length;
+    const { rows } = await query("SELECT COUNT(*)::int AS n FROM progressions WHERE assigne_id = $1", [assigneId]);
+    return rows[0].n;
+  },
+
+  async validateLesson(assigneId, lecon, validantId, at) {
+    const when = at || new Date().toISOString();
+    if (!isPostgres) {
+      let p = memory.progressions.find((x) => x.assigneId === assigneId && x.lecon === lecon);
+      if (!p) { p = { id: newUuid(), assigneId, lecon }; memory.progressions.push(p); }
+      p.statut = "validee";
+      p.validatedAt = when;
+      p.validantId = validantId;
+      return this.getProgress(assigneId);
+    }
+    await query(
+      `INSERT INTO progressions (assigne_id, lecon, statut, validated_at, validant_id)
+       VALUES ($1, $2, 'validee', $4, $3)
+       ON CONFLICT (assigne_id, lecon) DO UPDATE SET statut = 'validee', validated_at = $4, validant_id = $3`,
+      [assigneId, lecon, validantId, when]
+    );
+    return this.getProgress(assigneId);
+  },
+};
+
 module.exports = {
   isPostgres,
   query,
@@ -984,6 +1101,8 @@ module.exports = {
   assignes,
   rapports,
   reports,
+  integration,
   ADMIN_ROLES,
+  FD_DEPT_NAMES,
   _memory: memory,
 };
