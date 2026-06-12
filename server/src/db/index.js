@@ -47,6 +47,7 @@ const memory = {
   presences: [],
   reports: [],
   progressions: [],
+  notifications: [],
 };
 
 // Rôles ayant une vue "administrative" globale (CDC : Pasteur + PR).
@@ -1088,6 +1089,109 @@ const integration = {
   },
 };
 
+// --- Notifications in-app (Module 7) ---------------------------------------
+function mapNotificationRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    message: row.message ?? "",
+    link: row.link ?? null,
+    isRead: row.is_read,
+    createdAt: row.created_at ?? null,
+  };
+}
+
+const notifications = {
+  // Reconcile the recipient's notifications with the current desired set:
+  // insert missing (unread), delete the ones no longer relevant. Read-state of
+  // still-relevant notifications is preserved.
+  async reconcile(recipientId, desired) {
+    const keys = desired.map((d) => d.dedupKey);
+    if (!isPostgres) {
+      const keySet = new Set(keys);
+      memory.notifications = memory.notifications.filter(
+        (n) => !(n.recipientId === recipientId && !keySet.has(n.dedupKey))
+      );
+      for (const d of desired) {
+        const exists = memory.notifications.some((n) => n.recipientId === recipientId && n.dedupKey === d.dedupKey);
+        if (!exists) {
+          memory.notifications.push({
+            id: newUuid(), recipientId, type: d.type, title: d.title,
+            message: d.message ?? "", link: d.link ?? null, dedupKey: d.dedupKey,
+            isRead: false, createdAt: new Date().toISOString(),
+          });
+        }
+      }
+      return;
+    }
+    // Delete stale (not in the desired key set).
+    if (keys.length) {
+      await query(
+        `DELETE FROM notifications WHERE recipient_id = $1 AND NOT (dedup_key = ANY($2))`,
+        [recipientId, keys]
+      );
+    } else {
+      await query(`DELETE FROM notifications WHERE recipient_id = $1`, [recipientId]);
+    }
+    for (const d of desired) {
+      await query(
+        `INSERT INTO notifications (recipient_id, type, title, message, link, dedup_key)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (recipient_id, dedup_key) DO NOTHING`,
+        [recipientId, d.type, d.title, d.message ?? "", d.link ?? null, d.dedupKey]
+      );
+    }
+  },
+
+  async list(recipientId) {
+    if (!isPostgres) {
+      return memory.notifications
+        .filter((n) => n.recipientId === recipientId)
+        .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+        .map(mapNotificationRow);
+    }
+    const { rows } = await query(
+      `SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY created_at DESC`,
+      [recipientId]
+    );
+    return rows.map(mapNotificationRow);
+  },
+
+  async unreadCount(recipientId) {
+    if (!isPostgres) {
+      return memory.notifications.filter((n) => n.recipientId === recipientId && !n.isRead).length;
+    }
+    const { rows } = await query(
+      `SELECT COUNT(*)::int AS n FROM notifications WHERE recipient_id = $1 AND is_read = FALSE`,
+      [recipientId]
+    );
+    return rows[0].n;
+  },
+
+  async markRead(id, recipientId) {
+    if (!isPostgres) {
+      const n = memory.notifications.find((x) => x.id === id && x.recipientId === recipientId);
+      if (n) n.isRead = true;
+      return Boolean(n);
+    }
+    const { rowCount } = await query(
+      `UPDATE notifications SET is_read = TRUE WHERE id = $1 AND recipient_id = $2`,
+      [id, recipientId]
+    );
+    return rowCount > 0;
+  },
+
+  async markAllRead(recipientId) {
+    if (!isPostgres) {
+      memory.notifications.forEach((n) => { if (n.recipientId === recipientId) n.isRead = true; });
+      return;
+    }
+    await query(`UPDATE notifications SET is_read = TRUE WHERE recipient_id = $1`, [recipientId]);
+  },
+};
+
 module.exports = {
   isPostgres,
   query,
@@ -1102,6 +1206,7 @@ module.exports = {
   rapports,
   reports,
   integration,
+  notifications,
   ADMIN_ROLES,
   FD_DEPT_NAMES,
   _memory: memory,

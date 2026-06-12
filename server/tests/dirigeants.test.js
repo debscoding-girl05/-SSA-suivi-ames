@@ -495,3 +495,30 @@ test("Nouveaux venus / 7 leçons: scope FD, séquentiel, promotion", async () =>
   const after = await api("GET", "/api/integration/nouveaux", ruth);
   assert.ok(!after.body.data.some((v) => v.id === clarisse.id), "Clarisse n'est plus un nouveau venu");
 });
+
+test("Notifications: génération scopée + lire / tout marquer lu", async () => {
+  const ruth = await login("suivi@ssa.app", "dirigeant1234"); // encadreur Suivi (fiche manquante + stagnations)
+  const pasteur = await pasteurToken();
+
+  // Encadreur : au moins une notification (fiche manquante / stagnation)
+  const p1 = await api("GET", "/api/notifications", ruth);
+  assert.equal(p1.status, 200);
+  assert.ok(p1.body.unread >= 1);
+
+  // Pasteur : synthèse globale + stagnation
+  const adm = await api("GET", "/api/notifications", pasteur);
+  assert.ok(adm.body.data.some((n) => n.type === "a_valider"));
+  assert.ok(adm.body.data.some((n) => n.type === "stagnation"));
+
+  // Marquer une notif lue → décrémente
+  const first = p1.body.data[0];
+  const r = await api("POST", `/api/notifications/${first.id}/read`, ruth);
+  assert.equal(r.status, 204);
+  const p2 = await api("GET", "/api/notifications", ruth);
+  assert.equal(p2.body.unread, p1.body.unread - 1);
+
+  // Tout marquer lu → 0
+  await api("POST", "/api/notifications/read-all", ruth);
+  const p3 = await api("GET", "/api/notifications", ruth);
+  assert.equal(p3.body.unread, 0);
+});

@@ -127,6 +127,22 @@ CREATE TABLE IF NOT EXISTS reports (
 CREATE INDEX IF NOT EXISTS idx_reports_author ON reports (author_id);
 CREATE INDEX IF NOT EXISTS idx_reports_week ON reports (year, week);
 
+-- Notifications in-app (Module 7). dedup_key évite les doublons par destinataire.
+CREATE TABLE IF NOT EXISTS notifications (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recipient_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type         TEXT NOT NULL,
+  title        TEXT NOT NULL,
+  message      TEXT NOT NULL DEFAULT '',
+  link         TEXT,
+  dedup_key    TEXT NOT NULL,
+  is_read      BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (recipient_id, dedup_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications (recipient_id);
+
 -- Rôles (hiérarchie pastorale — CDC v1.1 §3.1 / Annexe D, idempotent).
 INSERT INTO roles (name, description) VALUES
   ('pasteur',        'Pasteur (Daddy) — super administrateur, lecture de tout'),
