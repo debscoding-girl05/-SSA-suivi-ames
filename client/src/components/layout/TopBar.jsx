@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { HeartHandshake } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { Avatar } from '@/components/ui/avatar';
+import { NotificationBell } from '../NotificationBell';
 
 // Mobile top bar (visible < md): brand + avatar shortcut to profile.
 export default function TopBar() {
@@ -15,9 +16,12 @@ export default function TopBar() {
         </div>
         <span className="text-sm font-semibold">Suivi des Âmes</span>
       </div>
-      <Link to="/profile" aria-label="Profil" className="rounded-full">
-        <Avatar name={user?.fullName || user?.email} size="sm" />
-      </Link>
+      <div className="flex items-center gap-1">
+        <NotificationBell />
+        <Link to="/profile" aria-label="Profil" className="rounded-full">
+          <Avatar name={user?.fullName || user?.email} size="sm" />
+        </Link>
+      </div>
     </header>
   );
 }

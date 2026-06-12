@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { visibleNavItems } from './navItems';
 import { roleLabel } from '@/lib/roles';
 import { Avatar } from '@/components/ui/avatar';
+import { NotificationBell } from '../NotificationBell';
 
 // Desktop sidebar (visible ≥ md). Fixed, full-height.
 export default function Sidebar() {
@@ -13,14 +14,15 @@ export default function Sidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-border bg-card/80 backdrop-blur-sm md:flex">
-      <div className="flex items-center gap-2.5 px-5 py-5">
+      <div className="flex items-center gap-2.5 px-4 py-5">
         <div className="flex size-10 items-center justify-center rounded-xl bg-primary-gradient text-primary-foreground shadow-primary">
           <HeartHandshake className="size-5" />
         </div>
-        <div className="leading-tight">
-          <p className="text-sm font-semibold">Suivi des Âmes</p>
-          <p className="text-xs text-muted-foreground">Cathédrale SP</p>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-sm font-semibold">Suivi des Âmes</p>
+          <p className="truncate text-xs text-muted-foreground">Cathédrale SP</p>
         </div>
+        <NotificationBell />
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-2">
