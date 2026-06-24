@@ -8,7 +8,7 @@ const LABEL = 'text-sm font-medium';
 // Quick registration of a nouveau venu (CDC: < 2 min).
 export default function NouveauVenuForm({ onSaved, onCancel }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', firstSeenAt: today });
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', firstSeenAt: today, isVisiteur: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -46,6 +46,17 @@ export default function NouveauVenuForm({ onSaved, onCancel }) {
           <Input id="fs" type="date" value={form.firstSeenAt} onChange={setField('firstSeenAt')} />
         </div>
       </div>
+
+      <label className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+        <input
+          type="checkbox"
+          checked={form.isVisiteur}
+          onChange={(e) => setForm((f) => ({ ...f, isVisiteur: e.target.checked }))}
+          className="size-4 accent-[var(--primary)]"
+        />
+        <span className="text-sm font-medium">Visiteur</span>
+        <span className="text-xs text-muted-foreground">(de passage, pas encore engagé)</span>
+      </label>
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
 

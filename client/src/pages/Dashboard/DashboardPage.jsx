@@ -6,6 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { Avatar } from '@/components/ui/avatar';
 import StatCard from '../../components/StatCard';
 import ProgressRing from '../../components/ProgressRing';
+import ObjectifCard from './ObjectifCard';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -59,6 +60,8 @@ export default function DashboardPage() {
           {overview ? `Suivi pastoral · semaine ${overview.week.week}` : 'Aperçu du suivi'}
         </p>
       </div>
+
+      {user?.role === 'pasteur' && <ObjectifCard />}
 
       {/* Hero — taux de soumission */}
       <div className="flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-soft">

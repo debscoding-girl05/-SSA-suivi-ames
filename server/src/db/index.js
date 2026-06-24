@@ -48,6 +48,7 @@ const memory = {
   reports: [],
   progressions: [],
   notifications: [],
+  settings: {},
 };
 
 // Rôles ayant une vue "administrative" globale (CDC : Pasteur + PR).
@@ -155,6 +156,7 @@ function mapAssigneRow(row) {
     dirigeantId: row.dirigeant_id,
     notes: row.notes ?? null,
     statut: row.statut ?? "regulier",
+    isVisiteur: row.is_visiteur ?? false,
     firstSeenAt: row.first_seen_at ?? null,
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
@@ -170,6 +172,7 @@ function memAssigneRow(a, extra = {}) {
     last_name: a.lastName,
     dirigeant_id: a.dirigeantId,
     statut: a.statut,
+    is_visiteur: a.isVisiteur,
     first_seen_at: a.firstSeenAt,
     created_at: a.createdAt,
     updated_at: a.updatedAt,
@@ -593,29 +596,36 @@ const assignes = {
     return mapAssigneRow(rows[0]);
   },
 
-  async create({ firstName, lastName, phone, email, dirigeantId, notes, statut, firstSeenAt }) {
+  async create({ firstName, lastName, phone, email, dirigeantId, notes, statut, firstSeenAt, isVisiteur }) {
     if (!isPostgres) {
       const a = {
         id: newUuid(), firstName, lastName, phone: phone ?? null, email: email ?? null,
         dirigeantId, notes: notes ?? null,
-        statut: statut || "regulier", firstSeenAt: firstSeenAt ?? null,
+        statut: statut || "regulier", isVisiteur: Boolean(isVisiteur), firstSeenAt: firstSeenAt ?? null,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       memory.assignes.push(a);
       return this.findById(a.id);
     }
     const { rows } = await query(
-      `INSERT INTO assignes (first_name, last_name, phone, email, dirigeant_id, notes, statut, first_seen_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-      [firstName, lastName, phone ?? null, email ?? null, dirigeantId, notes ?? null, statut || "regulier", firstSeenAt ?? null]
+      `INSERT INTO assignes (first_name, last_name, phone, email, dirigeant_id, notes, statut, is_visiteur, first_seen_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [firstName, lastName, phone ?? null, email ?? null, dirigeantId, notes ?? null, statut || "regulier", Boolean(isVisiteur), firstSeenAt ?? null]
     );
     return this.findById(rows[0].id);
+  },
+
+  // Total number of souls tracked (for the church growth objective).
+  async countAll() {
+    if (!isPostgres) return memory.assignes.length;
+    const { rows } = await query("SELECT COUNT(*)::int AS n FROM assignes");
+    return rows[0].n;
   },
 
   async update(id, fields) {
     const allowed = {
       firstName: "first_name", lastName: "last_name",
-      phone: "phone", email: "email", notes: "notes", statut: "statut",
+      phone: "phone", email: "email", notes: "notes", statut: "statut", isVisiteur: "is_visiteur",
     };
     if (!isPostgres) {
       const a = memory.assignes.find((x) => x.id === id);
@@ -1192,6 +1202,23 @@ const notifications = {
   },
 };
 
+// --- Settings (paramètres globaux : objectif Pasteur) ----------------------
+const settings = {
+  async get(key) {
+    if (!isPostgres) return memory.settings[key] ?? null;
+    const { rows } = await query("SELECT value FROM settings WHERE key = $1", [key]);
+    return rows[0]?.value ?? null;
+  },
+  async set(key, value) {
+    if (!isPostgres) { memory.settings[key] = value; return; }
+    await query(
+      `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, now())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+      [key, value]
+    );
+  },
+};
+
 module.exports = {
   isPostgres,
   query,
@@ -1207,6 +1234,7 @@ module.exports = {
   reports,
   integration,
   notifications,
+  settings,
   ADMIN_ROLES,
   FD_DEPT_NAMES,
   _memory: memory,
