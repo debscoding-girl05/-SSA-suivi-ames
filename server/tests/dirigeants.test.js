@@ -522,3 +522,22 @@ test("Notifications: génération scopée + lire / tout marquer lu", async () =>
   const p3 = await api("GET", "/api/notifications", ruth);
   assert.equal(p3.body.unread, 0);
 });
+
+test("Objectif (Pasteur only) + attribut visiteur", async () => {
+  const pasteur = await pasteurToken();
+  const pr = await login("pr@ssa.app", "pr1234");
+  const ruth = await login("suivi@ssa.app", "dirigeant1234");
+
+  // Objectif réservé au Pasteur
+  assert.equal((await api("GET", "/api/objectif", pr)).status, 403);
+  const set = await api("PUT", "/api/objectif", pasteur, { target: 100 });
+  assert.equal(set.status, 200);
+  assert.equal(set.body.target, 100);
+  assert.ok(set.body.achieved >= 0);
+  assert.equal(set.body.percent, Math.min(100, Math.round((set.body.achieved / 100) * 100)));
+
+  // Nouveau venu avec attribut visiteur
+  const v = await api("POST", "/api/integration/nouveaux", ruth, { firstName: "Vis", lastName: "Iteur", isVisiteur: true });
+  assert.equal(v.status, 201);
+  assert.equal(v.body.isVisiteur, true);
+});

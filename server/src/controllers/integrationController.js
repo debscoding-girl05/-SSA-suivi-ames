@@ -56,7 +56,13 @@ async function register(req, res) {
 
   const payload = validateAssigne(req.body, { partial: false });
   const firstSeenAt = typeof req.body.firstSeenAt === "string" && req.body.firstSeenAt ? req.body.firstSeenAt : new Date().toISOString().slice(0, 10);
-  const created = await db.assignes.create({ ...payload, dirigeantId: targetId, statut: "nouveau", firstSeenAt });
+  const created = await db.assignes.create({
+    ...payload,
+    dirigeantId: targetId,
+    statut: "nouveau",
+    isVisiteur: Boolean(req.body.isVisiteur),
+    firstSeenAt,
+  });
   res.status(201).json(created);
 }
 

@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS assignes (
   notes           TEXT,
   statut          TEXT NOT NULL DEFAULT 'regulier'
                   CHECK (statut IN ('nouveau', 'regulier', 'inactif')),
+  is_visiteur     BOOLEAN NOT NULL DEFAULT FALSE,
   first_seen_at   DATE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -142,6 +143,13 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications (recipient_id);
+
+-- Paramètres globaux (ex. objectif d'évangélisation fixé par le Pasteur).
+CREATE TABLE IF NOT EXISTS settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- Rôles (hiérarchie pastorale — CDC v1.1 §3.1 / Annexe D, idempotent).
 INSERT INTO roles (name, description) VALUES
