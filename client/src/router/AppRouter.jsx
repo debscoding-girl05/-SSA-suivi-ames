@@ -9,6 +9,8 @@ import RapportsPage from '../pages/Rapports/RapportsPage';
 import ReportsPage from '../pages/Reports/ReportsPage';
 import NouveauxVenusPage from '../pages/NouveauxVenus/NouveauxVenusPage';
 import NotificationsPage from '../pages/Notifications/NotificationsPage';
+import CellulesPage from '../pages/Cellules/CellulesPage';
+import CelluleDetailPage from '../pages/Cellules/CelluleDetailPage';
 import ProfilePage from '../pages/Profile/ProfilePage';
 import NotFoundPage from '../pages/NotFound/NotFoundPage';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -36,6 +38,8 @@ export default function AppRouter() {
         <Route path="/nouveaux-venus" element={<NouveauxVenusPage />} />
         <Route path="/fiches" element={<RapportsPage />} />
         <Route path="/rapports" element={<ReportsPage />} />
+        <Route path="/cellules" element={<CellulesPage />} />
+        <Route path="/cellules/:id" element={<CelluleDetailPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
