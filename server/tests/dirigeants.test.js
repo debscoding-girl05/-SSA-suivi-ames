@@ -541,3 +541,35 @@ test("Objectif (Pasteur only) + attribut visiteur", async () => {
   assert.equal(v.status, 201);
   assert.equal(v.body.isVisiteur, true);
 });
+
+test("Cellules de prière: scope, création (admin), membres & fiche (leader)", async () => {
+  const pasteur = await pasteurToken();
+  const pierre = await login("cellule@ssa.app", "dirigeant1234"); // leader_cellule
+  const jean = await login("encadreur@ssa.app", "encadreur1234");
+
+  // Scope : Pasteur voit tout, Pierre voit la sienne, Jean (encadreur) rien
+  assert.ok((await api("GET", "/api/cellules", pasteur)).body.data.length >= 1);
+  assert.ok((await api("GET", "/api/cellules", pierre)).body.data.length >= 1);
+  assert.equal((await api("GET", "/api/cellules", jean)).body.data.length, 0);
+  assert.equal((await api("POST", "/api/cellules", jean, { nom: "X" })).status, 403);
+
+  // Création par le Pasteur
+  const created = await api("POST", "/api/cellules", pasteur, { nom: "Cellule Test", quartier: "Nlongkak" });
+  assert.equal(created.status, 201);
+
+  // Pierre gère sa cellule : membre + fiche de présence
+  const mine = (await api("GET", "/api/cellules", pierre)).body.data[0];
+  const m = await api("POST", `/api/cellules/${mine.id}/membres`, pierre, { nom: "Invité Test", estMembreEglise: false });
+  assert.equal(m.status, 201);
+  assert.equal(m.body.estMembreEglise, false);
+
+  const detail = await api("GET", `/api/cellules/${mine.id}`, pierre);
+  const membres = detail.body.membres;
+  const fiche = await api("POST", `/api/cellules/${mine.id}/fiche`, pierre, {
+    status: "soumis",
+    presences: membres.map((mm, i) => ({ membreId: mm.id, statut: i === 0 ? "absent" : "present" })),
+  });
+  assert.equal(fiche.status, 201);
+  assert.equal(fiche.body.status, "soumis");
+  assert.equal(fiche.body.presentCount, Math.max(0, membres.length - 1));
+});

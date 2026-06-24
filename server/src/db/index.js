@@ -49,6 +49,9 @@ const memory = {
   progressions: [],
   notifications: [],
   settings: {},
+  cellules: [],
+  membresCellule: [],
+  fichesCellule: [],
 };
 
 // Rôles ayant une vue "administrative" globale (CDC : Pasteur + PR).
@@ -392,7 +395,7 @@ const dirigeants = {
     if (!isPostgres) {
       let rows = memory.users.filter((u) => {
         const role = memory.roles.find((r) => r.id === u.roleId);
-        return role && !ADMIN_ROLES.includes(role.name);
+        return role && (role.name === "leader" || role.name === "encadreur");
       });
       if (scope?.selfId) rows = rows.filter((u) => u.id === scope.selfId);
       if (scope?.departmentId) rows = rows.filter((u) => u.departmentId === scope.departmentId);
@@ -426,7 +429,7 @@ const dirigeants = {
     }
 
     const params = [year, week];
-    const where = ["r.name NOT IN ('pasteur','pr')"];
+    const where = ["r.name IN ('leader','encadreur')"];
     if (scope?.selfId) {
       params.push(scope.selfId);
       where.push(`u.id = $${params.length}`);
@@ -1202,6 +1205,181 @@ const notifications = {
   },
 };
 
+// --- Cellules de prière (Module 8) -----------------------------------------
+function leaderName(id) {
+  return memory.users.find((u) => u.id === id)?.fullName ?? null;
+}
+
+const cellules = {
+  // scope: undefined (admin → toutes) | { leaderId } (leader de cellule → les siennes).
+  async list({ year, week, scope } = {}) {
+    if (!isPostgres) {
+      let rows = memory.cellules.slice();
+      if (scope?.leaderId) rows = rows.filter((c) => c.leaderCelluleId === scope.leaderId);
+      return rows
+        .map((c) => {
+          const membreCount = memory.membresCellule.filter((m) => m.celluleId === c.id).length;
+          const fiche = memory.fichesCellule.find((f) => f.celluleId === c.id && f.year === year && f.week === week);
+          return {
+            id: c.id, nom: c.nom, quartier: c.quartier ?? null,
+            leaderCelluleId: c.leaderCelluleId ?? null, leaderName: leaderName(c.leaderCelluleId),
+            membreCount, ficheStatus: fiche?.status ?? null,
+          };
+        })
+        .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+    }
+    const params = [year, week];
+    let where = "";
+    if (scope?.leaderId) { params.push(scope.leaderId); where = `WHERE c.leader_cellule_id = $${params.length}`; }
+    const { rows } = await query(
+      `SELECT c.id, c.nom, c.quartier, c.leader_cellule_id, u.full_name AS leader_name,
+              (SELECT COUNT(*) FROM membres_cellule m WHERE m.cellule_id = c.id)::int AS membre_count,
+              (SELECT status FROM fiches_cellule f WHERE f.cellule_id = c.id AND f.year = $1 AND f.week = $2) AS fiche_status
+         FROM cellules c LEFT JOIN users u ON u.id = c.leader_cellule_id
+         ${where}
+        ORDER BY c.nom ASC`,
+      params
+    );
+    return rows.map((c) => ({
+      id: c.id, nom: c.nom, quartier: c.quartier ?? null,
+      leaderCelluleId: c.leader_cellule_id ?? null, leaderName: c.leader_name ?? null,
+      membreCount: c.membre_count, ficheStatus: c.fiche_status ?? null,
+    }));
+  },
+
+  async findById(id) {
+    if (!isPostgres) {
+      const c = memory.cellules.find((x) => x.id === id);
+      if (!c) return null;
+      return { id: c.id, nom: c.nom, quartier: c.quartier ?? null, leaderCelluleId: c.leaderCelluleId ?? null, leaderName: leaderName(c.leaderCelluleId) };
+    }
+    const { rows } = await query(
+      `SELECT c.*, u.full_name AS leader_name FROM cellules c LEFT JOIN users u ON u.id = c.leader_cellule_id WHERE c.id = $1`,
+      [id]
+    );
+    const c = rows[0];
+    return c ? { id: c.id, nom: c.nom, quartier: c.quartier ?? null, leaderCelluleId: c.leader_cellule_id ?? null, leaderName: c.leader_name ?? null } : null;
+  },
+
+  async create({ nom, quartier, leaderCelluleId }) {
+    if (!isPostgres) {
+      const c = { id: newUuid(), nom, quartier: quartier ?? null, leaderCelluleId: leaderCelluleId ?? null, createdAt: new Date().toISOString() };
+      memory.cellules.push(c);
+      return this.findById(c.id);
+    }
+    const { rows } = await query(
+      `INSERT INTO cellules (nom, quartier, leader_cellule_id) VALUES ($1, $2, $3) RETURNING id`,
+      [nom, quartier ?? null, leaderCelluleId ?? null]
+    );
+    return this.findById(rows[0].id);
+  },
+
+  async update(id, fields) {
+    const allowed = { nom: "nom", quartier: "quartier", leaderCelluleId: "leader_cellule_id" };
+    if (!isPostgres) {
+      const c = memory.cellules.find((x) => x.id === id);
+      if (!c) return null;
+      for (const k of Object.keys(allowed)) if (fields[k] !== undefined) c[k] = fields[k];
+      return this.findById(id);
+    }
+    const sets = []; const params = [];
+    for (const [k, col] of Object.entries(allowed)) if (fields[k] !== undefined) { params.push(fields[k]); sets.push(`${col} = $${params.length}`); }
+    if (!sets.length) return this.findById(id);
+    sets.push("updated_at = now()"); params.push(id);
+    await query(`UPDATE cellules SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
+    return this.findById(id);
+  },
+
+  async listMembres(celluleId) {
+    if (!isPostgres) {
+      return memory.membresCellule
+        .filter((m) => m.celluleId === celluleId)
+        .map((m) => ({ id: m.id, nom: m.nom, telephone: m.telephone ?? null, estMembreEglise: m.estMembreEglise }))
+        .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+    }
+    const { rows } = await query(`SELECT id, nom, telephone, est_membre_eglise FROM membres_cellule WHERE cellule_id = $1 ORDER BY nom ASC`, [celluleId]);
+    return rows.map((m) => ({ id: m.id, nom: m.nom, telephone: m.telephone ?? null, estMembreEglise: m.est_membre_eglise }));
+  },
+
+  async addMembre(celluleId, { nom, telephone, estMembreEglise }) {
+    if (!isPostgres) {
+      const m = { id: newUuid(), celluleId, nom, telephone: telephone ?? null, estMembreEglise: Boolean(estMembreEglise), createdAt: new Date().toISOString() };
+      memory.membresCellule.push(m);
+      return { id: m.id, nom: m.nom, telephone: m.telephone, estMembreEglise: m.estMembreEglise };
+    }
+    const { rows } = await query(
+      `INSERT INTO membres_cellule (cellule_id, nom, telephone, est_membre_eglise) VALUES ($1, $2, $3, $4) RETURNING id, nom, telephone, est_membre_eglise`,
+      [celluleId, nom, telephone ?? null, Boolean(estMembreEglise)]
+    );
+    const m = rows[0];
+    return { id: m.id, nom: m.nom, telephone: m.telephone ?? null, estMembreEglise: m.est_membre_eglise };
+  },
+
+  async findMembre(membreId) {
+    if (!isPostgres) {
+      const m = memory.membresCellule.find((x) => x.id === membreId);
+      return m ? { id: m.id, celluleId: m.celluleId } : null;
+    }
+    const { rows } = await query(`SELECT id, cellule_id FROM membres_cellule WHERE id = $1`, [membreId]);
+    return rows[0] ? { id: rows[0].id, celluleId: rows[0].cellule_id } : null;
+  },
+
+  async removeMembre(membreId) {
+    if (!isPostgres) {
+      const i = memory.membresCellule.findIndex((x) => x.id === membreId);
+      if (i === -1) return false;
+      memory.membresCellule.splice(i, 1);
+      return true;
+    }
+    const { rowCount } = await query(`DELETE FROM membres_cellule WHERE id = $1`, [membreId]);
+    return rowCount > 0;
+  },
+
+  async getFiche(celluleId, year, week) {
+    if (!isPostgres) {
+      const f = memory.fichesCellule.find((x) => x.celluleId === celluleId && x.year === year && x.week === week);
+      return f ? { id: f.id, status: f.status, presentCount: f.presentCount, remarques: f.remarques ?? null, presences: f.presences || [] } : null;
+    }
+    const { rows } = await query(`SELECT * FROM fiches_cellule WHERE cellule_id = $1 AND year = $2 AND week = $3`, [celluleId, year, week]);
+    const f = rows[0];
+    return f ? { id: f.id, status: f.status, presentCount: f.present_count, remarques: f.remarques ?? null, presences: f.presences || [] } : null;
+  },
+
+  async submitFiche({ celluleId, year, week, status = "soumis", remarques, presences }) {
+    const list = Array.isArray(presences) ? presences : [];
+    const presentCount = list.filter((p) => p.statut === "present").length;
+    const submittedAt = status === "soumis" ? new Date().toISOString() : null;
+    if (!isPostgres) {
+      let f = memory.fichesCellule.find((x) => x.celluleId === celluleId && x.year === year && x.week === week);
+      if (!f) { f = { id: newUuid(), celluleId, year, week }; memory.fichesCellule.push(f); }
+      Object.assign(f, { status, presentCount, remarques: remarques ?? null, presences: list, submittedAt });
+      return this.getFiche(celluleId, year, week);
+    }
+    await query(
+      `INSERT INTO fiches_cellule (cellule_id, year, week, status, present_count, remarques, presences, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (cellule_id, year, week)
+       DO UPDATE SET status = EXCLUDED.status, present_count = EXCLUDED.present_count, remarques = EXCLUDED.remarques,
+                     presences = EXCLUDED.presences, submitted_at = EXCLUDED.submitted_at, updated_at = now()`,
+      [celluleId, year, week, status, presentCount, remarques ?? null, JSON.stringify(list), submittedAt]
+    );
+    return this.getFiche(celluleId, year, week);
+  },
+
+  // Utilisateurs pouvant animer une cellule (rôle leader_cellule).
+  async leadersDisponibles() {
+    if (!isPostgres) {
+      return memory.users
+        .filter((u) => memory.roles.find((r) => r.id === u.roleId)?.name === "leader_cellule")
+        .map((u) => ({ id: u.id, fullName: u.fullName }));
+    }
+    const { rows } = await query(
+      `SELECT u.id, u.full_name FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'leader_cellule' ORDER BY u.full_name`
+    );
+    return rows.map((u) => ({ id: u.id, fullName: u.full_name }));
+  },
+};
+
 // --- Settings (paramètres globaux : objectif Pasteur) ----------------------
 const settings = {
   async get(key) {
@@ -1235,6 +1413,7 @@ module.exports = {
   integration,
   notifications,
   settings,
+  cellules,
   ADMIN_ROLES,
   FD_DEPT_NAMES,
   _memory: memory,

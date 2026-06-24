@@ -144,6 +144,46 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications (recipient_id);
 
+-- Cellules de prière (Module 8) — indépendantes des départements, par quartier.
+CREATE TABLE IF NOT EXISTS cellules (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nom               TEXT NOT NULL,
+  quartier          TEXT,
+  leader_cellule_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Membres d'une cellule (PAS forcément membres de l'église) — liste libre.
+CREATE TABLE IF NOT EXISTS membres_cellule (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cellule_id        UUID NOT NULL REFERENCES cellules(id) ON DELETE CASCADE,
+  nom               TEXT NOT NULL,
+  telephone         TEXT,
+  est_membre_eglise BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_membres_cellule ON membres_cellule (cellule_id);
+
+-- Fiche de présence hebdo d'une cellule (présences stockées en JSON).
+CREATE TABLE IF NOT EXISTS fiches_cellule (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cellule_id    UUID NOT NULL REFERENCES cellules(id) ON DELETE CASCADE,
+  year          INTEGER NOT NULL,
+  week          INTEGER NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'brouillon' CHECK (status IN ('brouillon', 'soumis')),
+  present_count INTEGER NOT NULL DEFAULT 0,
+  remarques     TEXT,
+  presences     JSONB NOT NULL DEFAULT '[]',
+  submitted_at  TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (cellule_id, year, week)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fiches_cellule ON fiches_cellule (cellule_id);
+
 -- Paramètres globaux (ex. objectif d'évangélisation fixé par le Pasteur).
 CREATE TABLE IF NOT EXISTS settings (
   key        TEXT PRIMARY KEY,
