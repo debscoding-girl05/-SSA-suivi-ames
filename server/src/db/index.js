@@ -240,6 +240,42 @@ const departments = {
     const { rows } = await query("SELECT * FROM departments WHERE id = $1", [numId]);
     return mapDepartmentRow(rows[0]);
   },
+  async findByName(name) {
+    const norm = String(name || "").trim().toLowerCase();
+    if (!isPostgres) return mapDepartmentRow(memory.departments.find((d) => d.name.toLowerCase() === norm));
+    const { rows } = await query("SELECT * FROM departments WHERE LOWER(name) = $1", [norm]);
+    return mapDepartmentRow(rows[0]);
+  },
+  async create({ name, description }) {
+    if (!isPostgres) {
+      const id = memory.departments.reduce((max, d) => Math.max(max, d.id), 0) + 1;
+      const dep = { id, name, description: description ?? null };
+      memory.departments.push(dep);
+      return mapDepartmentRow(dep);
+    }
+    const { rows } = await query(
+      "INSERT INTO departments (name, description) VALUES ($1, $2) RETURNING *",
+      [name, description ?? null]
+    );
+    return mapDepartmentRow(rows[0]);
+  },
+  async update(id, fields) {
+    const numId = Number(id);
+    if (!isPostgres) {
+      const dep = memory.departments.find((d) => d.id === numId);
+      if (!dep) return null;
+      if (fields.name !== undefined) dep.name = fields.name;
+      if (fields.description !== undefined) dep.description = fields.description;
+      return mapDepartmentRow(dep);
+    }
+    const sets = []; const params = [];
+    if (fields.name !== undefined) { params.push(fields.name); sets.push(`name = $${params.length}`); }
+    if (fields.description !== undefined) { params.push(fields.description); sets.push(`description = $${params.length}`); }
+    if (!sets.length) return this.findById(numId);
+    params.push(numId);
+    const { rows } = await query(`UPDATE departments SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING *`, params);
+    return mapDepartmentRow(rows[0]);
+  },
 
   // Per-department stats for { year, week }: dirigeant/assigné counts + submitted.
   async listWithStats({ year, week } = {}) {
