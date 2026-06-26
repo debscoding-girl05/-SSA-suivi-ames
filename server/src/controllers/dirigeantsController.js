@@ -1,9 +1,21 @@
+const bcrypt = require("bcryptjs");
 const db = require("../db");
 const ApiError = require("../utils/ApiError");
-const { validateDirigeant } = require("../utils/validators");
+const { validateDirigeant, validateNewDirigeant } = require("../utils/validators");
 const { parseWeek } = require("../utils/week");
 
 const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
+
+// Public projection of a dirigeant — never leak passwordHash.
+const toPublic = (d) => ({
+  id: d.id,
+  fullName: d.fullName,
+  email: d.email,
+  phone: d.phone,
+  role: d.role,
+  departmentId: d.departmentId,
+  departmentName: d.departmentName,
+});
 
 // RBAC visibility scope (CDC Annexe D):
 //  - Pasteur / PR  → tout
@@ -35,6 +47,32 @@ async function list(req, res) {
     scope: scopeFor(req.user),
   });
   res.json({ data, week: { year, week } });
+}
+
+// POST /api/dirigeants — créer un compte dirigeant (Pasteur/PR).
+async function create(req, res) {
+  const { fullName, role, phone, email, password, departmentId } = validateNewDirigeant(req.body);
+
+  if (departmentId) {
+    const dept = await db.departments.findById(departmentId);
+    if (!dept) throw ApiError.badRequest("Département introuvable");
+  }
+
+  // Email = celui fourni, sinon généré depuis le téléphone (login possible par tél.).
+  const finalEmail = email || `${role}.${phone.replace(/\D/g, "")}@ssa.local`;
+  if (await db.users.findByEmail(finalEmail)) {
+    throw new ApiError(409, "EMAIL_EXISTS", "Un compte avec cet email existe déjà");
+  }
+  if (await db.users.findByIdentifier(phone)) {
+    throw new ApiError(409, "PHONE_EXISTS", "Un compte avec ce numéro existe déjà");
+  }
+
+  const roleRow = await db.roles.findByName(role);
+  if (!roleRow) throw ApiError.badRequest("Rôle introuvable");
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = await db.users.create({ email: finalEmail, passwordHash, fullName, phone, roleId: roleRow.id, departmentId });
+  res.status(201).json(toPublic(await db.dirigeants.findById(user.id)));
 }
 
 // GET /api/dirigeants/:id — detail + assignés + report history.
@@ -76,16 +114,7 @@ async function update(req, res) {
     if (!dept) throw ApiError.badRequest("Département introuvable");
   }
   const u = await db.dirigeants.update(req.params.id, payload);
-  // Public projection — never leak passwordHash.
-  res.json({
-    id: u.id,
-    fullName: u.fullName,
-    email: u.email,
-    phone: u.phone,
-    role: u.role,
-    departmentId: u.departmentId,
-    departmentName: u.departmentName,
-  });
+  res.json(toPublic(u));
 }
 
-module.exports = { list, getOne, update, canView, isAdmin };
+module.exports = { list, create, getOne, update, canView, isAdmin };

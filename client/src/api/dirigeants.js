@@ -17,6 +17,10 @@ export function getDirigeant(id) {
   return request(`/api/dirigeants/${id}`);
 }
 
+export function createDirigeant(payload) {
+  return request('/api/dirigeants', { method: 'POST', body: payload });
+}
+
 export function updateDirigeant(id, payload) {
   return request(`/api/dirigeants/${id}`, { method: 'PUT', body: payload });
 }

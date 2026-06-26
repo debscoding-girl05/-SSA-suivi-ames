@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import AssigneForm from './AssigneForm';
+import DirigeantForm from './DirigeantForm';
 import FicheView from './FicheView';
 import ReportView from '../Reports/ReportView';
 import ReportStatusBadge from '../../components/ReportStatusBadge';
@@ -25,6 +26,7 @@ export default function DirigeantDetailPage() {
   const [editing, setEditing] = useState(null);
   const [viewReport, setViewReport] = useState(null);
   const [viewFiche, setViewFiche] = useState(null);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   // Mirrors backend: Pasteur/PR, the dirigeant himself, or a leader of the
   // same department may edit assignés.
@@ -32,6 +34,8 @@ export default function DirigeantDetailPage() {
     isAdminRole(user?.role) ||
     user?.id === id ||
     (user?.role === 'leader' && user?.departmentId != null && user?.departmentId === data?.dirigeant?.departmentId);
+  // Seuls Pasteur/PR éditent le profil (rôle, département, coordonnées).
+  const canEditProfile = isAdminRole(user?.role);
 
   const load = useCallback(async () => {
     try {
@@ -87,6 +91,11 @@ export default function DirigeantDetailPage() {
                     {roleLabel(data.dirigeant.role)} · {data.dirigeant.departmentName || 'Sans département'}
                   </p>
                 </div>
+                {canEditProfile && (
+                  <Button variant="outline" size="sm" onClick={() => setEditProfileOpen(true)}>
+                    <Pencil className="size-4" /> Modifier
+                  </Button>
+                )}
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-sm">
                 {data.dirigeant.phone && (
@@ -211,6 +220,16 @@ export default function DirigeantDetailPage() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Modifier l’assigné' : 'Ajouter un assigné'}>
         <AssigneForm dirigeantId={id} assigne={editing} onSaved={handleSaved} onCancel={() => setModalOpen(false)} />
+      </Modal>
+
+      <Modal open={editProfileOpen} onClose={() => setEditProfileOpen(false)} title="Modifier le dirigeant">
+        {data && (
+          <DirigeantForm
+            dirigeant={data.dirigeant}
+            onSaved={() => { setEditProfileOpen(false); load(); }}
+            onCancel={() => setEditProfileOpen(false)}
+          />
+        )}
       </Modal>
 
       <Modal open={Boolean(viewReport)} onClose={() => setViewReport(null)} title={viewReport?.title || 'Rapport'}>

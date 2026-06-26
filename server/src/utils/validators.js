@@ -66,6 +66,37 @@ function validateRapport(body = {}) {
   };
 }
 
+// Nouveau compte dirigeant (leader / encadreur), créé par Pasteur/PR.
+// Téléphone requis (identifiant de connexion) ; email + département optionnels.
+function validateNewDirigeant(body = {}) {
+  const fullName = str(body.fullName);
+  if (!fullName) throw ApiError.badRequest("Le nom complet est requis");
+
+  const role = str(body.role);
+  if (role !== "leader" && role !== "encadreur") {
+    throw ApiError.badRequest("Le rôle doit être « leader » ou « encadreur »");
+  }
+
+  const phone = str(body.phone);
+  if (!phone || phone.replace(/\D/g, "").length < 6) {
+    throw ApiError.badRequest("Un numéro de téléphone valide est requis");
+  }
+
+  const email = str(body.email);
+  if (email && !EMAIL_RE.test(email)) throw ApiError.badRequest("Email invalide");
+
+  const password = typeof body.password === "string" ? body.password : "";
+  if (password.length < 6) throw ApiError.badRequest("Le mot de passe doit contenir au moins 6 caractères");
+
+  let departmentId = null;
+  if (body.departmentId !== undefined && body.departmentId !== null && body.departmentId !== "") {
+    departmentId = Number(body.departmentId);
+    if (!Number.isInteger(departmentId) || departmentId <= 0) throw ApiError.badRequest("departmentId invalide");
+  }
+
+  return { fullName, role, phone, email: email || null, password, departmentId };
+}
+
 // Nouveau compte leader de cellule (créé par Pasteur/PR).
 // Téléphone requis (sert d'identifiant de connexion) ; email optionnel.
 function validateLeaderCellule(body = {}) {
@@ -86,4 +117,4 @@ function validateLeaderCellule(body = {}) {
   return { fullName, phone, email: email || null, password };
 }
 
-module.exports = { validateAssigne, validateDirigeant, validateRapport, validateLeaderCellule };
+module.exports = { validateAssigne, validateDirigeant, validateNewDirigeant, validateRapport, validateLeaderCellule };
