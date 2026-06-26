@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, MapPin, Users, Plus, Trash2, ClipboardCheck } from 'lucide-react';
-import { getCellule, addMembreCellule, removeMembreCellule } from '../../api/cellules';
+import { Select } from '@/components/ui/select';
+import { ArrowLeft, MapPin, Users, Plus, Trash2, ClipboardCheck, Pencil } from 'lucide-react';
+import { getCellule, addMembreCellule, removeMembreCellule, updateCellule, celluleLeaders } from '../../api/cellules';
 import { useAuth } from '../../hooks/useAuth';
 import { isAdminRole } from '@/lib/roles';
 import Modal from '../../components/Modal';
@@ -21,6 +22,9 @@ export default function CelluleDetailPage() {
   const [ficheOpen, setFicheOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ nom: '', telephone: '', estMembreEglise: false });
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ nom: '', quartier: '', leaderCelluleId: '' });
+  const [leaders, setLeaders] = useState([]);
 
   const load = useCallback(async () => {
     try { setData(await getCellule(id)); setError(''); }
@@ -30,6 +34,19 @@ export default function CelluleDetailPage() {
   useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t); }, [load]);
 
   const canManage = data && (isAdminRole(user?.role) || (user?.role === 'leader_cellule' && data.cellule.leaderCelluleId === user?.id));
+  // Seuls Pasteur/PR éditent la cellule (nom, quartier, leader).
+  const canEdit = isAdminRole(user?.role);
+
+  async function openEdit() {
+    setEditForm({ nom: data.cellule.nom, quartier: data.cellule.quartier || '', leaderCelluleId: data.cellule.leaderCelluleId || '' });
+    try { setLeaders((await celluleLeaders()).data); } catch { setLeaders([]); }
+    setEditOpen(true);
+  }
+  async function submitEdit(e) {
+    e.preventDefault();
+    try { await updateCellule(id, { ...editForm, leaderCelluleId: editForm.leaderCelluleId || null }); setEditOpen(false); load(); }
+    catch (er) { setError(er?.message || 'Modification impossible.'); }
+  }
 
   async function addMembre(e) {
     e.preventDefault();
@@ -54,7 +71,12 @@ export default function CelluleDetailPage() {
           <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
             <div className="h-14 bg-primary-gradient" />
             <div className="px-5 pb-5 pt-3">
-              <h1 className="text-xl font-semibold tracking-tight">{data.cellule.nom}</h1>
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="text-xl font-semibold tracking-tight">{data.cellule.nom}</h1>
+                {canEdit && (
+                  <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="size-4" /> Modifier</Button>
+                )}
+              </div>
               <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 {data.cellule.quartier && <span className="flex items-center gap-1"><MapPin className="size-3.5" />{data.cellule.quartier}</span>}
                 <span>Leader : {data.cellule.leaderName || '—'}</span>
@@ -96,6 +118,31 @@ export default function CelluleDetailPage() {
           </div>
         </>
       )}
+
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Modifier la cellule">
+        <form onSubmit={submitEdit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="e-nom" className="text-sm font-medium">Nom *</label>
+            <Input id="e-nom" value={editForm.nom} onChange={(e) => setEditForm((f) => ({ ...f, nom: e.target.value }))} required autoFocus />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="e-q" className="text-sm font-medium">Quartier</label>
+            <Input id="e-q" value={editForm.quartier} onChange={(e) => setEditForm((f) => ({ ...f, quartier: e.target.value }))} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Leader de cellule</span>
+            <Select
+              value={editForm.leaderCelluleId}
+              onChange={(v) => setEditForm((f) => ({ ...f, leaderCelluleId: v }))}
+              options={[{ value: '', label: '— Aucun —' }, ...leaders.map((l) => ({ value: l.id, label: l.fullName }))]}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Annuler</Button>
+            <Button type="submit">Enregistrer</Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal open={ficheOpen} onClose={() => setFicheOpen(false)} title="Fiche de présence de la cellule">
         {data && <CelluleFicheForm celluleId={id} membres={data.membres} fiche={data.fiche} onSaved={() => { setFicheOpen(false); load(); }} onCancel={() => setFicheOpen(false)} />}
