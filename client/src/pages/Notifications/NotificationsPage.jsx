@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Bell, AlertCircle, Clock, RotateCcw, AlertTriangle, CheckCheck } from 'lucide-react';
+import { Bell, AlertCircle, Clock, RotateCcw, AlertTriangle, CheckCheck, HeartHandshake } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { listNotifications, markNotificationRead, markAllNotificationsRead } from '../../api/notifications';
 import EmptyState from '../../components/EmptyState';
@@ -11,6 +11,7 @@ const ICON = {
   a_valider: { Icon: Clock, cls: 'bg-primary-transparent text-primary' },
   a_corriger: { Icon: RotateCcw, cls: 'bg-warning text-warning-foreground' },
   stagnation: { Icon: AlertTriangle, cls: 'bg-warning text-warning-foreground' },
+  cellule_manquante: { Icon: HeartHandshake, cls: 'bg-destructive text-destructive-foreground' },
 };
 
 function timeAgo(iso) {
