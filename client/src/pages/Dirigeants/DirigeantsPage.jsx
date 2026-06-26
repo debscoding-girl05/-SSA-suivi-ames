@@ -3,13 +3,16 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Select } from '@/components/ui/select';
 import { SearchInput } from '@/components/ui/search-input';
 import { Button } from '@/components/ui/button';
-import { Users, ChevronRight, UsersRound, Building2, RotateCcw } from 'lucide-react';
+import { Users, ChevronRight, UsersRound, Building2, RotateCcw, Plus } from 'lucide-react';
 import { listDirigeants } from '../../api/dirigeants';
 import { listDepartments } from '../../api/departments';
 import ReportStatusBadge from '../../components/ReportStatusBadge';
 import EmptyState from '../../components/EmptyState';
+import Modal from '../../components/Modal';
+import DirigeantForm from './DirigeantForm';
 import { Avatar } from '@/components/ui/avatar';
-import { roleLabel } from '@/lib/roles';
+import { roleLabel, isAdminRole } from '@/lib/roles';
+import { useAuth } from '../../hooks/useAuth';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tous les statuts' },
@@ -19,7 +22,10 @@ const STATUS_OPTIONS = [
 
 export default function DirigeantsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canCreate = isAdminRole(user?.role);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [createOpen, setCreateOpen] = useState(false);
   const [data, setData] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,12 +107,15 @@ export default function DirigeantsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Dirigeants</h1>
           <p className="text-sm text-muted-foreground">Leaders &amp; encadreurs, par département</p>
         </div>
-        {!loading && data.length > 0 && (
-          <div className="flex items-center gap-2 text-xs font-medium">
-            <span className="rounded-full bg-success px-3 py-1.5 text-success-foreground">{soumis} à jour</span>
-            <span className="rounded-full bg-destructive px-3 py-1.5 text-destructive-foreground">{data.length - soumis} en retard</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {!loading && data.length > 0 && (
+            <div className="flex items-center gap-2 text-xs font-medium">
+              <span className="rounded-full bg-success px-3 py-1.5 text-success-foreground">{soumis} à jour</span>
+              <span className="rounded-full bg-destructive px-3 py-1.5 text-destructive-foreground">{data.length - soumis} en retard</span>
+            </div>
+          )}
+          {canCreate && <Button onClick={() => setCreateOpen(true)}><Plus className="size-4" /> Nouveau dirigeant</Button>}
+        </div>
       </div>
 
       {/* Barre de filtres (façon maquette) */}
@@ -163,6 +172,13 @@ export default function DirigeantsPage() {
           ))}
         </div>
       )}
+
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Nouveau dirigeant">
+        <DirigeantForm
+          onSaved={(d) => { setCreateOpen(false); navigate(`/dirigeants/${d.id}`); }}
+          onCancel={() => setCreateOpen(false)}
+        />
+      </Modal>
     </div>
   );
 }

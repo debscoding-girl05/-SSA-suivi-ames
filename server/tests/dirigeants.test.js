@@ -614,3 +614,37 @@ test("Leaders de cellule: création de compte (admin) + connexion + RBAC", async
   // Doublon de téléphone → 409
   assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Doublon", phone, password: "autre1234" })).status, 409);
 });
+
+test("Dirigeants: création de compte (admin) + RBAC + édition profil", async () => {
+  const pasteur = await pasteurToken();
+  const jean = await login("encadreur@ssa.app", "encadreur1234");
+  const deptId = (await api("GET", "/api/departments", pasteur)).body.data[0].id;
+
+  // Réservé au Pasteur/PR
+  assert.equal((await api("POST", "/api/dirigeants", jean, { fullName: "X", role: "leader", phone: "+237 6 11 11 11 11", password: "secret12" })).status, 403);
+
+  // Validation : rôle invalide / tél manquant / mdp court
+  assert.equal((await api("POST", "/api/dirigeants", pasteur, { fullName: "Mauvais rôle", role: "pasteur", phone: "+237 6 11 11 11 12", password: "secret12" })).status, 400);
+  assert.equal((await api("POST", "/api/dirigeants", pasteur, { fullName: "Sans tél", role: "leader", password: "secret12" })).status, 400);
+
+  // Création OK (encadreur, avec département) → apparaît dans la liste
+  const phone = "+237 6 77 66 55 44";
+  const created = await api("POST", "/api/dirigeants", pasteur, { fullName: "Frère Élie", role: "encadreur", phone, password: "elie1234", departmentId: deptId });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.role, "encadreur");
+  assert.equal(created.body.departmentId, deptId);
+
+  const list = await api("GET", "/api/dirigeants", pasteur);
+  assert.ok(list.body.data.some((d) => d.id === created.body.id));
+
+  // Le nouveau dirigeant peut se connecter (par téléphone) — login() assure le 200
+  await login(phone, "elie1234");
+
+  // Doublon de téléphone → 409 (avant de changer le numéro)
+  assert.equal((await api("POST", "/api/dirigeants", pasteur, { fullName: "Doublon", role: "leader", phone, password: "autre1234" })).status, 409);
+
+  // Édition du profil (Pasteur)
+  const upd = await api("PUT", `/api/dirigeants/${created.body.id}`, pasteur, { fullName: "Frère Élie N.", phone: "+237 6 77 66 55 45" });
+  assert.equal(upd.status, 200);
+  assert.equal(upd.body.fullName, "Frère Élie N.");
+});

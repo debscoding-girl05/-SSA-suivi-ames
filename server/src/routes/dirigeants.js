@@ -9,6 +9,7 @@ router.use(requireAuth);
 
 // Dirigeants
 router.get("/", asyncHandler(dirigeants.list));
+router.post("/", requireRole("pasteur", "pr"), asyncHandler(dirigeants.create));
 router.get("/:id", asyncHandler(dirigeants.getOne));
 router.put("/:id", requireRole("pasteur", "pr"), asyncHandler(dirigeants.update));
 
