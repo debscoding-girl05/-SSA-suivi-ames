@@ -618,6 +618,29 @@ const assignes = {
     return this.findById(rows[0].id);
   },
 
+  // Find an assigné by phone (digits only) — for duplicate detection.
+  async findByPhone(rawPhone) {
+    const digits = String(rawPhone || "").replace(/\D/g, "");
+    if (digits.length < 6) return null;
+    if (!isPostgres) {
+      const a = memory.assignes.find((x) => x.phone && x.phone.replace(/\D/g, "") === digits);
+      if (!a) return null;
+      const dir = memory.users.find((u) => u.id === a.dirigeantId);
+      const dept = dir && memory.departments.find((d) => d.id === dir.departmentId);
+      return { ...memAssigneRow(a), dirigeantName: dir?.fullName ?? null, departmentName: dept?.name ?? null };
+    }
+    const { rows } = await query(
+      `SELECT a.*, u.full_name AS dirigeant_name, d.name AS department_name
+         FROM assignes a JOIN users u ON u.id = a.dirigeant_id
+         LEFT JOIN departments d ON d.id = u.department_id
+        WHERE regexp_replace(COALESCE(a.phone,''), '\\D', '', 'g') = $1
+        LIMIT 1`,
+      [digits]
+    );
+    if (!rows[0]) return null;
+    return { ...mapAssigneRow(rows[0]), dirigeantName: rows[0].dirigeant_name ?? null, departmentName: rows[0].department_name ?? null };
+  },
+
   // Total number of souls tracked (for the church growth objective).
   async countAll() {
     if (!isPostgres) return memory.assignes.length;

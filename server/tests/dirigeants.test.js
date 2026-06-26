@@ -494,6 +494,17 @@ test("Nouveaux venus / 7 leçons: scope FD, séquentiel, promotion", async () =>
   assert.equal(promo.body.statut, "regulier");
   const after = await api("GET", "/api/integration/nouveaux", ruth);
   assert.ok(!after.body.data.some((v) => v.id === clarisse.id), "Clarisse n'est plus un nouveau venu");
+
+  // Détection de doublon : même numéro → 409 DUPLICATE ; force → 201
+  const phone = "+237 6 99 88 77 66";
+  const first = await api("POST", "/api/integration/nouveaux", ruth, { firstName: "Doublon", lastName: "Un", phone });
+  assert.equal(first.status, 201);
+  const dup = await api("POST", "/api/integration/nouveaux", ruth, { firstName: "Doublon", lastName: "Deux", phone });
+  assert.equal(dup.status, 409);
+  assert.equal(dup.body.code, "DUPLICATE");
+  assert.equal(dup.body.existing.firstName, "Doublon");
+  const forced = await api("POST", "/api/integration/nouveaux", ruth, { firstName: "Doublon", lastName: "Deux", phone, force: true });
+  assert.equal(forced.status, 201);
 });
 
 test("Notifications: génération scopée + lire / tout marquer lu", async () => {
