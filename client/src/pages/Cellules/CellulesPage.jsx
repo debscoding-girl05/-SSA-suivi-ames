@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { HeartHandshake, MapPin, Users, Plus, ChevronRight } from 'lucide-react';
+import { HeartHandshake, MapPin, Users, Plus, ChevronRight, UserCog } from 'lucide-react';
 import ProgressRing from '../../components/ProgressRing';
 import { listCellules, createCellule, celluleLeaders } from '../../api/cellules';
 import { useAuth } from '../../hooks/useAuth';
@@ -79,7 +79,12 @@ export default function CellulesPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Cellules de prière</h1>
           <p className="text-sm text-muted-foreground">Par quartier · indépendantes des départements</p>
         </div>
-        {canCreate && <Button onClick={openCreate}><Plus className="size-4" /> Nouvelle cellule</Button>}
+        {canCreate && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/cellules/leaders')}><UserCog className="size-4" /> Leaders</Button>
+            <Button onClick={openCreate}><Plus className="size-4" /> Nouvelle cellule</Button>
+          </div>
+        )}
       </div>
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
@@ -132,6 +137,12 @@ export default function CellulesPage() {
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Leader de cellule</span>
             <Select value={form.leaderCelluleId} onChange={(v) => setForm((f) => ({ ...f, leaderCelluleId: v }))} options={leaderOptions} />
+            {leaders.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Aucun leader disponible.{' '}
+                <button type="button" onClick={() => { setOpen(false); navigate('/cellules/leaders'); }} className="font-medium text-primary underline-offset-2 hover:underline">Créer un leader de cellule</button>.
+              </p>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Annuler</Button>

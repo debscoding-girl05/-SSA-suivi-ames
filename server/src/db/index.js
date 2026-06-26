@@ -1395,12 +1395,28 @@ const cellules = {
     if (!isPostgres) {
       return memory.users
         .filter((u) => memory.roles.find((r) => r.id === u.roleId)?.name === "leader_cellule")
-        .map((u) => ({ id: u.id, fullName: u.fullName }));
+        .map((u) => ({
+          id: u.id,
+          fullName: u.fullName,
+          phone: u.phone ?? null,
+          email: u.email,
+          celluleCount: memory.cellules.filter((c) => c.leaderCelluleId === u.id).length,
+        }))
+        .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || "", "fr"));
     }
     const { rows } = await query(
-      `SELECT u.id, u.full_name FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'leader_cellule' ORDER BY u.full_name`
+      `SELECT u.id, u.full_name, u.phone, u.email,
+              (SELECT COUNT(*) FROM cellules c WHERE c.leader_cellule_id = u.id)::int AS cellule_count
+         FROM users u JOIN roles r ON r.id = u.role_id
+        WHERE r.name = 'leader_cellule' ORDER BY u.full_name`
     );
-    return rows.map((u) => ({ id: u.id, fullName: u.full_name }));
+    return rows.map((u) => ({
+      id: u.id,
+      fullName: u.full_name,
+      phone: u.phone ?? null,
+      email: u.email,
+      celluleCount: u.cellule_count,
+    }));
   },
 };
 

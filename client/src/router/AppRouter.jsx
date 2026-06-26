@@ -10,6 +10,7 @@ import ReportsPage from '../pages/Reports/ReportsPage';
 import NouveauxVenusPage from '../pages/NouveauxVenus/NouveauxVenusPage';
 import NotificationsPage from '../pages/Notifications/NotificationsPage';
 import CellulesPage from '../pages/Cellules/CellulesPage';
+import LeadersCellulePage from '../pages/Cellules/LeadersCellulePage';
 import CelluleDetailPage from '../pages/Cellules/CelluleDetailPage';
 import ProfilePage from '../pages/Profile/ProfilePage';
 import NotFoundPage from '../pages/NotFound/NotFoundPage';
@@ -39,6 +40,7 @@ export default function AppRouter() {
         <Route path="/fiches" element={<RapportsPage />} />
         <Route path="/rapports" element={<ReportsPage />} />
         <Route path="/cellules" element={<CellulesPage />} />
+        <Route path="/cellules/leaders" element={<LeadersCellulePage />} />
         <Route path="/cellules/:id" element={<CelluleDetailPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />

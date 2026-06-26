@@ -66,4 +66,24 @@ function validateRapport(body = {}) {
   };
 }
 
-module.exports = { validateAssigne, validateDirigeant, validateRapport };
+// Nouveau compte leader de cellule (créé par Pasteur/PR).
+// Téléphone requis (sert d'identifiant de connexion) ; email optionnel.
+function validateLeaderCellule(body = {}) {
+  const fullName = str(body.fullName);
+  if (!fullName) throw ApiError.badRequest("Le nom complet est requis");
+
+  const phone = str(body.phone);
+  if (!phone || phone.replace(/\D/g, "").length < 6) {
+    throw ApiError.badRequest("Un numéro de téléphone valide est requis");
+  }
+
+  const email = str(body.email);
+  if (email && !EMAIL_RE.test(email)) throw ApiError.badRequest("Email invalide");
+
+  const password = typeof body.password === "string" ? body.password : "";
+  if (password.length < 6) throw ApiError.badRequest("Le mot de passe doit contenir au moins 6 caractères");
+
+  return { fullName, phone, email: email || null, password };
+}
+
+module.exports = { validateAssigne, validateDirigeant, validateRapport, validateLeaderCellule };

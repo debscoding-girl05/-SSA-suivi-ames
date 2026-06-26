@@ -1,6 +1,8 @@
+const bcrypt = require("bcryptjs");
 const db = require("../db");
 const ApiError = require("../utils/ApiError");
 const { parseWeek, currentWeek } = require("../utils/week");
+const { validateLeaderCellule } = require("../utils/validators");
 
 const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
 const PRESENCE = ["present", "absent", "justifie"];
@@ -29,9 +31,32 @@ async function list(req, res) {
   res.json({ data });
 }
 
-// GET /api/cellules/leaders — leaders de cellule disponibles (admin).
+// GET /api/cellules/leaders — leaders de cellule (admin) : nom, tél, nb de cellules.
 async function leaders(_req, res) {
   res.json({ data: await db.cellules.leadersDisponibles() });
+}
+
+// POST /api/cellules/leaders — créer un compte leader de cellule (Pasteur/PR).
+async function createLeader(req, res) {
+  const { fullName, phone, email, password } = validateLeaderCellule(req.body);
+
+  // Email = celui fourni, sinon généré depuis le téléphone (login possible par tél.).
+  const finalEmail = email || `cellule.${phone.replace(/\D/g, "")}@ssa.local`;
+
+  if (await db.users.findByEmail(finalEmail)) {
+    throw new ApiError(409, "EMAIL_EXISTS", "Un compte avec cet email existe déjà");
+  }
+  const byPhone = await db.users.findByIdentifier(phone);
+  if (byPhone) {
+    throw new ApiError(409, "PHONE_EXISTS", "Un compte avec ce numéro existe déjà");
+  }
+
+  const role = await db.roles.findByName("leader_cellule");
+  if (!role) throw ApiError.badRequest("Rôle leader_cellule introuvable");
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = await db.users.create({ email: finalEmail, passwordHash, fullName, phone, roleId: role.id, departmentId: null });
+  res.status(201).json({ id: user.id, fullName: user.fullName, phone: user.phone, email: user.email, celluleCount: 0 });
 }
 
 // POST /api/cellules — créer (Pasteur/PR).
@@ -118,4 +143,4 @@ async function submitFiche(req, res) {
   res.status(201).json(fiche);
 }
 
-module.exports = { list, leaders, create, update, getOne, addMembre, removeMembre, submitFiche };
+module.exports = { list, leaders, createLeader, create, update, getOne, addMembre, removeMembre, submitFiche };

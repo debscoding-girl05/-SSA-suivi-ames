@@ -584,3 +584,33 @@ test("Cellules de prière: scope, création (admin), membres & fiche (leader)", 
   assert.equal(fiche.body.status, "soumis");
   assert.equal(fiche.body.presentCount, Math.max(0, membres.length - 1));
 });
+
+test("Leaders de cellule: création de compte (admin) + connexion + RBAC", async () => {
+  const pasteur = await pasteurToken();
+  const jean = await login("encadreur@ssa.app", "encadreur1234");
+
+  // Réservé au Pasteur/PR
+  assert.equal((await api("POST", "/api/cellules/leaders", jean, { fullName: "X", phone: "+237 6 00 00 00 11", password: "secret12" })).status, 403);
+
+  // Champs requis
+  assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Sans tél", password: "secret12" })).status, 400);
+  assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Court mdp", phone: "+237 6 00 00 00 12", password: "123" })).status, 400);
+
+  // Création OK → apparaît dans la liste avec celluleCount = 0
+  const phone = "+237 6 55 44 33 22";
+  const created = await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Sœur Grâce", phone, password: "grace1234" });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.fullName, "Sœur Grâce");
+  assert.equal(created.body.celluleCount, 0);
+
+  const list = await api("GET", "/api/cellules/leaders", pasteur);
+  assert.equal(list.status, 200);
+  assert.ok(list.body.data.some((l) => l.id === created.body.id && l.phone === phone));
+
+  // Le nouveau leader peut se connecter (par téléphone) et n'a aucune cellule
+  const grace = await login(phone, "grace1234");
+  assert.equal((await api("GET", "/api/cellules", grace)).body.data.length, 0);
+
+  // Doublon de téléphone → 409
+  assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Doublon", phone, password: "autre1234" })).status, 409);
+});
