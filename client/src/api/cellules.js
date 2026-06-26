@@ -15,6 +15,9 @@ export function createCelluleLeader(payload) {
 export function createCellule(payload) {
   return request('/api/cellules', { method: 'POST', body: payload });
 }
+export function updateCellule(id, payload) {
+  return request(`/api/cellules/${id}`, { method: 'PUT', body: payload });
+}
 export function addMembreCellule(id, payload) {
   return request(`/api/cellules/${id}/membres`, { method: 'POST', body: payload });
 }
