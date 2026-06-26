@@ -622,6 +622,33 @@ test("Leaders de cellule: création de compte (admin) + connexion + RBAC", async
   assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Doublon", phone, password: "autre1234" })).status, 409);
 });
 
+test("Départements: création + renommage (admin) + RBAC + unicité", async () => {
+  const pasteur = await pasteurToken();
+  const jean = await login("encadreur@ssa.app", "encadreur1234");
+
+  // Réservé au Pasteur/PR
+  assert.equal((await api("POST", "/api/departments", jean, { name: "Médias" })).status, 403);
+  assert.equal((await api("POST", "/api/departments", pasteur, { name: "" })).status, 400);
+
+  // Création
+  const created = await api("POST", "/api/departments", pasteur, { name: "Médias", description: "Réseaux sociaux" });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.name, "Médias");
+  assert.ok((await api("GET", "/api/departments", pasteur)).body.data.some((d) => d.id === created.body.id));
+
+  // Nom déjà pris (insensible à la casse) → 409
+  assert.equal((await api("POST", "/api/departments", pasteur, { name: "médias" })).status, 409);
+
+  // Renommage
+  const upd = await api("PUT", `/api/departments/${created.body.id}`, pasteur, { name: "Médias & Com" });
+  assert.equal(upd.status, 200);
+  assert.equal(upd.body.name, "Médias & Com");
+
+  // Renommer vers un nom existant → 409 ; édition interdite pour l'encadreur
+  assert.equal((await api("PUT", `/api/departments/${created.body.id}`, pasteur, { name: "Chorale" })).status, 409);
+  assert.equal((await api("PUT", `/api/departments/${created.body.id}`, jean, { name: "X" })).status, 403);
+});
+
 test("Dirigeants: création de compte (admin) + RBAC + édition profil", async () => {
   const pasteur = await pasteurToken();
   const jean = await login("encadreur@ssa.app", "encadreur1234");
