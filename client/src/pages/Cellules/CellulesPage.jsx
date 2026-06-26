@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { HeartHandshake, MapPin, Users, Plus, ChevronRight } from 'lucide-react';
+import ProgressRing from '../../components/ProgressRing';
 import { listCellules, createCellule, celluleLeaders } from '../../api/cellules';
 import { useAuth } from '../../hooks/useAuth';
 import { isAdminRole } from '@/lib/roles';
@@ -43,6 +44,34 @@ export default function CellulesPage() {
 
   const leaderOptions = [{ value: '', label: '— Aucun —' }, ...leaders.map((l) => ({ value: l.id, label: l.fullName }))];
 
+  const soumis = data.filter((c) => c.ficheStatus === 'soumis').length;
+  // Remontée par quartier.
+  const groups = useMemo(() => {
+    const m = new Map();
+    for (const c of data) {
+      const k = c.quartier || 'Sans quartier';
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(c);
+    }
+    return [...m.entries()].map(([quartier, cells]) => ({ quartier, cells })).sort((a, b) => a.quartier.localeCompare(b.quartier, 'fr'));
+  }, [data]);
+
+  const Carte = (c) => (
+    <button type="button" onClick={() => navigate(`/cellules/${c.id}`)} className="lift flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-card">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-transparent text-primary"><HeartHandshake className="size-5" /></div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{c.nom}</p>
+        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1"><Users className="size-3.5" />{c.membreCount}</span>
+          {c.ficheStatus === 'soumis' && <span className="text-success-foreground-light">{c.presentCount} présent{c.presentCount > 1 ? 's' : ''}</span>}
+          {c.leaderName && <span className="truncate">· {c.leaderName}</span>}
+        </div>
+      </div>
+      {c.ficheStatus && <ReportStatusBadge status={c.ficheStatus === 'soumis' ? 'soumis' : 'brouillon'} />}
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+    </button>
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -60,24 +89,34 @@ export default function CellulesPage() {
       ) : data.length === 0 ? (
         <EmptyState icon={HeartHandshake} title="Aucune cellule" description={canCreate ? 'Créez une cellule de prière pour démarrer.' : 'Aucune cellule dans votre périmètre.'} action={canCreate ? <Button size="sm" onClick={openCreate}><Plus className="size-4" /> Nouvelle cellule</Button> : null} />
       ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {data.map((c) => (
-            <li key={c.id}>
-              <button type="button" onClick={() => navigate(`/cellules/${c.id}`)} className="lift flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-card">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-transparent text-primary"><HeartHandshake className="size-5" /></div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{c.nom}</p>
-                  <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><MapPin className="size-3.5" />{c.quartier || '—'}</span>
-                    <span className="flex items-center gap-1"><Users className="size-3.5" />{c.membreCount}</span>
-                  </div>
-                </div>
-                {c.ficheStatus && <ReportStatusBadge status={c.ficheStatus === 'soumis' ? 'soumis' : 'brouillon'} />}
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          {/* Remontée PR/Pasteur : résumé global */}
+          {canCreate && (
+            <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
+              <div className="grid flex-1 grid-cols-3 gap-3 text-center sm:text-left">
+                <div><p className="text-2xl font-semibold tabular-nums">{data.length}</p><p className="text-xs text-muted-foreground">Cellules</p></div>
+                <div><p className="text-2xl font-semibold tabular-nums text-success-foreground-light">{soumis}</p><p className="text-xs text-muted-foreground">Fiches soumises</p></div>
+                <div><p className="text-2xl font-semibold tabular-nums text-destructive-dark">{data.length - soumis}</p><p className="text-xs text-muted-foreground">Manquantes</p></div>
+              </div>
+              <ProgressRing value={soumis} total={data.length} label="soumis" size={96} />
+            </div>
+          )}
+
+          {/* Cellules groupées par quartier */}
+          <div className="flex flex-col gap-5">
+            {groups.map((g) => (
+              <div key={g.quartier} className="flex flex-col gap-2">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                  <MapPin className="size-4" /> {g.quartier}
+                  <span className="font-normal text-muted-foreground/70">· {g.cells.length}</span>
+                </h2>
+                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {g.cells.map((c) => <li key={c.id}>{Carte(c)}</li>)}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <Modal open={open} onClose={() => setOpen(false)} title="Nouvelle cellule">

@@ -1223,7 +1223,7 @@ const cellules = {
           return {
             id: c.id, nom: c.nom, quartier: c.quartier ?? null,
             leaderCelluleId: c.leaderCelluleId ?? null, leaderName: leaderName(c.leaderCelluleId),
-            membreCount, ficheStatus: fiche?.status ?? null,
+            membreCount, ficheStatus: fiche?.status ?? null, presentCount: fiche?.presentCount ?? null,
           };
         })
         .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
@@ -1234,7 +1234,8 @@ const cellules = {
     const { rows } = await query(
       `SELECT c.id, c.nom, c.quartier, c.leader_cellule_id, u.full_name AS leader_name,
               (SELECT COUNT(*) FROM membres_cellule m WHERE m.cellule_id = c.id)::int AS membre_count,
-              (SELECT status FROM fiches_cellule f WHERE f.cellule_id = c.id AND f.year = $1 AND f.week = $2) AS fiche_status
+              (SELECT status FROM fiches_cellule f WHERE f.cellule_id = c.id AND f.year = $1 AND f.week = $2) AS fiche_status,
+              (SELECT present_count FROM fiches_cellule f WHERE f.cellule_id = c.id AND f.year = $1 AND f.week = $2) AS present_count
          FROM cellules c LEFT JOIN users u ON u.id = c.leader_cellule_id
          ${where}
         ORDER BY c.nom ASC`,
@@ -1243,7 +1244,7 @@ const cellules = {
     return rows.map((c) => ({
       id: c.id, nom: c.nom, quartier: c.quartier ?? null,
       leaderCelluleId: c.leader_cellule_id ?? null, leaderName: c.leader_name ?? null,
-      membreCount: c.membre_count, ficheStatus: c.fiche_status ?? null,
+      membreCount: c.membre_count, ficheStatus: c.fiche_status ?? null, presentCount: c.present_count ?? null,
     }));
   },
 
