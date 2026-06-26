@@ -8,6 +8,7 @@ router.use(requireAuth);
 
 router.get("/", asyncHandler(cellules.list));
 router.get("/leaders", requireRole("pasteur", "pr"), asyncHandler(cellules.leaders));
+router.post("/leaders", requireRole("pasteur", "pr"), asyncHandler(cellules.createLeader));
 router.post("/", requireRole("pasteur", "pr"), asyncHandler(cellules.create));
 router.get("/:id", asyncHandler(cellules.getOne));
 router.put("/:id", requireRole("pasteur", "pr"), asyncHandler(cellules.update));

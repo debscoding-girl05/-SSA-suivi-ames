@@ -9,6 +9,9 @@ export function getCellule(id) {
 export function celluleLeaders() {
   return request('/api/cellules/leaders');
 }
+export function createCelluleLeader(payload) {
+  return request('/api/cellules/leaders', { method: 'POST', body: payload });
+}
 export function createCellule(payload) {
   return request('/api/cellules', { method: 'POST', body: payload });
 }
