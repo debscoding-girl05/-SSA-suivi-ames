@@ -396,6 +396,20 @@ const users = {
     return mapUserRow(rows[0]);
   },
 
+  async updatePassword(id, passwordHash) {
+    if (!isPostgres) {
+      const u = memory.users.find((x) => x.id === id);
+      if (!u) return false;
+      u.passwordHash = passwordHash;
+      return true;
+    }
+    const { rowCount } = await query(
+      "UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2",
+      [passwordHash, id]
+    );
+    return rowCount > 0;
+  },
+
   async create({ email, passwordHash, fullName, phone, roleId, departmentId }) {
     const normalized = String(email).trim().toLowerCase();
     if (!isPostgres) {

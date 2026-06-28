@@ -75,6 +75,31 @@ async function login(req, res) {
   res.json({ token, user: toPublicUser(user) });
 }
 
+// POST /api/auth/change-password — change own password (authenticated).
+async function changePassword(req, res) {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    throw ApiError.badRequest("Mot de passe actuel et nouveau mot de passe requis");
+  }
+  if (String(newPassword).length < 6) {
+    throw ApiError.badRequest("Le nouveau mot de passe doit contenir au moins 6 caractères");
+  }
+
+  const user = await db.users.findById(req.user.sub);
+  if (!user) throw ApiError.unauthorized("Utilisateur introuvable");
+
+  const ok = await bcrypt.compare(String(currentPassword), user.passwordHash);
+  if (!ok) throw new ApiError(400, "WRONG_PASSWORD", "Mot de passe actuel incorrect");
+
+  if (String(newPassword) === String(currentPassword)) {
+    throw ApiError.badRequest("Le nouveau mot de passe doit être différent de l'actuel");
+  }
+
+  const passwordHash = await bcrypt.hash(String(newPassword), 12);
+  await db.users.updatePassword(user.id, passwordHash);
+  res.status(204).end();
+}
+
 // Stateless JWT — logout is handled client-side by discarding the token.
 async function logout(_req, res) {
   res.status(204).end();
@@ -88,4 +113,4 @@ async function me(req, res) {
   res.json({ user: toPublicUser(user) });
 }
 
-module.exports = { login, logout, me };
+module.exports = { login, logout, me, changePassword };
