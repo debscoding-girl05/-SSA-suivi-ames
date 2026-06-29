@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { ArrowLeft, MapPin, Users, Plus, Trash2, ClipboardCheck, Pencil } from 'lucide-react';
-import { getCellule, addMembreCellule, removeMembreCellule, updateCellule, celluleLeaders } from '../../api/cellules';
+import { getCellule, addMembreCellule, updateMembreCellule, removeMembreCellule, updateCellule, celluleLeaders } from '../../api/cellules';
 import { useAuth } from '../../hooks/useAuth';
 import { isAdminRole } from '@/lib/roles';
 import Modal from '../../components/Modal';
@@ -21,6 +21,7 @@ export default function CelluleDetailPage() {
   const [error, setError] = useState('');
   const [ficheOpen, setFicheOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [editingMembre, setEditingMembre] = useState(null); // membre en édition, ou null = ajout
   const [form, setForm] = useState({ nom: '', telephone: '', estMembreEglise: false });
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ nom: '', quartier: '', leaderCelluleId: '' });
@@ -48,10 +49,15 @@ export default function CelluleDetailPage() {
     catch (er) { setError(er?.message || 'Modification impossible.'); }
   }
 
-  async function addMembre(e) {
+  function openAddMembre() { setEditingMembre(null); setForm({ nom: '', telephone: '', estMembreEglise: false }); setAddOpen(true); }
+  function openEditMembre(m) { setEditingMembre(m); setForm({ nom: m.nom, telephone: m.telephone || '', estMembreEglise: m.estMembreEglise }); setAddOpen(true); }
+  async function saveMembre(e) {
     e.preventDefault();
-    try { await addMembreCellule(id, form); setAddOpen(false); setForm({ nom: '', telephone: '', estMembreEglise: false }); load(); }
-    catch (er) { setError(er?.message || 'Ajout impossible.'); }
+    try {
+      if (editingMembre) await updateMembreCellule(id, editingMembre.id, form);
+      else await addMembreCellule(id, form);
+      setAddOpen(false); setEditingMembre(null); setForm({ nom: '', telephone: '', estMembreEglise: false }); load();
+    } catch (er) { setError(er?.message || 'Enregistrement impossible.'); }
   }
   async function removeMembre(m) {
     if (!window.confirm(`Retirer ${m.nom} ?`)) return;
@@ -95,7 +101,7 @@ export default function CelluleDetailPage() {
               <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <Users className="size-4" /> Membres ({data.membres.length})
               </h2>
-              {canManage && <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="size-4" /> Ajouter</Button>}
+              {canManage && <Button size="sm" onClick={openAddMembre}><Plus className="size-4" /> Ajouter</Button>}
             </div>
             {data.membres.length === 0 ? (
               <EmptyState icon={Users} title="Aucun membre" description="Ajoutez les membres de la cellule (pas forcément membres de l'église)." />
@@ -110,7 +116,12 @@ export default function CelluleDetailPage() {
                       </p>
                       {m.telephone && <p className="text-xs text-muted-foreground">{m.telephone}</p>}
                     </div>
-                    {canManage && <Button variant="ghost" size="icon-sm" onClick={() => removeMembre(m)} aria-label="Retirer"><Trash2 className="size-4 text-destructive-dark" /></Button>}
+                    {canManage && (
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon-sm" onClick={() => openEditMembre(m)} aria-label="Modifier"><Pencil className="size-4" /></Button>
+                        <Button variant="ghost" size="icon-sm" onClick={() => removeMembre(m)} aria-label="Retirer"><Trash2 className="size-4 text-destructive-dark" /></Button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -148,8 +159,8 @@ export default function CelluleDetailPage() {
         {data && <CelluleFicheForm celluleId={id} membres={data.membres} fiche={data.fiche} onSaved={() => { setFicheOpen(false); load(); }} onCancel={() => setFicheOpen(false)} />}
       </Modal>
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Ajouter un membre">
-        <form onSubmit={addMembre} className="flex flex-col gap-4">
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title={editingMembre ? 'Modifier le membre' : 'Ajouter un membre'}>
+        <form onSubmit={saveMembre} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="m-nom" className="text-sm font-medium">Nom *</label>
             <Input id="m-nom" value={form.nom} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} required autoFocus />
@@ -164,7 +175,7 @@ export default function CelluleDetailPage() {
           </label>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Annuler</Button>
-            <Button type="submit">Ajouter</Button>
+            <Button type="submit">{editingMembre ? 'Enregistrer' : 'Ajouter'}</Button>
           </div>
         </form>
       </Modal>

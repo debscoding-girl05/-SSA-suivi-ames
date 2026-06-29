@@ -581,6 +581,13 @@ test("Cellules de prière: scope, création (admin), membres & fiche (leader)", 
   assert.equal(m.status, 201);
   assert.equal(m.body.estMembreEglise, false);
 
+  // Édition d'un membre (leader de la cellule)
+  const mEdited = await api("PUT", `/api/cellules/${mine.id}/membres/${m.body.id}`, pierre, { nom: "Invité Modifié", telephone: "+237 6 00 00 00 99", estMembreEglise: true });
+  assert.equal(mEdited.status, 200);
+  assert.equal(mEdited.body.nom, "Invité Modifié");
+  assert.equal(mEdited.body.estMembreEglise, true);
+  assert.equal((await api("PUT", `/api/cellules/${mine.id}/membres/${m.body.id}`, jean, { nom: "X" })).status, 403);
+
   const detail = await api("GET", `/api/cellules/${mine.id}`, pierre);
   const membres = detail.body.membres;
   const fiche = await api("POST", `/api/cellules/${mine.id}/fiche`, pierre, {

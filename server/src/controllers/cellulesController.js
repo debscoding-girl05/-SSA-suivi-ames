@@ -111,6 +111,24 @@ async function addMembre(req, res) {
   res.status(201).json(membre);
 }
 
+// PUT /api/cellules/:id/membres/:membreId — éditer un membre (leader / admin).
+async function updateMembre(req, res) {
+  const cellule = await loadCellule(req.params.id);
+  if (!canManage(req.user, cellule)) throw ApiError.forbidden("Action refusée");
+  const membre = await db.cellules.findMembre(req.params.membreId);
+  if (!membre || membre.celluleId !== cellule.id) throw ApiError.notFound("Membre introuvable");
+
+  const fields = {};
+  if (req.body.nom !== undefined) {
+    const nom = str(req.body.nom);
+    if (!nom) throw ApiError.badRequest("Le nom est requis");
+    fields.nom = nom;
+  }
+  if (req.body.telephone !== undefined) fields.telephone = str(req.body.telephone) || null;
+  if (req.body.estMembreEglise !== undefined) fields.estMembreEglise = Boolean(req.body.estMembreEglise);
+  res.json(await db.cellules.updateMembre(membre.id, fields));
+}
+
 // DELETE /api/cellules/:id/membres/:membreId
 async function removeMembre(req, res) {
   const cellule = await loadCellule(req.params.id);
@@ -143,4 +161,4 @@ async function submitFiche(req, res) {
   res.status(201).json(fiche);
 }
 
-module.exports = { list, leaders, createLeader, create, update, getOne, addMembre, removeMembre, submitFiche };
+module.exports = { list, leaders, createLeader, create, update, getOne, addMembre, updateMembre, removeMembre, submitFiche };
