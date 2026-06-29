@@ -1389,6 +1389,29 @@ const cellules = {
     return { id: m.id, nom: m.nom, telephone: m.telephone ?? null, estMembreEglise: m.est_membre_eglise };
   },
 
+  async updateMembre(membreId, { nom, telephone, estMembreEglise }) {
+    if (!isPostgres) {
+      const m = memory.membresCellule.find((x) => x.id === membreId);
+      if (!m) return null;
+      if (nom !== undefined) m.nom = nom;
+      if (telephone !== undefined) m.telephone = telephone ?? null;
+      if (estMembreEglise !== undefined) m.estMembreEglise = Boolean(estMembreEglise);
+      return { id: m.id, nom: m.nom, telephone: m.telephone ?? null, estMembreEglise: m.estMembreEglise };
+    }
+    const sets = []; const params = [];
+    if (nom !== undefined) { params.push(nom); sets.push(`nom = $${params.length}`); }
+    if (telephone !== undefined) { params.push(telephone ?? null); sets.push(`telephone = $${params.length}`); }
+    if (estMembreEglise !== undefined) { params.push(Boolean(estMembreEglise)); sets.push(`est_membre_eglise = $${params.length}`); }
+    if (!sets.length) return this.findMembre(membreId);
+    params.push(membreId);
+    const { rows } = await query(
+      `UPDATE membres_cellule SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING id, nom, telephone, est_membre_eglise`,
+      params
+    );
+    const m = rows[0];
+    return m ? { id: m.id, nom: m.nom, telephone: m.telephone ?? null, estMembreEglise: m.est_membre_eglise } : null;
+  },
+
   async findMembre(membreId) {
     if (!isPostgres) {
       const m = memory.membresCellule.find((x) => x.id === membreId);

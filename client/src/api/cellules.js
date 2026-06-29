@@ -21,6 +21,9 @@ export function updateCellule(id, payload) {
 export function addMembreCellule(id, payload) {
   return request(`/api/cellules/${id}/membres`, { method: 'POST', body: payload });
 }
+export function updateMembreCellule(id, membreId, payload) {
+  return request(`/api/cellules/${id}/membres/${membreId}`, { method: 'PUT', body: payload });
+}
 export function removeMembreCellule(id, membreId) {
   return request(`/api/cellules/${id}/membres/${membreId}`, { method: 'DELETE' });
 }
