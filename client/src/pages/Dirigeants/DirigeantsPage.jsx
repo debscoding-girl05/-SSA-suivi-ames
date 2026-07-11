@@ -3,13 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Select } from '@/components/ui/select';
 import { SearchInput } from '@/components/ui/search-input';
 import { Button } from '@/components/ui/button';
-import { Users, ChevronRight, UsersRound, Building2, RotateCcw } from 'lucide-react';
+import { Users, ChevronRight, UsersRound, Building2, RotateCcw, Plus, Mail, X } from 'lucide-react';
 import { listDirigeants } from '../../api/dirigeants';
+import { listInvitations, revokeInvitation } from '../../api/invitations';
 import { listDepartments } from '../../api/departments';
 import ReportStatusBadge from '../../components/ReportStatusBadge';
 import EmptyState from '../../components/EmptyState';
+import Modal from '../../components/Modal';
+import DirigeantForm from './DirigeantForm';
 import { Avatar } from '@/components/ui/avatar';
-import { roleLabel } from '@/lib/roles';
+import { roleLabel, isAdminRole } from '@/lib/roles';
+import { useAuth } from '../../hooks/useAuth';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tous les statuts' },
@@ -19,6 +23,8 @@ const STATUS_OPTIONS = [
 
 export default function DirigeantsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canCreate = isAdminRole(user?.role);
   const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -27,6 +33,25 @@ export default function DirigeantsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState(searchParams.get('departmentId') || '');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [invites, setInvites] = useState([]);
+
+  const loadInvites = useCallback(() => {
+    if (!canCreate) return;
+    listInvitations().then((res) => setInvites(res.data)).catch(() => setInvites([]));
+  }, [canCreate]);
+
+  useEffect(() => { loadInvites(); }, [loadInvites]);
+
+  async function handleRevoke(inv) {
+    if (!window.confirm(`Révoquer l'invitation envoyée à ${inv.email} ?`)) return;
+    try {
+      await revokeInvitation(inv.id);
+      loadInvites();
+    } catch (err) {
+      setError(err?.message || 'Révocation impossible.');
+    }
+  }
 
   // Keep the department filter in sync with the URL (?departmentId=).
   const changeDepartment = (value) => {
@@ -107,6 +132,11 @@ export default function DirigeantsPage() {
             <span className="rounded-full bg-destructive px-3 py-1.5 text-destructive-foreground">{data.length - soumis} en retard</span>
           </div>
         )}
+        {canCreate && (
+          <Button onClick={() => setModalOpen(true)}>
+            <Plus className="size-4" /> Inviter un dirigeant
+          </Button>
+        )}
       </div>
 
       {/* Barre de filtres (façon maquette) */}
@@ -122,6 +152,28 @@ export default function DirigeantsPage() {
       </div>
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
+
+      {canCreate && invites.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+          <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-4 py-2">
+            <Mail className="size-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold text-muted-foreground">Invitations en attente ({invites.length})</span>
+          </div>
+          {invites.map((inv) => (
+            <div key={inv.id} className="flex items-center gap-3 border-b border-border px-4 py-2.5 last:border-0">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{inv.email}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {roleLabel(inv.role)}{inv.departmentName ? ` · ${inv.departmentName}` : ''}
+                </p>
+              </div>
+              <Button variant="ghost" size="icon-sm" onClick={() => handleRevoke(inv)} aria-label="Révoquer">
+                <X className="size-4 text-destructive-dark" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="h-72 animate-pulse rounded-2xl border border-border bg-card" />
@@ -152,6 +204,9 @@ export default function DirigeantsPage() {
                     <p className="truncate text-sm font-medium">{d.fullName}</p>
                     <p className="truncate text-xs text-muted-foreground">{roleLabel(d.role)}</p>
                   </div>
+                  {d.isActive === false && (
+                    <span className="hidden shrink-0 rounded-md bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground sm:inline-block">Désactivé</span>
+                  )}
                   <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
                     <UsersRound className="size-3.5" />{d.assigneCount}
                   </span>
@@ -163,6 +218,10 @@ export default function DirigeantsPage() {
           ))}
         </div>
       )}
+
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Inviter un dirigeant">
+        <DirigeantForm onSaved={() => { setModalOpen(false); load(); loadInvites(); }} onCancel={() => setModalOpen(false)} />
+      </Modal>
     </div>
   );
 }

@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS assignes (
   last_name       TEXT NOT NULL,
   phone           TEXT,
   email           TEXT,
+  date_naissance  DATE,
+  sexe            TEXT CHECK (sexe IN ('M', 'F')),
+  adresse         TEXT,
+  zone_residence  TEXT,
   dirigeant_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   notes           TEXT,
   statut          TEXT NOT NULL DEFAULT 'regulier'
@@ -168,3 +172,65 @@ INSERT INTO departments (name, description) VALUES
   ('Sécurité Audiovisuelle', 'Sécurité audiovisuelle et technique'),
   ('Suivi',                  'Intégration des nouveaux venus et suivi des 7 leçons')
 ON CONFLICT (name) DO NOTHING;
+
+-- =============================================================
+-- Module 8 — Cellules de prière (migration 0003)
+-- =============================================================
+CREATE TABLE IF NOT EXISTS cellules (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nom           TEXT NOT NULL,
+  leader_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+  department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+  jour_reunion  TEXT,
+  lieu          TEXT,
+  actif         BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_cellules_leader     ON cellules(leader_id);
+CREATE INDEX IF NOT EXISTS idx_cellules_department ON cellules(department_id);
+
+ALTER TABLE assignes ADD COLUMN IF NOT EXISTS cellule_id UUID REFERENCES cellules(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_assignes_cellule ON assignes(cellule_id);
+
+CREATE TABLE IF NOT EXISTS fiches_cellule (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cellule_id    UUID NOT NULL REFERENCES cellules(id) ON DELETE CASCADE,
+  year          INT  NOT NULL,
+  week          INT  NOT NULL,
+  present_count INT  NOT NULL DEFAULT 0,
+  effectif      INT  NOT NULL DEFAULT 0,
+  notes         TEXT,
+  status        TEXT NOT NULL DEFAULT 'brouillon'
+                CHECK (status IN ('brouillon', 'soumis', 'valide', 'a_corriger')),
+  submitted_at  TIMESTAMPTZ,
+  validated_at  TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (cellule_id, year, week)
+);
+CREATE INDEX IF NOT EXISTS idx_fiches_cellule_cellule ON fiches_cellule(cellule_id);
+
+ALTER TABLE cellules       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fiches_cellule ENABLE ROW LEVEL SECURITY;
+
+-- =============================================================
+-- Invitations de compte (migration 0004)
+-- =============================================================
+CREATE TABLE IF NOT EXISTS invitations (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         TEXT NOT NULL,
+  role          TEXT NOT NULL,
+  department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+  token_hash    TEXT NOT NULL UNIQUE,
+  invited_by    UUID REFERENCES users(id) ON DELETE SET NULL,
+  status        TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'accepted', 'revoked', 'expired')),
+  expires_at    TIMESTAMPTZ NOT NULL,
+  accepted_at   TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_invitations_email  ON invitations(email);
+CREATE INDEX IF NOT EXISTS idx_invitations_status ON invitations(status);
+
+ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;

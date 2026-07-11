@@ -13,12 +13,24 @@ export function listDirigeants(filters) {
   return request(`/api/dirigeants${toQuery(filters)}`);
 }
 
+export function createDirigeant(payload) {
+  return request('/api/dirigeants', { method: 'POST', body: payload });
+}
+
 export function getDirigeant(id) {
   return request(`/api/dirigeants/${id}`);
 }
 
 export function updateDirigeant(id, payload) {
   return request(`/api/dirigeants/${id}`, { method: 'PUT', body: payload });
+}
+
+export function deactivateDirigeant(id) {
+  return request(`/api/dirigeants/${id}/deactivate`, { method: 'POST' });
+}
+
+export function reactivateDirigeant(id) {
+  return request(`/api/dirigeants/${id}/reactivate`, { method: 'POST' });
 }
 
 // Assignés (nested under a dirigeant)

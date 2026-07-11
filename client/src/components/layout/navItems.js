@@ -1,4 +1,4 @@
-import { Home, Users, Building2, BookUser, ClipboardCheck, FileText, Sparkles, User } from 'lucide-react';
+import { Home, Users, Users2, Building2, BookUser, ClipboardCheck, FileText, Sparkles, User } from 'lucide-react';
 
 // Single source of truth for navigation (sidebar + bottom nav).
 // `roles` (optional) restricts visibility; `mobile: false` hides from the
@@ -10,6 +10,7 @@ export const NAV_ITEMS = [
   { to: '/annuaire', label: 'Annuaire', icon: BookUser },
   { to: '/nouveaux-venus', label: 'Nouveaux venus', icon: Sparkles, roles: ['pasteur', 'pr', 'leader', 'encadreur'], mobile: false },
   { to: '/fiches', label: 'Fiches', icon: ClipboardCheck },
+  { to: '/cellules', label: 'Cellules', icon: Users2, mobile: false },
   { to: '/rapports', label: 'Rapports', icon: FileText, roles: ['leader', 'pr', 'pasteur'] },
   { to: '/profile', label: 'Profil', icon: User },
 ];

@@ -14,4 +14,7 @@ router.post("/logout", asyncHandler(authController.logout));
 // GET  /api/auth/me      — protected
 router.get("/me", requireAuth, asyncHandler(authController.me));
 
+// POST /api/auth/change-password — protected (EF-04)
+router.post("/change-password", requireAuth, asyncHandler(authController.changePassword));
+
 module.exports = router;

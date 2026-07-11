@@ -1,14 +1,18 @@
+import { useState } from 'react';
 import { Bell, Lock, LogOut, ChevronRight, Phone, Building2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { roleLabel } from '@/lib/roles';
 import { Avatar } from '@/components/ui/avatar';
+import Modal from '../../components/Modal';
+import ChangePasswordForm from './ChangePasswordForm';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   const rows = [
     { icon: Bell, label: 'Notifications' },
-    { icon: Lock, label: 'Changer le mot de passe' },
+    { icon: Lock, label: 'Changer le mot de passe', onClick: () => setPasswordModalOpen(true) },
   ];
 
   return (
@@ -39,11 +43,13 @@ export default function ProfilePage() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
-        {rows.map(({ icon: Icon, label }) => (
+        {rows.map(({ icon: Icon, label, onClick }) => (
           <button
             key={label}
             type="button"
-            className="flex w-full items-center gap-3 border-b border-border px-4 py-3.5 text-left transition-colors last:border-0 hover:bg-muted"
+            onClick={onClick}
+            disabled={!onClick}
+            className="flex w-full items-center gap-3 border-b border-border px-4 py-3.5 text-left transition-colors last:border-0 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
               <Icon className="size-4" />
@@ -62,6 +68,10 @@ export default function ProfilePage() {
         <LogOut className="size-4" />
         Se déconnecter
       </button>
+
+      <Modal open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)} title="Changer le mot de passe">
+        <ChangePasswordForm onDone={() => setPasswordModalOpen(false)} onCancel={() => setPasswordModalOpen(false)} />
+      </Modal>
     </div>
   );
 }

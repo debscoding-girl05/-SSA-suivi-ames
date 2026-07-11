@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const db = require("../db");
 const ApiError = require("../utils/ApiError");
 const { signToken } = require("../utils/jwt");
+const { validatePasswordPolicy } = require("../utils/validators");
 
 // Public projection of a user (never leak the password hash).
 function toPublicUser(user) {
@@ -88,4 +89,28 @@ async function me(req, res) {
   res.json({ user: toPublicUser(user) });
 }
 
-module.exports = { login, logout, me };
+// POST /api/auth/change-password — every user may change their own password
+// (CDC EF-04). Requires the current password to confirm identity.
+async function changePassword(req, res) {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    throw ApiError.badRequest("Mot de passe actuel et nouveau mot de passe requis");
+  }
+
+  const user = await db.users.findById(req.user.sub);
+  if (!user) throw ApiError.unauthorized("Utilisateur introuvable");
+
+  const ok = await bcrypt.compare(String(currentPassword), user.passwordHash);
+  if (!ok) throw ApiError.unauthorized("Mot de passe actuel incorrect");
+
+  validatePasswordPolicy(newPassword);
+  if (String(newPassword) === String(currentPassword)) {
+    throw ApiError.badRequest("Le nouveau mot de passe doit être différent de l'ancien");
+  }
+
+  const passwordHash = await bcrypt.hash(String(newPassword), 12);
+  await db.users.updatePassword(user.id, passwordHash);
+  res.status(204).end();
+}
+
+module.exports = { login, logout, me, changePassword };

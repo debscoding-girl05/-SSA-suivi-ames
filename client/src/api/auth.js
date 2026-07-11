@@ -15,3 +15,10 @@ export function logout() {
 export function me() {
   return request('/api/auth/me', { method: 'GET' });
 }
+
+export function changePassword(currentPassword, newPassword) {
+  return request('/api/auth/change-password', {
+    method: 'POST',
+    body: { currentPassword, newPassword },
+  });
+}
