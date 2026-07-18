@@ -599,34 +599,67 @@ test("Cellules de prière: scope, création (admin), membres & fiche (leader)", 
   assert.equal(fiche.body.presentCount, Math.max(0, membres.length - 1));
 });
 
-test("Leaders de cellule: création de compte (admin) + connexion + RBAC", async () => {
+test("Leaders de cellule: invitation (admin) + acceptation + connexion + RBAC", async () => {
   const pasteur = await pasteurToken();
   const jean = await login("encadreur@ssa.app", "encadreur1234");
 
   // Réservé au Pasteur/PR
-  assert.equal((await api("POST", "/api/cellules/leaders", jean, { fullName: "X", phone: "+237 6 00 00 00 11", password: "secret12" })).status, 403);
+  assert.equal((await api("POST", "/api/invitations", jean, { email: "soeur.grace.invitee@ssa.app", role: "leader_cellule" })).status, 403);
 
-  // Champs requis
-  assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Sans tél", password: "secret12" })).status, 400);
-  assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Court mdp", phone: "+237 6 00 00 00 12", password: "123" })).status, 400);
+  // Champs requis / rôle invalide
+  assert.equal((await api("POST", "/api/invitations", pasteur, { role: "leader_cellule" })).status, 400); // email manquant
+  assert.equal((await api("POST", "/api/invitations", pasteur, { email: "soeur.grace.invitee@ssa.app", role: "role_bidon" })).status, 400);
 
-  // Création OK → apparaît dans la liste avec celluleCount = 0
+  // Invitation OK → pas de département requis pour leader_cellule
+  const email = "soeur.grace.invitee@ssa.app";
+  const invited = await api("POST", "/api/invitations", pasteur, { email, role: "leader_cellule" });
+  assert.equal(invited.status, 201);
+  assert.equal(invited.body.role, "leader_cellule");
+  assert.equal(typeof invited.body.token, "string");
+
+  // Apparaît dans les invitations en attente
+  const pending = await api("GET", "/api/invitations", pasteur);
+  assert.equal(pending.status, 200);
+  assert.ok(pending.body.data.some((i) => i.email === email && i.status === "pending"));
+
+  // Deuxième invitation pour le même email pendant que la première est en attente → 409
+  assert.equal((await api("POST", "/api/invitations", pasteur, { email, role: "leader_cellule" })).status, 409);
+
+  // Acceptation : téléphone manquant → 400
+  assert.equal(
+    (await api("POST", `/api/invitations/token/${invited.body.token}/accept`, undefined, { fullName: "Sœur Grâce (invitée)", password: "Grace123!" })).status,
+    400
+  );
+  // Acceptation : mot de passe non conforme ENF-14 → 400
+  assert.equal(
+    (await api("POST", `/api/invitations/token/${invited.body.token}/accept`, undefined, { fullName: "Sœur Grâce (invitée)", phone: "+237 6 55 44 33 22", password: "secret12" })).status,
+    400
+  );
+
+  // Acceptation valide → compte créé + connecté immédiatement, apparaît avec celluleCount = 0
   const phone = "+237 6 55 44 33 22";
-  const created = await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Sœur Grâce", phone, password: "grace1234" });
-  assert.equal(created.status, 201);
-  assert.equal(created.body.fullName, "Sœur Grâce");
-  assert.equal(created.body.celluleCount, 0);
+  const accepted = await api("POST", `/api/invitations/token/${invited.body.token}/accept`, undefined, { fullName: "Sœur Grâce (invitée)", phone, password: "Grace123!" });
+  assert.equal(accepted.status, 201);
+  assert.equal(accepted.body.user.fullName, "Sœur Grâce (invitée)");
+  assert.equal(accepted.body.user.phone, phone);
+  assert.equal(typeof accepted.body.token, "string");
 
   const list = await api("GET", "/api/cellules/leaders", pasteur);
   assert.equal(list.status, 200);
-  assert.ok(list.body.data.some((l) => l.id === created.body.id && l.phone === phone));
+  assert.ok(list.body.data.some((l) => l.fullName === "Sœur Grâce (invitée)" && l.phone === phone && l.celluleCount === 0));
 
   // Le nouveau leader peut se connecter (par téléphone) et n'a aucune cellule
-  const grace = await login(phone, "grace1234");
+  const grace = await login(phone, "Grace123!");
   assert.equal((await api("GET", "/api/cellules", grace)).body.data.length, 0);
 
-  // Doublon de téléphone → 409
-  assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Doublon", phone, password: "autre1234" })).status, 409);
+  // Le lien d'invitation déjà accepté ne peut plus être réutilisé
+  assert.equal(
+    (await api("POST", `/api/invitations/token/${invited.body.token}/accept`, undefined, { fullName: "Autre", phone: "+237 6 00 00 00 99", password: "Autre123!" })).status,
+    400
+  );
+
+  // Une nouvelle invitation pour le même email (compte existant) → 409
+  assert.equal((await api("POST", "/api/invitations", pasteur, { email, role: "leader_cellule" })).status, 409);
 });
 
 test("Départements: création + renommage (admin) + RBAC + unicité", async () => {
@@ -656,36 +689,50 @@ test("Départements: création + renommage (admin) + RBAC + unicité", async () 
   assert.equal((await api("PUT", `/api/departments/${created.body.id}`, jean, { name: "X" })).status, 403);
 });
 
-test("Dirigeants: création de compte (admin) + RBAC + édition profil", async () => {
+test("Dirigeants: invitation (admin) + acceptation + RBAC + édition profil", async () => {
   const pasteur = await pasteurToken();
   const jean = await login("encadreur@ssa.app", "encadreur1234");
   const deptId = (await api("GET", "/api/departments", pasteur)).body.data[0].id;
 
   // Réservé au Pasteur/PR
-  assert.equal((await api("POST", "/api/dirigeants", jean, { fullName: "X", role: "leader", phone: "+237 6 11 11 11 11", password: "secret12" })).status, 403);
+  assert.equal((await api("POST", "/api/invitations", jean, { email: "x@ssa.app", role: "leader", departmentId: deptId })).status, 403);
 
-  // Validation : rôle invalide / tél manquant / mdp court
-  assert.equal((await api("POST", "/api/dirigeants", pasteur, { fullName: "Mauvais rôle", role: "pasteur", phone: "+237 6 11 11 11 12", password: "secret12" })).status, 400);
-  assert.equal((await api("POST", "/api/dirigeants", pasteur, { fullName: "Sans tél", role: "leader", password: "secret12" })).status, 400);
+  // Validation : rôle invalide / département manquant pour un rôle qui le requiert
+  assert.equal((await api("POST", "/api/invitations", pasteur, { email: "mauvais-role@ssa.app", role: "pasteur", departmentId: deptId })).status, 400);
+  assert.equal((await api("POST", "/api/invitations", pasteur, { email: "sans-dept@ssa.app", role: "leader" })).status, 400);
 
-  // Création OK (encadreur, avec département) → apparaît dans la liste
+  // Invitation OK (encadreur, avec département)
+  const email = "elie@ssa.app";
+  const invited = await api("POST", "/api/invitations", pasteur, { email, role: "encadreur", departmentId: deptId });
+  assert.equal(invited.status, 201);
+  assert.equal(invited.body.role, "encadreur");
+  assert.equal(invited.body.departmentId, deptId);
+
+  // Acceptation : téléphone manquant → 400
+  assert.equal(
+    (await api("POST", `/api/invitations/token/${invited.body.token}/accept`, undefined, { fullName: "Frère Élie", password: "Elie1234!" })).status,
+    400
+  );
+
+  // Acceptation valide → apparaît dans la liste, avec le département choisi par l'admin
   const phone = "+237 6 77 66 55 44";
-  const created = await api("POST", "/api/dirigeants", pasteur, { fullName: "Frère Élie", role: "encadreur", phone, password: "elie1234", departmentId: deptId });
-  assert.equal(created.status, 201);
-  assert.equal(created.body.role, "encadreur");
-  assert.equal(created.body.departmentId, deptId);
+  const accepted = await api("POST", `/api/invitations/token/${invited.body.token}/accept`, undefined, { fullName: "Frère Élie", phone, password: "Elie1234!" });
+  assert.equal(accepted.status, 201);
+  assert.equal(accepted.body.user.role, "encadreur");
+  assert.equal(accepted.body.user.departmentId, deptId);
 
   const list = await api("GET", "/api/dirigeants", pasteur);
-  assert.ok(list.body.data.some((d) => d.id === created.body.id));
+  const created = list.body.data.find((d) => d.email === email);
+  assert.ok(created, "le nouveau dirigeant doit apparaître dans la liste");
 
   // Le nouveau dirigeant peut se connecter (par téléphone) — login() assure le 200
-  await login(phone, "elie1234");
+  await login(phone, "Elie1234!");
 
-  // Doublon de téléphone → 409 (avant de changer le numéro)
-  assert.equal((await api("POST", "/api/dirigeants", pasteur, { fullName: "Doublon", role: "leader", phone, password: "autre1234" })).status, 409);
+  // Une nouvelle invitation pour le même email (compte déjà existant) → 409
+  assert.equal((await api("POST", "/api/invitations", pasteur, { email, role: "leader", departmentId: deptId })).status, 409);
 
   // Édition du profil (Pasteur)
-  const upd = await api("PUT", `/api/dirigeants/${created.body.id}`, pasteur, { fullName: "Frère Élie N.", phone: "+237 6 77 66 55 45" });
+  const upd = await api("PUT", `/api/dirigeants/${created.id}`, pasteur, { fullName: "Frère Élie N.", phone: "+237 6 77 66 55 45" });
   assert.equal(upd.status, 200);
   assert.equal(upd.body.fullName, "Frère Élie N.");
 });
