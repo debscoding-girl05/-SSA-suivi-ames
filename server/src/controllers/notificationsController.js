@@ -36,16 +36,7 @@ async function computeDesired(user) {
     }
 
     // Cellules de prière du département : fiche hebdo manquante / à valider.
-    const cellulesDept = await db.cellules.list({ scope: { departmentId: user.departmentId ?? -1 } });
-    const fichesDept = await db.cellules.listFichesByWeek(year, week);
-    for (const c of cellulesDept.filter((c) => c.actif !== false)) {
-      const f = fichesDept.find((x) => x.celluleId === c.id);
-      if (!f || f.status === "brouillon") {
-        desired.push({ dedupKey: `cellule_manquante:${c.id}:${wk}`, type: "fiche_manquante", title: "Fiche de cellule manquante", message: `La cellule ${c.nom} n'a pas soumis sa fiche.`, link: `/cellules/${c.id}` });
-      } else if (f.status === "soumis") {
-        desired.push({ dedupKey: `cellule_valider:${c.id}:${wk}`, type: "a_valider", title: "Fiche de cellule à valider", message: `La cellule ${c.nom} a soumis sa fiche.`, link: `/cellules/${c.id}` });
-      }
-    }
+    
   }
 
   // 2b. Leader de cellule : rappel pour sa propre fiche.
