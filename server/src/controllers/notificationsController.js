@@ -12,8 +12,8 @@ async function computeDesired(user) {
   const desired = [];
   const admin = isAdmin(user.role);
 
-  // 1. Le dirigeant lui-même : fiche non soumise / à corriger.
-  if (!admin) {
+  // 1. Le dirigeant (leader/encadreur) lui-même : fiche non soumise / à corriger.
+  if (user.role === "leader" || user.role === "encadreur") {
     const f = await db.rapports.findByDirigeantWeek(user.sub, year, week);
     const st = f?.status;
     if (!st || st === "brouillon") {
@@ -78,6 +78,21 @@ async function computeDesired(user) {
     const aValiderCellules = fichesAll.filter((f) => f.status === "soumis").length;
     if (manquantesCellules) desired.push({ dedupKey: `global_cellules_manquantes:${wk}`, type: "fiche_manquante", title: "Fiches de cellule manquantes", message: `${manquantesCellules} cellule(s) n'ont pas soumis leur fiche cette semaine.`, link: "/cellules" });
     if (aValiderCellules) desired.push({ dedupKey: `global_cellules_valider:${wk}`, type: "a_valider", title: "Fiches de cellule à valider", message: `${aValiderCellules} fiche(s) de cellule en attente de validation.`, link: "/cellules" });
+  }
+
+  // 3b. Cellules de prière : fiche de présence manquante cette semaine.
+  if (user.role === "leader_cellule") {
+    const cells = await db.cellules.list({ year, week, scope: { leaderId: user.sub } });
+    for (const c of cells) {
+      if (c.ficheStatus !== "soumis") {
+        desired.push({ dedupKey: `cellule_manquante:${c.id}:${wk}`, type: "cellule_manquante", title: "Fiche de cellule manquante", message: `La fiche de « ${c.nom} » n'est pas soumise.`, link: `/cellules/${c.id}` });
+      }
+    }
+  }
+  if (admin) {
+    const cells = await db.cellules.list({ year, week });
+    const manq = cells.filter((c) => c.ficheStatus !== "soumis").length;
+    if (manq) desired.push({ dedupKey: `cellules_manquantes:${wk}`, type: "cellule_manquante", title: "Cellules sans fiche", message: `${manq} cellule(s) n'ont pas soumis leur fiche cette semaine.`, link: "/cellules" });
   }
 
   // 4. Stagnation des nouveaux venus (périmètre FD/Suivi).

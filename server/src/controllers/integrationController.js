@@ -55,8 +55,35 @@ async function register(req, res) {
   }
 
   const payload = validateAssigne(req.body, { partial: false });
+
+  // Détection de doublon par numéro de téléphone (sauf si on force).
+  if (payload.phone && !req.body.force) {
+    const existing = await db.assignes.findByPhone(payload.phone);
+    if (existing) {
+      return res.status(409).json({
+        code: "DUPLICATE",
+        message: `Un contact avec ce numéro existe déjà : ${existing.firstName} ${existing.lastName}.`,
+        existing: {
+          id: existing.id,
+          firstName: existing.firstName,
+          lastName: existing.lastName,
+          phone: existing.phone,
+          statut: existing.statut,
+          dirigeantName: existing.dirigeantName,
+          departmentName: existing.departmentName,
+        },
+      });
+    }
+  }
+
   const firstSeenAt = typeof req.body.firstSeenAt === "string" && req.body.firstSeenAt ? req.body.firstSeenAt : new Date().toISOString().slice(0, 10);
-  const created = await db.assignes.create({ ...payload, dirigeantId: targetId, statut: "nouveau", firstSeenAt });
+  const created = await db.assignes.create({
+    ...payload,
+    dirigeantId: targetId,
+    statut: "nouveau",
+    isVisiteur: Boolean(req.body.isVisiteur),
+    firstSeenAt,
+  });
   res.status(201).json(created);
 }
 

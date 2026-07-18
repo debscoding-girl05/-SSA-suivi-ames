@@ -494,6 +494,17 @@ test("Nouveaux venus / 7 leçons: scope FD, séquentiel, promotion", async () =>
   assert.equal(promo.body.statut, "regulier");
   const after = await api("GET", "/api/integration/nouveaux", ruth);
   assert.ok(!after.body.data.some((v) => v.id === clarisse.id), "Clarisse n'est plus un nouveau venu");
+
+  // Détection de doublon : même numéro → 409 DUPLICATE ; force → 201
+  const phone = "+237 6 99 88 77 66";
+  const first = await api("POST", "/api/integration/nouveaux", ruth, { firstName: "Doublon", lastName: "Un", phone });
+  assert.equal(first.status, 201);
+  const dup = await api("POST", "/api/integration/nouveaux", ruth, { firstName: "Doublon", lastName: "Deux", phone });
+  assert.equal(dup.status, 409);
+  assert.equal(dup.body.code, "DUPLICATE");
+  assert.equal(dup.body.existing.firstName, "Doublon");
+  const forced = await api("POST", "/api/integration/nouveaux", ruth, { firstName: "Doublon", lastName: "Deux", phone, force: true });
+  assert.equal(forced.status, 201);
 });
 
 test("Notifications: génération scopée + lire / tout marquer lu", async () => {
@@ -521,4 +532,160 @@ test("Notifications: génération scopée + lire / tout marquer lu", async () =>
   await api("POST", "/api/notifications/read-all", ruth);
   const p3 = await api("GET", "/api/notifications", ruth);
   assert.equal(p3.body.unread, 0);
+});
+
+test("Objectif (Pasteur only) + attribut visiteur", async () => {
+  const pasteur = await pasteurToken();
+  const pr = await login("pr@ssa.app", "pr1234");
+  const ruth = await login("suivi@ssa.app", "dirigeant1234");
+
+  // Objectif réservé au Pasteur
+  assert.equal((await api("GET", "/api/objectif", pr)).status, 403);
+  const set = await api("PUT", "/api/objectif", pasteur, { target: 100 });
+  assert.equal(set.status, 200);
+  assert.equal(set.body.target, 100);
+  assert.ok(set.body.achieved >= 0);
+  assert.equal(set.body.percent, Math.min(100, Math.round((set.body.achieved / 100) * 100)));
+
+  // Nouveau venu avec attribut visiteur
+  const v = await api("POST", "/api/integration/nouveaux", ruth, { firstName: "Vis", lastName: "Iteur", isVisiteur: true });
+  assert.equal(v.status, 201);
+  assert.equal(v.body.isVisiteur, true);
+});
+
+test("Cellules de prière: scope, création (admin), membres & fiche (leader)", async () => {
+  const pasteur = await pasteurToken();
+  const pierre = await login("cellule@ssa.app", "dirigeant1234"); // leader_cellule
+  const jean = await login("encadreur@ssa.app", "encadreur1234");
+
+  // Scope : Pasteur voit tout, Pierre voit la sienne, Jean (encadreur) rien
+  assert.ok((await api("GET", "/api/cellules", pasteur)).body.data.length >= 1);
+  assert.ok((await api("GET", "/api/cellules", pierre)).body.data.length >= 1);
+  assert.equal((await api("GET", "/api/cellules", jean)).body.data.length, 0);
+  assert.equal((await api("POST", "/api/cellules", jean, { nom: "X" })).status, 403);
+
+  // Création par le Pasteur
+  const created = await api("POST", "/api/cellules", pasteur, { nom: "Cellule Test", quartier: "Nlongkak" });
+  assert.equal(created.status, 201);
+
+  // Édition (Pasteur) : nom + quartier ; interdite pour l'encadreur
+  const edited = await api("PUT", `/api/cellules/${created.body.id}`, pasteur, { nom: "Cellule Test 2", quartier: "Bastos" });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.body.nom, "Cellule Test 2");
+  assert.equal(edited.body.quartier, "Bastos");
+  assert.equal((await api("PUT", `/api/cellules/${created.body.id}`, jean, { nom: "X" })).status, 403);
+
+  // Pierre gère sa cellule : membre + fiche de présence
+  const mine = (await api("GET", "/api/cellules", pierre)).body.data[0];
+  const m = await api("POST", `/api/cellules/${mine.id}/membres`, pierre, { nom: "Invité Test", estMembreEglise: false });
+  assert.equal(m.status, 201);
+  assert.equal(m.body.estMembreEglise, false);
+
+  // Édition d'un membre (leader de la cellule)
+  const mEdited = await api("PUT", `/api/cellules/${mine.id}/membres/${m.body.id}`, pierre, { nom: "Invité Modifié", telephone: "+237 6 00 00 00 99", estMembreEglise: true });
+  assert.equal(mEdited.status, 200);
+  assert.equal(mEdited.body.nom, "Invité Modifié");
+  assert.equal(mEdited.body.estMembreEglise, true);
+  assert.equal((await api("PUT", `/api/cellules/${mine.id}/membres/${m.body.id}`, jean, { nom: "X" })).status, 403);
+
+  const detail = await api("GET", `/api/cellules/${mine.id}`, pierre);
+  const membres = detail.body.membres;
+  const fiche = await api("POST", `/api/cellules/${mine.id}/fiche`, pierre, {
+    status: "soumis",
+    presences: membres.map((mm, i) => ({ membreId: mm.id, statut: i === 0 ? "absent" : "present" })),
+  });
+  assert.equal(fiche.status, 201);
+  assert.equal(fiche.body.status, "soumis");
+  assert.equal(fiche.body.presentCount, Math.max(0, membres.length - 1));
+});
+
+test("Leaders de cellule: création de compte (admin) + connexion + RBAC", async () => {
+  const pasteur = await pasteurToken();
+  const jean = await login("encadreur@ssa.app", "encadreur1234");
+
+  // Réservé au Pasteur/PR
+  assert.equal((await api("POST", "/api/cellules/leaders", jean, { fullName: "X", phone: "+237 6 00 00 00 11", password: "secret12" })).status, 403);
+
+  // Champs requis
+  assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Sans tél", password: "secret12" })).status, 400);
+  assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Court mdp", phone: "+237 6 00 00 00 12", password: "123" })).status, 400);
+
+  // Création OK → apparaît dans la liste avec celluleCount = 0
+  const phone = "+237 6 55 44 33 22";
+  const created = await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Sœur Grâce", phone, password: "grace1234" });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.fullName, "Sœur Grâce");
+  assert.equal(created.body.celluleCount, 0);
+
+  const list = await api("GET", "/api/cellules/leaders", pasteur);
+  assert.equal(list.status, 200);
+  assert.ok(list.body.data.some((l) => l.id === created.body.id && l.phone === phone));
+
+  // Le nouveau leader peut se connecter (par téléphone) et n'a aucune cellule
+  const grace = await login(phone, "grace1234");
+  assert.equal((await api("GET", "/api/cellules", grace)).body.data.length, 0);
+
+  // Doublon de téléphone → 409
+  assert.equal((await api("POST", "/api/cellules/leaders", pasteur, { fullName: "Doublon", phone, password: "autre1234" })).status, 409);
+});
+
+test("Départements: création + renommage (admin) + RBAC + unicité", async () => {
+  const pasteur = await pasteurToken();
+  const jean = await login("encadreur@ssa.app", "encadreur1234");
+
+  // Réservé au Pasteur/PR
+  assert.equal((await api("POST", "/api/departments", jean, { name: "Médias" })).status, 403);
+  assert.equal((await api("POST", "/api/departments", pasteur, { name: "" })).status, 400);
+
+  // Création
+  const created = await api("POST", "/api/departments", pasteur, { name: "Médias", description: "Réseaux sociaux" });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.name, "Médias");
+  assert.ok((await api("GET", "/api/departments", pasteur)).body.data.some((d) => d.id === created.body.id));
+
+  // Nom déjà pris (insensible à la casse) → 409
+  assert.equal((await api("POST", "/api/departments", pasteur, { name: "médias" })).status, 409);
+
+  // Renommage
+  const upd = await api("PUT", `/api/departments/${created.body.id}`, pasteur, { name: "Médias & Com" });
+  assert.equal(upd.status, 200);
+  assert.equal(upd.body.name, "Médias & Com");
+
+  // Renommer vers un nom existant → 409 ; édition interdite pour l'encadreur
+  assert.equal((await api("PUT", `/api/departments/${created.body.id}`, pasteur, { name: "Chorale" })).status, 409);
+  assert.equal((await api("PUT", `/api/departments/${created.body.id}`, jean, { name: "X" })).status, 403);
+});
+
+test("Dirigeants: création de compte (admin) + RBAC + édition profil", async () => {
+  const pasteur = await pasteurToken();
+  const jean = await login("encadreur@ssa.app", "encadreur1234");
+  const deptId = (await api("GET", "/api/departments", pasteur)).body.data[0].id;
+
+  // Réservé au Pasteur/PR
+  assert.equal((await api("POST", "/api/dirigeants", jean, { fullName: "X", role: "leader", phone: "+237 6 11 11 11 11", password: "secret12" })).status, 403);
+
+  // Validation : rôle invalide / tél manquant / mdp court
+  assert.equal((await api("POST", "/api/dirigeants", pasteur, { fullName: "Mauvais rôle", role: "pasteur", phone: "+237 6 11 11 11 12", password: "secret12" })).status, 400);
+  assert.equal((await api("POST", "/api/dirigeants", pasteur, { fullName: "Sans tél", role: "leader", password: "secret12" })).status, 400);
+
+  // Création OK (encadreur, avec département) → apparaît dans la liste
+  const phone = "+237 6 77 66 55 44";
+  const created = await api("POST", "/api/dirigeants", pasteur, { fullName: "Frère Élie", role: "encadreur", phone, password: "elie1234", departmentId: deptId });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.role, "encadreur");
+  assert.equal(created.body.departmentId, deptId);
+
+  const list = await api("GET", "/api/dirigeants", pasteur);
+  assert.ok(list.body.data.some((d) => d.id === created.body.id));
+
+  // Le nouveau dirigeant peut se connecter (par téléphone) — login() assure le 200
+  await login(phone, "elie1234");
+
+  // Doublon de téléphone → 409 (avant de changer le numéro)
+  assert.equal((await api("POST", "/api/dirigeants", pasteur, { fullName: "Doublon", role: "leader", phone, password: "autre1234" })).status, 409);
+
+  // Édition du profil (Pasteur)
+  const upd = await api("PUT", `/api/dirigeants/${created.body.id}`, pasteur, { fullName: "Frère Élie N.", phone: "+237 6 77 66 55 45" });
+  assert.equal(upd.status, 200);
+  assert.equal(upd.body.fullName, "Frère Élie N.");
 });

@@ -43,56 +43,9 @@ function validateAssigne(body = {}, { partial = false } = {}) {
   }
   if (has("adresse")) out.adresse = str(body.adresse) || null;
   if (has("zoneResidence")) out.zoneResidence = str(body.zoneResidence) || null;
-  if (has("celluleId")) out.celluleId = str(body.celluleId) || null;
   if (has("notes")) out.notes = str(body.notes) || null;
 
   return out;
-}
-
-// Cellule de prière payload — { partial } for PUT (validate only provided fields).
-function validateCellule(body = {}, { partial = false } = {}) {
-  const out = {};
-  const has = (k) => body[k] !== undefined && body[k] !== null;
-
-  if (!partial || has("nom")) {
-    const nom = str(body.nom);
-    if (!nom) throw ApiError.badRequest("Le nom de la cellule est requis");
-    out.nom = nom;
-  }
-  if (has("leaderId")) out.leaderId = str(body.leaderId) || null;
-  if (has("departmentId")) {
-    if (body.departmentId === "" || body.departmentId === null) {
-      out.departmentId = null;
-    } else {
-      const departmentId = Number(body.departmentId);
-      if (!Number.isInteger(departmentId) || departmentId <= 0) {
-        throw ApiError.badRequest("departmentId invalide");
-      }
-      out.departmentId = departmentId;
-    }
-  }
-  if (has("jourReunion")) out.jourReunion = str(body.jourReunion) || null;
-  if (has("lieu")) out.lieu = str(body.lieu) || null;
-  if (has("actif")) out.actif = Boolean(body.actif);
-
-  return out;
-}
-
-// Weekly cellule fiche submission.
-function validateFicheCellule(body = {}) {
-  const presentCount = Number(body.presentCount);
-  const effectif = Number(body.effectif);
-  if (!Number.isInteger(presentCount) || presentCount < 0) {
-    throw ApiError.badRequest("Le nombre de présents doit être un entier positif");
-  }
-  if (!Number.isInteger(effectif) || effectif < 0) {
-    throw ApiError.badRequest("L'effectif doit être un entier positif");
-  }
-  return {
-    presentCount,
-    effectif,
-    notes: str(body.notes) || null,
-  };
 }
 
 // Dirigeant editable fields (profile bits an admin can adjust).
@@ -101,7 +54,7 @@ function validateFicheCellule(body = {}) {
 // to avoid privilege-escalation risk.
 const CREATABLE_ROLES = ["pr", "leader", "encadreur", "leader_cellule"];
 // Roles that must belong to a department.
-const DEPARTMENT_REQUIRED_ROLES = ["leader", "encadreur", "leader_cellule"];
+const DEPARTMENT_REQUIRED_ROLES = ["leader", "encadreur"];
 
 function validateNewDirigeant(body = {}) {
   const fullName = str(body.fullName);
@@ -159,9 +112,14 @@ function validateAcceptInvitation(body = {}) {
   const fullName = str(body.fullName);
   if (!fullName) throw ApiError.badRequest("Le nom est requis");
 
+  const phone = str(body.phone);
+  if (!phone || phone.replace(/\D/g, "").length < 6) {
+    throw ApiError.badRequest("Un numéro de téléphone valide est requis");
+  }
+
   const password = validatePasswordPolicy(body.password);
 
-  return { fullName, phone: str(body.phone) || null, password };
+  return { fullName, phone, password };
 }
 
 function has(body, key) {
@@ -204,4 +162,4 @@ function validateRapport(body = {}) {
   };
 }
 
-module.exports = { validateAssigne, validateDirigeant, validateNewDirigeant, validateInvitation, validateAcceptInvitation, validatePasswordPolicy, validateRapport, validateCellule, validateFicheCellule };
+module.exports = { validateAssigne, validateDirigeant, validateNewDirigeant, validateInvitation, validateAcceptInvitation, validatePasswordPolicy, validateRapport };

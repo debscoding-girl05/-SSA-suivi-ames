@@ -27,6 +27,17 @@ function generateTempPassword() {
 
 const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
 
+// Public projection of a dirigeant — never leak passwordHash.
+const toPublic = (d) => ({
+  id: d.id,
+  fullName: d.fullName,
+  email: d.email,
+  phone: d.phone,
+  role: d.role,
+  departmentId: d.departmentId,
+  departmentName: d.departmentName,
+});
+
 // RBAC visibility scope (CDC Annexe D):
 //  - Pasteur / PR  → tout
 //  - Leader        → son département
@@ -161,16 +172,7 @@ async function update(req, res) {
     if (!dept) throw ApiError.badRequest("Département introuvable");
   }
   const u = await db.dirigeants.update(req.params.id, payload);
-  // Public projection — never leak passwordHash.
-  res.json({
-    id: u.id,
-    fullName: u.fullName,
-    email: u.email,
-    phone: u.phone,
-    role: u.role,
-    departmentId: u.departmentId,
-    departmentName: u.departmentName,
-  });
+  res.json(toPublic(u));
 }
 
 module.exports = { list, getOne, create, update, deactivate, reactivate, canView, isAdmin };

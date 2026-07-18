@@ -87,7 +87,10 @@ export default function NouveauxVenusPage() {
                 >
                   <Avatar name={`${v.firstName} ${v.lastName}`} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{v.firstName} {v.lastName}</p>
+                    <p className="flex items-center gap-2 truncate font-medium">
+                      <span className="truncate">{v.firstName} {v.lastName}</span>
+                      {v.isVisiteur && <span className="shrink-0 rounded-md bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">Visiteur</span>}
+                    </p>
                     <div className="mt-1.5 flex items-center gap-2">
                       <Pastilles validated={v.lessonsValidated} />
                       <span className="text-xs tabular-nums text-muted-foreground">{v.lessonsValidated}/7</span>

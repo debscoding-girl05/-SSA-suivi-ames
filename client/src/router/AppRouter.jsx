@@ -9,6 +9,7 @@ import AnnuairePage from '../pages/Annuaire/AnnuairePage';
 import RapportsPage from '../pages/Rapports/RapportsPage';
 import CellulesPage from '../pages/Cellules/CellulesPage';
 import CelluleDetailPage from '../pages/Cellules/CelluleDetailPage';
+import LeadersCellulePage from '../pages/Cellules/LeadersCellulePage';
 import ReportsPage from '../pages/Reports/ReportsPage';
 import NouveauxVenusPage from '../pages/NouveauxVenus/NouveauxVenusPage';
 import NotificationsPage from '../pages/Notifications/NotificationsPage';
@@ -40,6 +41,7 @@ export default function AppRouter() {
         <Route path="/nouveaux-venus" element={<NouveauxVenusPage />} />
         <Route path="/fiches" element={<RapportsPage />} />
         <Route path="/cellules" element={<CellulesPage />} />
+        <Route path="/cellules/leaders" element={<LeadersCellulePage />} />
         <Route path="/cellules/:id" element={<CelluleDetailPage />} />
         <Route path="/rapports" element={<ReportsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />

@@ -42,9 +42,12 @@ export default function NouveauVenuDetail({ id, canManage, onChanged, onClose })
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{venu.departmentName} · {venu.dirigeantName}</p>
-        <span className="rounded-md bg-primary-transparent px-2 py-0.5 text-xs font-medium text-primary">{validated}/7 leçons</span>
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="truncate">{venu.departmentName} · {venu.dirigeantName}</span>
+          {venu.isVisiteur && <span className="shrink-0 rounded-md bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">Visiteur</span>}
+        </p>
+        <span className="shrink-0 rounded-md bg-primary-transparent px-2 py-0.5 text-xs font-medium text-primary">{validated}/7 leçons</span>
       </div>
 
       <ul className="overflow-hidden rounded-xl border border-border">

@@ -1,132 +1,154 @@
 const db = require("../db");
 const ApiError = require("../utils/ApiError");
-const { validateCellule, validateFicheCellule } = require("../utils/validators");
-const { parseWeek } = require("../utils/week");
+const { parseWeek, currentWeek } = require("../utils/week");
 
 const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
+const PRESENCE = ["present", "absent", "justifie"];
+const str = (v) => (typeof v === "string" ? v.trim() : "");
 
-// Scope for listing cellules: admin sees all, leader sees own department,
-// leader_cellule sees only their own cellule (handled in findOwn/canManage).
 function scopeFor(user) {
   if (isAdmin(user.role)) return undefined;
-  if (user.role === "leader") return { departmentId: user.departmentId ?? -1 };
   if (user.role === "leader_cellule") return { leaderId: user.sub };
-  return { leaderId: user.sub };
+  return { leaderId: "__none__" }; // autres rôles : aucune cellule
 }
 
-// Can `user` create/edit/delete cellules in general (department admin power)?
-function canManageCellules(user) {
-  return isAdmin(user.role) || user.role === "leader";
+function canManage(user, cellule) {
+  return isAdmin(user.role) || (user.role === "leader_cellule" && cellule.leaderCelluleId === user.sub);
 }
 
-// Can `user` manage this specific cellule (edit info, review its fiche)?
-function canManageCellule(user, cellule) {
-  if (isAdmin(user.role)) return true;
-  if (user.role === "leader") return user.departmentId != null && cellule.departmentId === user.departmentId;
-  return false;
-}
-
-// Can `user` submit the weekly fiche for this cellule (its own leader_cellule)?
-function canSubmitFiche(user, cellule) {
-  if (cellule.leaderId === user.sub) return true;
-  return canManageCellule(user, cellule);
-}
-
-// GET /api/cellules — list, scoped by role.
-async function list(req, res) {
-  const cellules = await db.cellules.list({ scope: scopeFor(req.user) });
-  res.json(cellules);
-}
-
-// GET /api/cellules/:id — detail + members.
-async function getOne(req, res) {
-  const cellule = await db.cellules.findById(req.params.id);
+async function loadCellule(id) {
+  const cellule = await db.cellules.findById(id);
   if (!cellule) throw ApiError.notFound("Cellule introuvable");
-  if (!isAdmin(req.user.role) && !canManageCellule(req.user, cellule) && cellule.leaderId !== req.user.sub) {
-    throw ApiError.forbidden("Accès refusé");
-  }
-  const members = await db.cellules.listMembers(cellule.id);
-  res.json({ ...cellule, members });
+  return cellule;
 }
 
-// POST /api/cellules — create (admin or leader of the target department).
+// GET /api/cellules
+async function list(req, res) {
+  const { year, week } = currentWeek();
+  const data = await db.cellules.list({ year, week, scope: scopeFor(req.user) });
+  res.json({ data });
+}
+
+// GET /api/cellules/leaders — leaders de cellule (admin) : nom, tél, nb de cellules.
+async function leaders(_req, res) {
+  res.json({ data: await db.cellules.leadersDisponibles() });
+}
+
+// POST /api/cellules — créer (Pasteur/PR).
 async function create(req, res) {
-  if (!canManageCellules(req.user)) throw ApiError.forbidden("Vous ne pouvez pas créer de cellule");
-  const payload = validateCellule(req.body);
-
-  if (req.user.role === "leader") {
-    // A leader can only create cellules within their own department.
-    payload.departmentId = req.user.departmentId ?? null;
-  }
-  if (payload.leaderId) {
-    const leader = await db.dirigeants.findById(payload.leaderId);
-    if (!leader) throw ApiError.badRequest("Leader de cellule invalide");
-  }
-
-  const cellule = await db.cellules.create(payload);
+  const nom = str(req.body.nom);
+  if (!nom) throw ApiError.badRequest("Le nom de la cellule est requis");
+  const cellule = await db.cellules.create({
+    nom,
+    quartier: str(req.body.quartier) || null,
+    leaderCelluleId: req.body.leaderCelluleId || null,
+  });
   res.status(201).json(cellule);
 }
 
-// PUT /api/cellules/:id — update.
+// PUT /api/cellules/:id — éditer (Pasteur/PR).
 async function update(req, res) {
-  const cellule = await db.cellules.findById(req.params.id);
-  if (!cellule) throw ApiError.notFound("Cellule introuvable");
-  if (!canManageCellule(req.user, cellule)) throw ApiError.forbidden("Vous ne pouvez pas modifier cette cellule");
-
-  const payload = validateCellule(req.body, { partial: true });
-  const updated = await db.cellules.update(req.params.id, payload);
-  res.json(updated);
+  await loadCellule(req.params.id);
+  const fields = {};
+  if (req.body.nom !== undefined) {
+    const nom = str(req.body.nom);
+    if (!nom) throw ApiError.badRequest("Le nom est requis");
+    fields.nom = nom;
+  }
+  if (req.body.quartier !== undefined) fields.quartier = str(req.body.quartier) || null;
+  if (req.body.leaderCelluleId !== undefined) fields.leaderCelluleId = req.body.leaderCelluleId || null;
+  res.json(await db.cellules.update(req.params.id, fields));
 }
 
-// DELETE /api/cellules/:id — soft delete (mark inactive) rather than a hard
-// delete, so past fiches remain intact for historical reports.
-async function remove(req, res) {
-  const cellule = await db.cellules.findById(req.params.id);
-  if (!cellule) throw ApiError.notFound("Cellule introuvable");
-  if (!canManageCellule(req.user, cellule)) throw ApiError.forbidden("Vous ne pouvez pas désactiver cette cellule");
+// GET /api/cellules/:id — détail + membres + fiche de la semaine.
+async function getOne(req, res) {
+  const cellule = await loadCellule(req.params.id);
+  if (!canManage(req.user, cellule)) throw ApiError.forbidden("Accès refusé");
+  const { year, week } = parseWeek(req.query);
+  const [membres, fiche] = await Promise.all([
+    db.cellules.listMembres(cellule.id),
+    db.cellules.getFiche(cellule.id, year, week),
+  ]);
+  res.json({ cellule, membres, fiche, week: { year, week } });
+}
 
-  await db.cellules.update(req.params.id, { actif: false });
+// POST /api/cellules/:id/membres — ajouter un membre (leader de la cellule / admin).
+async function addMembre(req, res) {
+  const cellule = await loadCellule(req.params.id);
+  if (!canManage(req.user, cellule)) throw ApiError.forbidden("Action refusée");
+  const nom = str(req.body.nom);
+  if (!nom) throw ApiError.badRequest("Le nom est requis");
+  const membre = await db.cellules.addMembre(cellule.id, {
+    nom,
+    telephone: str(req.body.telephone) || null,
+    estMembreEglise: Boolean(req.body.estMembreEglise),
+  });
+  res.status(201).json(membre);
+}
+
+// PUT /api/cellules/:id/membres/:membreId — éditer un membre (leader / admin).
+async function updateMembre(req, res) {
+  const cellule = await loadCellule(req.params.id);
+  if (!canManage(req.user, cellule)) throw ApiError.forbidden("Action refusée");
+  const membre = await db.cellules.findMembre(req.params.membreId);
+  if (!membre || membre.celluleId !== cellule.id) throw ApiError.notFound("Membre introuvable");
+
+  const fields = {};
+  if (req.body.nom !== undefined) {
+    const nom = str(req.body.nom);
+    if (!nom) throw ApiError.badRequest("Le nom est requis");
+    fields.nom = nom;
+  }
+  if (req.body.telephone !== undefined) fields.telephone = str(req.body.telephone) || null;
+  if (req.body.estMembreEglise !== undefined) fields.estMembreEglise = Boolean(req.body.estMembreEglise);
+  res.json(await db.cellules.updateMembre(membre.id, fields));
+}
+
+// DELETE /api/cellules/:id/membres/:membreId
+async function removeMembre(req, res) {
+  const cellule = await loadCellule(req.params.id);
+  if (!canManage(req.user, cellule)) throw ApiError.forbidden("Action refusée");
+  const membre = await db.cellules.findMembre(req.params.membreId);
+  if (!membre || membre.celluleId !== cellule.id) throw ApiError.notFound("Membre introuvable");
+  await db.cellules.removeMembre(req.params.membreId);
   res.status(204).end();
 }
 
-// GET /api/cellules/:id/fiche?year&week — the cellule's weekly fiche.
-async function getFiche(req, res) {
-  const cellule = await db.cellules.findById(req.params.id);
-  if (!cellule) throw ApiError.notFound("Cellule introuvable");
-  if (!canSubmitFiche(req.user, cellule)) throw ApiError.forbidden("Accès refusé");
-
-  const { year, week } = parseWeek(req.query);
-  const fiche = await db.cellules.findFicheByCelluleWeek(cellule.id, year, week);
-  res.json({ week: { year, week }, fiche });
-}
-
-// POST /api/cellules/:id/fiche — submit/save the weekly fiche.
+// POST /api/cellules/:id/fiche — enregistrer/soumettre la fiche de présence.
 async function submitFiche(req, res) {
-  const cellule = await db.cellules.findById(req.params.id);
-  if (!cellule) throw ApiError.notFound("Cellule introuvable");
-  if (!canSubmitFiche(req.user, cellule)) throw ApiError.forbidden("Vous ne pouvez pas soumettre cette fiche");
-
+  const cellule = await loadCellule(req.params.id);
+  if (!canManage(req.user, cellule)) throw ApiError.forbidden("Action refusée");
   const { year, week } = parseWeek(req.body);
   const status = req.body.status === "brouillon" ? "brouillon" : "soumis";
-  const payload = validateFicheCellule(req.body);
 
-  const fiche = await db.cellules.submitFiche({ celluleId: cellule.id, year, week, status, ...payload });
+  const membres = await db.cellules.listMembres(cellule.id);
+  const ids = new Set(membres.map((m) => m.id));
+  const presences = (Array.isArray(req.body.presences) ? req.body.presences : []).map((p) => {
+    if (!p || !ids.has(p.membreId)) throw ApiError.badRequest("Membre invalide");
+    if (!PRESENCE.includes(p.statut)) throw ApiError.badRequest("Statut de présence invalide");
+    return { membreId: p.membreId, statut: p.statut };
+  });
+
+  const fiche = await db.cellules.submitFiche({
+    celluleId: cellule.id, year, week, status,
+    remarques: str(req.body.remarques) || null, presences,
+  });
   res.status(201).json(fiche);
 }
 
-// POST /api/cellules/:id/fiche/:ficheId/validate — mark the fiche validated
-// (remontée au département). Reserved to admin or the department's leader.
+// POST /api/cellules/:id/fiche/validate — valider la fiche soumise de la
+// semaine (remontée à la PR/au Pasteur). Réservé Pasteur/PR.
 async function validateFiche(req, res) {
-  const cellule = await db.cellules.findById(req.params.id);
-  if (!cellule) throw ApiError.notFound("Cellule introuvable");
-  if (!canManageCellule(req.user, cellule)) throw ApiError.forbidden("Vous ne pouvez pas valider cette fiche");
+  const cellule = await loadCellule(req.params.id);
+  if (!isAdmin(req.user.role)) throw ApiError.forbidden("Réservé au Pasteur et à la PR");
 
-  const fiche = await db.cellules.findFicheById(req.params.ficheId);
-  if (!fiche || fiche.celluleId !== cellule.id) throw ApiError.notFound("Fiche introuvable");
+  const { year, week } = parseWeek(req.body);
+  const fiche = await db.cellules.getFiche(cellule.id, year, week);
+  if (!fiche) throw ApiError.notFound("Fiche introuvable pour cette semaine");
   if (fiche.status !== "soumis") throw ApiError.badRequest("Cette fiche n'est pas soumise");
 
   const validated = await db.cellules.validateFiche(fiche.id);
   res.json(validated);
 }
 
-module.exports = { list, getOne, create, update, remove, getFiche, submitFiche, validateFiche };
+module.exports = { list, leaders, create, update, getOne, addMembre, updateMembre, removeMembre, submitFiche, validateFiche };

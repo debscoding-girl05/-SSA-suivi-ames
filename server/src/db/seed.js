@@ -86,6 +86,24 @@ const DIRIGEANTS = [
     ],
     report: null,
   },
+  {
+    // Leader de cellule de prière (indépendant des départements).
+    email: "cellule@ssa.app", phone: "+237 6 22 33 44 55", password: "dirigeant1234",
+    fullName: "Frère Pierre", role: "leader_cellule", department: null, assignes: [], report: null,
+  },
+];
+
+// Cellules de prière de démo (créées après les comptes).
+const CELLULES = [
+  {
+    nom: "Cellule Bastos", quartier: "Bastos", leaderEmail: "cellule@ssa.app",
+    membres: [
+      { nom: "André Mfou", telephone: "+237 6 90 00 11 22", estMembreEglise: true },
+      { nom: "Solange Abe", telephone: "+237 6 91 00 11 22", estMembreEglise: false },
+      { nom: "Téclaire Nga", estMembreEglise: true },
+    ],
+    fiche: { remarques: "Bonne soirée de prière.", absentsIdx: [1] },
+  },
 ];
 
 async function seed({ silent = false } = {}) {
@@ -150,10 +168,29 @@ async function seed({ silent = false } = {}) {
     }
   }
 
+  // Cellules de prière (seed si aucune).
+  let createdCellules = 0;
+  const existingCellules = await db.cellules.list({ year, week });
+  if (existingCellules.length === 0) {
+    for (const c of CELLULES) {
+      const leader = c.leaderEmail ? await db.users.findByEmail(c.leaderEmail) : null;
+      const cellule = await db.cellules.create({ nom: c.nom, quartier: c.quartier, leaderCelluleId: leader?.id ?? null });
+      for (const m of c.membres) await db.cellules.addMembre(cellule.id, m);
+      createdCellules += 1;
+      if (c.fiche) {
+        const membres = await db.cellules.listMembres(cellule.id);
+        await db.cellules.submitFiche({
+          celluleId: cellule.id, year, week, status: "soumis", remarques: c.fiche.remarques,
+          presences: membres.map((m, i) => ({ membreId: m.id, statut: (c.fiche.absentsIdx || []).includes(i) ? "absent" : "present" })),
+        });
+      }
+    }
+  }
+
   log(
-    `Seed terminé — ${createdUsers} dirigeant(s), ${createdAssignes} assigné(s), ${createdReports} rapport(s) (sem. ${week}/${year}, backend: ${db.isPostgres ? "postgres" : "memory"}).`
+    `Seed terminé — ${createdUsers} dirigeant(s), ${createdAssignes} assigné(s), ${createdReports} rapport(s), ${createdCellules} cellule(s) (sem. ${week}/${year}, backend: ${db.isPostgres ? "postgres" : "memory"}).`
   );
-  return { createdUsers, createdAssignes, createdReports };
+  return { createdUsers, createdAssignes, createdReports, createdCellules };
 }
 
 module.exports = { seed, DIRIGEANTS };

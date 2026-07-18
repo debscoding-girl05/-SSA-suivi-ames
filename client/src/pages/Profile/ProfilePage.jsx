@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, Lock, LogOut, ChevronRight, Phone, Building2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { roleLabel } from '@/lib/roles';
@@ -7,11 +8,12 @@ import Modal from '../../components/Modal';
 import ChangePasswordForm from './ChangePasswordForm';
 
 export default function ProfilePage() {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   const rows = [
-    { icon: Bell, label: 'Notifications' },
+    { icon: Bell, label: 'Notifications', onClick: () => navigate('/notifications') },
     { icon: Lock, label: 'Changer le mot de passe', onClick: () => setPasswordModalOpen(true) },
   ];
 

@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS assignes (
   notes           TEXT,
   statut          TEXT NOT NULL DEFAULT 'regulier'
                   CHECK (statut IN ('nouveau', 'regulier', 'inactif')),
+  is_visiteur     BOOLEAN NOT NULL DEFAULT FALSE,
   first_seen_at   DATE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -147,6 +148,60 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications (recipient_id);
 
+-- Cellules de prière (Module 8) — indépendantes des départements, par quartier.
+CREATE TABLE IF NOT EXISTS cellules (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nom               TEXT NOT NULL,
+  quartier          TEXT,
+  leader_cellule_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cellules_leader ON cellules (leader_cellule_id);
+
+-- Membres d'une cellule (PAS forcément membres de l'église) — liste libre.
+CREATE TABLE IF NOT EXISTS membres_cellule (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cellule_id        UUID NOT NULL REFERENCES cellules(id) ON DELETE CASCADE,
+  nom               TEXT NOT NULL,
+  telephone         TEXT,
+  est_membre_eglise BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_membres_cellule ON membres_cellule (cellule_id);
+
+-- Fiche de présence hebdo d'une cellule (présences stockées en JSON).
+CREATE TABLE IF NOT EXISTS fiches_cellule (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cellule_id    UUID NOT NULL REFERENCES cellules(id) ON DELETE CASCADE,
+  year          INTEGER NOT NULL,
+  week          INTEGER NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'brouillon' CHECK (status IN ('brouillon', 'soumis', 'valide')),
+  present_count INTEGER NOT NULL DEFAULT 0,
+  remarques     TEXT,
+  presences     JSONB NOT NULL DEFAULT '[]',
+  submitted_at  TIMESTAMPTZ,
+  validated_at  TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (cellule_id, year, week)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fiches_cellule ON fiches_cellule (cellule_id);
+
+ALTER TABLE cellules        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE membres_cellule ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fiches_cellule  ENABLE ROW LEVEL SECURITY;
+
+-- Paramètres globaux (ex. objectif d'évangélisation fixé par le Pasteur).
+CREATE TABLE IF NOT EXISTS settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Rôles (hiérarchie pastorale — CDC v1.1 §3.1 / Annexe D, idempotent).
 INSERT INTO roles (name, description) VALUES
   ('pasteur',        'Pasteur (Daddy) — super administrateur, lecture de tout'),
@@ -172,47 +227,6 @@ INSERT INTO departments (name, description) VALUES
   ('Sécurité Audiovisuelle', 'Sécurité audiovisuelle et technique'),
   ('Suivi',                  'Intégration des nouveaux venus et suivi des 7 leçons')
 ON CONFLICT (name) DO NOTHING;
-
--- =============================================================
--- Module 8 — Cellules de prière (migration 0003)
--- =============================================================
-CREATE TABLE IF NOT EXISTS cellules (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nom           TEXT NOT NULL,
-  leader_id     UUID REFERENCES users(id) ON DELETE SET NULL,
-  department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
-  jour_reunion  TEXT,
-  lieu          TEXT,
-  actif         BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_cellules_leader     ON cellules(leader_id);
-CREATE INDEX IF NOT EXISTS idx_cellules_department ON cellules(department_id);
-
-ALTER TABLE assignes ADD COLUMN IF NOT EXISTS cellule_id UUID REFERENCES cellules(id) ON DELETE SET NULL;
-CREATE INDEX IF NOT EXISTS idx_assignes_cellule ON assignes(cellule_id);
-
-CREATE TABLE IF NOT EXISTS fiches_cellule (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cellule_id    UUID NOT NULL REFERENCES cellules(id) ON DELETE CASCADE,
-  year          INT  NOT NULL,
-  week          INT  NOT NULL,
-  present_count INT  NOT NULL DEFAULT 0,
-  effectif      INT  NOT NULL DEFAULT 0,
-  notes         TEXT,
-  status        TEXT NOT NULL DEFAULT 'brouillon'
-                CHECK (status IN ('brouillon', 'soumis', 'valide', 'a_corriger')),
-  submitted_at  TIMESTAMPTZ,
-  validated_at  TIMESTAMPTZ,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (cellule_id, year, week)
-);
-CREATE INDEX IF NOT EXISTS idx_fiches_cellule_cellule ON fiches_cellule(cellule_id);
-
-ALTER TABLE cellules       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE fiches_cellule ENABLE ROW LEVEL SECURITY;
 
 -- =============================================================
 -- Invitations de compte (migration 0004)

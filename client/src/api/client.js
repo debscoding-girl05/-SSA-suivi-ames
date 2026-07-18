@@ -50,7 +50,9 @@ export async function request(path, { method = 'GET', body, auth = true } = {}) 
   if (!response.ok) {
     const code = data?.code || 'ERROR';
     const message = data?.message || 'Une erreur est survenue.';
-    throw new ApiError(response.status, code, message);
+    const error = new ApiError(response.status, code, message);
+    error.data = data; // full payload (e.g. duplicate detection → { existing })
+    throw error;
   }
 
   return data;

@@ -1,199 +1,191 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Pencil, Users, CalendarDays, MapPin, Send, CheckCircle2 } from 'lucide-react';
-import { getCellule, getFicheCellule, submitFicheCellule, validateFicheCellule } from '../../api/cellules';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { ArrowLeft, MapPin, Users, Plus, Trash2, ClipboardCheck, Pencil } from 'lucide-react';
+import { getCellule, addMembreCellule, updateMembreCellule, removeMembreCellule, updateCellule, celluleLeaders, validateFicheCellule } from '../../api/cellules';
 import { useAuth } from '../../hooks/useAuth';
 import { isAdminRole } from '@/lib/roles';
 import Modal from '../../components/Modal';
-import CelluleForm from './CelluleForm';
+import EmptyState from '../../components/EmptyState';
 import ReportStatusBadge from '../../components/ReportStatusBadge';
-import Input from '../../components/Input/Input';
-import { Avatar } from '@/components/ui/avatar';
+import CelluleFicheForm from './CelluleFicheForm';
 
 export default function CelluleDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-
-  const [cellule, setCellule] = useState(null);
-  const [fiche, setFiche] = useState(null);
-  const [week, setWeek] = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [ficheOpen, setFicheOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editingMembre, setEditingMembre] = useState(null); // membre en édition, ou null = ajout
+  const [form, setForm] = useState({ nom: '', telephone: '', estMembreEglise: false });
   const [editOpen, setEditOpen] = useState(false);
-  const [presentCount, setPresentCount] = useState('');
-  const [effectif, setEffectif] = useState('');
-  const [notes, setNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const canManage = isAdminRole(user?.role) ||
-    (user?.role === 'leader' && user?.departmentId != null && user?.departmentId === cellule?.departmentId);
-  const canSubmit = canManage || cellule?.leaderId === user?.id;
+  const [editForm, setEditForm] = useState({ nom: '', quartier: '', leaderCelluleId: '' });
+  const [leaders, setLeaders] = useState([]);
 
   const load = useCallback(async () => {
-    try {
-      const c = await getCellule(id);
-      setCellule(c);
-      const f = await getFicheCellule(id);
-      setFiche(f.fiche);
-      setWeek(f.week);
-      setPresentCount(f.fiche?.presentCount ?? '');
-      setEffectif(f.fiche?.effectif ?? c.memberCount ?? '');
-      setNotes(f.fiche?.notes ?? '');
-      setError('');
-    } catch (err) {
-      setError(err?.message || 'Chargement impossible.');
-    } finally {
-      setLoading(false);
-    }
+    try { setData(await getCellule(id)); setError(''); }
+    catch (e) { setError(e?.message || 'Chargement impossible.'); }
+    finally { setLoading(false); }
   }, [id]);
+  useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t); }, [load]);
 
-  useEffect(() => {
-    const t = setTimeout(load, 0);
-    return () => clearTimeout(t);
-  }, [load]);
+  const canManage = data && (isAdminRole(user?.role) || (user?.role === 'leader_cellule' && data.cellule.leaderCelluleId === user?.id));
+  // Seuls Pasteur/PR éditent la cellule (nom, quartier, leader).
+  const canEdit = isAdminRole(user?.role);
 
-  async function handleSubmitFiche(e, status = 'soumis') {
-    e?.preventDefault();
-    setSaving(true);
-    setError('');
-    setSuccess('');
-    try {
-      await submitFicheCellule(id, {
-        presentCount: Number(presentCount) || 0,
-        effectif: Number(effectif) || 0,
-        notes: notes || null,
-        status,
-      });
-      await load();
-      setSuccess(status === 'soumis' ? 'Fiche soumise avec succès — elle est en attente de validation.' : 'Brouillon enregistré.');
-    } catch (err) {
-      setError(err?.message || 'Envoi impossible.');
-    } finally {
-      setSaving(false);
-    }
+  async function openEdit() {
+    setEditForm({ nom: data.cellule.nom, quartier: data.cellule.quartier || '', leaderCelluleId: data.cellule.leaderCelluleId || '' });
+    try { setLeaders((await celluleLeaders()).data); } catch { setLeaders([]); }
+    setEditOpen(true);
+  }
+  async function submitEdit(e) {
+    e.preventDefault();
+    try { await updateCellule(id, { ...editForm, leaderCelluleId: editForm.leaderCelluleId || null }); setEditOpen(false); load(); }
+    catch (er) { setError(er?.message || 'Modification impossible.'); }
   }
 
+  function openAddMembre() { setEditingMembre(null); setForm({ nom: '', telephone: '', estMembreEglise: false }); setAddOpen(true); }
+  function openEditMembre(m) { setEditingMembre(m); setForm({ nom: m.nom, telephone: m.telephone || '', estMembreEglise: m.estMembreEglise }); setAddOpen(true); }
+  async function saveMembre(e) {
+    e.preventDefault();
+    try {
+      if (editingMembre) await updateMembreCellule(id, editingMembre.id, form);
+      else await addMembreCellule(id, form);
+      setAddOpen(false); setEditingMembre(null); setForm({ nom: '', telephone: '', estMembreEglise: false }); load();
+    } catch (er) { setError(er?.message || 'Enregistrement impossible.'); }
+  }
+  async function removeMembre(m) {
+    if (!window.confirm(`Retirer ${m.nom} ?`)) return;
+    try { await removeMembreCellule(id, m.id); load(); } catch (er) { setError(er?.message || 'Suppression impossible.'); }
+  }
+
+  // Valider la fiche soumise de la semaine (remontée à la PR/au Pasteur).
   async function handleValidate() {
-    if (!fiche) return;
-    setSaving(true);
-    setError('');
-    setSuccess('');
-    try {
-      await validateFicheCellule(id, fiche.id);
-      await load();
-      setSuccess('Fiche validée — elle est remontée au département.');
-    } catch (err) {
-      setError(err?.message || 'Validation impossible.');
-    } finally {
-      setSaving(false);
-    }
+    try { await validateFicheCellule(id); load(); } catch (er) { setError(er?.message || 'Validation impossible.'); }
   }
-
-  if (loading) return <div className="h-40 animate-pulse rounded-2xl border border-border bg-card" />;
-  if (!cellule) return <p className="text-sm text-muted-foreground">Cellule introuvable.</p>;
-
-  const status = fiche?.status || 'manquant';
 
   return (
-    <div className="flex flex-col gap-4">
-      <button type="button" onClick={() => navigate('/cellules')} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" /> Retour aux cellules
+    <div className="flex flex-col gap-5">
+      <button type="button" onClick={() => navigate('/cellules')} className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4" /> Cellules
       </button>
 
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border bg-card p-5 shadow-card">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{cellule.nom}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            {cellule.leaderName && <span className="flex items-center gap-1"><Avatar name={cellule.leaderName} size="sm" />{cellule.leaderName}</span>}
-            {cellule.jourReunion && <span className="flex items-center gap-1"><CalendarDays className="size-3.5" />{cellule.jourReunion}</span>}
-            {cellule.lieu && <span className="flex items-center gap-1"><MapPin className="size-3.5" />{cellule.lieu}</span>}
-            <span className="flex items-center gap-1"><Users className="size-3.5" />{cellule.members?.length ?? 0} membre{(cellule.members?.length ?? 0) > 1 ? 's' : ''}</span>
-          </div>
-        </div>
-        {canManage && (
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
-            <Pencil className="size-4" /> Modifier
-          </Button>
-        )}
-      </div>
-
-      {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
-      {success && <p role="status" className="rounded-lg bg-primary-transparent px-3 py-2 text-sm text-primary">{success}</p>}
-
-      {/* Fiche hebdomadaire */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-card">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-muted-foreground">
-            Fiche hebdomadaire {week ? `· semaine ${week.week}/${week.year}` : ''}
-          </h2>
-          <ReportStatusBadge status={status} />
-        </div>
-
-        {canSubmit ? (
-          <form onSubmit={(e) => handleSubmitFiche(e, 'soumis')} className="flex flex-col gap-3">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="presentCount" className="text-sm font-medium">Présents</label>
-                <Input id="presentCount" type="number" min="0" value={presentCount} onChange={(e) => setPresentCount(e.target.value)} required />
+      {loading ? <div className="h-32 animate-pulse rounded-2xl border border-border bg-card" />
+      : error ? <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>
+      : !data ? null : (
+        <>
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+            <div className="h-14 bg-primary-gradient" />
+            <div className="px-5 pb-5 pt-3">
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="text-xl font-semibold tracking-tight">{data.cellule.nom}</h1>
+                {canEdit && (
+                  <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="size-4" /> Modifier</Button>
+                )}
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="effectif" className="text-sm font-medium">Effectif total</label>
-                <Input id="effectif" type="number" min="0" value={effectif} onChange={(e) => setEffectif(e.target.value)} required />
+              <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                {data.cellule.quartier && <span className="flex items-center gap-1"><MapPin className="size-3.5" />{data.cellule.quartier}</span>}
+                <span>Leader : {data.cellule.leaderName || '—'}</span>
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <Button size="sm" onClick={() => setFicheOpen(true)} disabled={!canManage}>
+                  <ClipboardCheck className="size-4" /> Fiche de présence
+                </Button>
+                {data.fiche && <ReportStatusBadge status={data.fiche.status === 'soumis' ? 'soumis' : data.fiche.status === 'valide' ? 'valide' : 'brouillon'} />}
+                {isAdminRole(user?.role) && data.fiche?.status === 'soumis' && (
+                  <Button size="sm" variant="outline" onClick={handleValidate}>Valider</Button>
+                )}
               </div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="notes" className="text-sm font-medium">Notes</label>
-              <textarea
-                id="notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-              />
-            </div>
-            <div className="flex flex-wrap justify-end gap-2 pt-1">
-              <Button type="button" variant="outline" disabled={saving} onClick={(e) => handleSubmitFiche(e, 'brouillon')}>
-                Enregistrer en brouillon
-              </Button>
-              <Button type="submit" disabled={saving}>
-                <Send className="size-4" /> {saving ? 'Envoi…' : 'Soumettre'}
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {fiche ? `${fiche.presentCount} présent(s) sur ${fiche.effectif}.` : "Aucune fiche pour cette semaine."}
-          </p>
-        )}
-
-        {canManage && status === 'soumis' && (
-          <div className="flex justify-end border-t border-border pt-3">
-            <Button onClick={handleValidate} disabled={saving}>
-              <CheckCircle2 className="size-4" /> Valider (remonter au département)
-            </Button>
           </div>
-        )}
-      </div>
 
-      {/* Membres */}
-      <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-5 shadow-card">
-        <h2 className="text-sm font-semibold text-muted-foreground">Membres ({cellule.members?.length ?? 0})</h2>
-        {(!cellule.members || cellule.members.length === 0) ? (
-          <p className="text-sm text-muted-foreground">Aucun membre rattaché à cette cellule pour l'instant.</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-border">
-            {cellule.members.map((m) => (
-              <li key={m.id} className="flex items-center gap-3 py-2">
-                <Avatar name={`${m.firstName} ${m.lastName}`} size="sm" />
-                <span className="text-sm font-medium">{m.firstName} {m.lastName}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Users className="size-4" /> Membres ({data.membres.length})
+              </h2>
+              {canManage && <Button size="sm" onClick={openAddMembre}><Plus className="size-4" /> Ajouter</Button>}
+            </div>
+            {data.membres.length === 0 ? (
+              <EmptyState icon={Users} title="Aucun membre" description="Ajoutez les membres de la cellule (pas forcément membres de l'église)." />
+            ) : (
+              <ul className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+                {data.membres.map((m) => (
+                  <li key={m.id} className="flex items-center gap-3 border-b border-border px-4 py-2.5 last:border-0">
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-2 truncate text-sm font-medium">
+                        {m.nom}
+                        {!m.estMembreEglise && <span className="shrink-0 rounded-md bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">Hors église</span>}
+                      </p>
+                      {m.telephone && <p className="text-xs text-muted-foreground">{m.telephone}</p>}
+                    </div>
+                    {canManage && (
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon-sm" onClick={() => openEditMembre(m)} aria-label="Modifier"><Pencil className="size-4" /></Button>
+                        <Button variant="ghost" size="icon-sm" onClick={() => removeMembre(m)} aria-label="Retirer"><Trash2 className="size-4 text-destructive-dark" /></Button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Modifier la cellule">
-        <CelluleForm cellule={cellule} onSaved={() => { setEditOpen(false); load(); }} onCancel={() => setEditOpen(false)} />
+        <form onSubmit={submitEdit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="e-nom" className="text-sm font-medium">Nom *</label>
+            <Input id="e-nom" value={editForm.nom} onChange={(e) => setEditForm((f) => ({ ...f, nom: e.target.value }))} required autoFocus />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="e-q" className="text-sm font-medium">Quartier</label>
+            <Input id="e-q" value={editForm.quartier} onChange={(e) => setEditForm((f) => ({ ...f, quartier: e.target.value }))} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Leader de cellule</span>
+            <Select
+              value={editForm.leaderCelluleId}
+              onChange={(v) => setEditForm((f) => ({ ...f, leaderCelluleId: v }))}
+              options={[{ value: '', label: '— Aucun —' }, ...leaders.map((l) => ({ value: l.id, label: l.fullName }))]}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Annuler</Button>
+            <Button type="submit">Enregistrer</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={ficheOpen} onClose={() => setFicheOpen(false)} title="Fiche de présence de la cellule">
+        {data && <CelluleFicheForm celluleId={id} membres={data.membres} fiche={data.fiche} onSaved={() => { setFicheOpen(false); load(); }} onCancel={() => setFicheOpen(false)} />}
+      </Modal>
+
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title={editingMembre ? 'Modifier le membre' : 'Ajouter un membre'}>
+        <form onSubmit={saveMembre} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="m-nom" className="text-sm font-medium">Nom *</label>
+            <Input id="m-nom" value={form.nom} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} required autoFocus />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="m-tel" className="text-sm font-medium">Téléphone</label>
+            <Input id="m-tel" type="tel" value={form.telephone} onChange={(e) => setForm((f) => ({ ...f, telephone: e.target.value }))} />
+          </div>
+          <label className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+            <input type="checkbox" checked={form.estMembreEglise} onChange={(e) => setForm((f) => ({ ...f, estMembreEglise: e.target.checked }))} className="size-4 accent-[var(--primary)]" />
+            <span className="text-sm font-medium">Membre de l'église</span>
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Annuler</Button>
+            <Button type="submit">{editingMembre ? 'Enregistrer' : 'Ajouter'}</Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

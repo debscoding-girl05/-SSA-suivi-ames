@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, MessageCircle, MessageSquare } from 'lucide-react';
 import Input from '../../components/Input/Input';
 import { createInvitation } from '../../api/invitations';
 import { listDepartments } from '../../api/departments';
@@ -68,19 +68,35 @@ export default function DirigeantForm({ onSaved, onCancel }) {
 
   // Step 2: invitation created — show the one-time link.
   if (created) {
+    const message = `Bonjour, voici votre lien d'invitation pour rejoindre l'application SSA : ${inviteLink}\nIl est valable 7 jours et à usage unique.`;
+    const whatsappHref = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    const smsHref = `sms:?body=${encodeURIComponent(message)}`;
     return (
       <div className="flex flex-col gap-4 p-5">
         <p className="text-sm text-muted-foreground">
           Invitation créée pour <strong className="text-foreground">{created.email}</strong>.
-          Envoie-lui ce lien (WhatsApp, SMS, email…) — il est valable 7 jours et à usage unique.
+          Envoie-lui ce lien — il est valable 7 jours et à usage unique.
         </p>
         <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5">
-          <code className="truncate text-sm font-medium">{inviteLink}</code>
+          <a href={inviteLink} target="_blank" rel="noopener noreferrer" className="truncate text-sm font-medium text-primary underline-offset-2 hover:underline">
+            {inviteLink}
+          </a>
           <Button type="button" variant="ghost" size="sm" onClick={copyLink} className="shrink-0">
             {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
             {copied ? 'Copié' : 'Copier'}
           </Button>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" className="flex-1" onClick={() => window.open(whatsappHref, '_blank', 'noopener,noreferrer')}>
+            <MessageCircle className="size-4" /> Envoyer par WhatsApp
+          </Button>
+          <Button type="button" variant="outline" className="flex-1" onClick={() => window.open(smsHref, '_blank')}>
+            <MessageSquare className="size-4" /> Envoyer par SMS
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Sans WhatsApp ni SMS, utilise le bouton « Copier » ci-dessus et colle le lien où tu veux (email, autre appli…).
+        </p>
         <div className="flex justify-end pt-2">
           <Button type="button" onClick={() => onSaved?.()}>Terminer</Button>
         </div>

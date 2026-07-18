@@ -21,6 +21,20 @@ async function create(req, res) {
   const existingUser = await db.users.findByEmail(payload.email);
   if (existingUser) throw ApiError.conflict("Un compte existe déjà avec cet email");
 
+  // Un seul lien d'invitation actif par email à la fois, tous
+  // départements/rôles confondus (évite d'inviter la même personne deux fois
+  // pour deux postes différents pendant que le premier lien est encore valide).
+  const pending = await db.invitations.findPendingByEmail(payload.email);
+  if (pending) {
+    if (new Date(pending.expiresAt) < new Date()) {
+      await db.invitations.setStatus(pending.id, "expired");
+    } else {
+      throw ApiError.conflict(
+        `Une invitation est déjà en attente pour cet email (${pending.role}${pending.departmentName ? " · " + pending.departmentName : ""}). Révoque-la d'abord si tu veux changer le poste.`
+      );
+    }
+  }
+
   if (payload.departmentId) {
     const dept = await db.departments.findById(payload.departmentId);
     if (!dept) throw ApiError.badRequest("Département introuvable");

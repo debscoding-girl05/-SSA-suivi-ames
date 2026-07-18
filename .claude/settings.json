@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node mark_m8_done.js)",
+      "Bash(cd /Users/Debs/Documents/passif-projects/church/-SSA-suivi-ames/client && echo \"=== LINT ===\" && npm run lint 2>&1 | tail -8 && echo \"=== BUILD ===\" && npm run build 2>&1 | tail -3 *)",
+      "Read(//Users/Debs/Documents/passif-projects/church/**)"
+    ]
+  }
+}

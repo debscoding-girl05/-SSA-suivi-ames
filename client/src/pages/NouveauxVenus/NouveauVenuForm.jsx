@@ -10,20 +10,31 @@ const FIELD =
 // Quick registration of a nouveau venu (CDC: < 2 min).
 export default function NouveauVenuForm({ onSaved, onCancel }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', sexe: '', dateNaissance: '', zoneResidence: '', firstSeenAt: today });
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', sexe: '', dateNaissance: '', zoneResidence: '', firstSeenAt: today, isVisiteur: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [duplicate, setDuplicate] = useState(null); // existing contact on a 409
   const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  async function submit(e) {
-    e.preventDefault();
+  async function doRegister(force) {
     setError(''); setBusy(true);
     try {
-      await registerNouveauVenu(form);
+      await registerNouveauVenu({ ...form, force });
       onSaved?.();
     } catch (err) {
-      setError(err?.message || 'Enregistrement impossible.');
+      if (err?.code === 'DUPLICATE') {
+        setDuplicate(err.data?.existing || {});
+        setError('');
+      } else {
+        setError(err?.message || 'Enregistrement impossible.');
+      }
     } finally { setBusy(false); }
+  }
+
+  function submit(e) {
+    e.preventDefault();
+    setDuplicate(null);
+    doRegister(false);
   }
 
   return (
@@ -69,11 +80,39 @@ export default function NouveauVenuForm({ onSaved, onCancel }) {
         </div>
       </div>
 
+      <label className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+        <input
+          type="checkbox"
+          checked={form.isVisiteur}
+          onChange={(e) => setForm((f) => ({ ...f, isVisiteur: e.target.checked }))}
+          className="size-4 accent-[var(--primary)]"
+        />
+        <span className="text-sm font-medium">Visiteur</span>
+        <span className="text-xs text-muted-foreground">(de passage, pas encore engagé)</span>
+      </label>
+
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
+
+      {duplicate && (
+        <div className="rounded-lg border border-warning-foreground/20 bg-warning px-3 py-2.5 text-sm text-warning-foreground">
+          <p className="font-medium">Doublon possible : ce numéro est déjà enregistré.</p>
+          <p className="mt-0.5 text-xs">
+            {duplicate.firstName} {duplicate.lastName}
+            {duplicate.dirigeantName ? ` · suivi par ${duplicate.dirigeantName}` : ''}
+            {duplicate.departmentName ? ` (${duplicate.departmentName})` : ''}.
+          </p>
+        </div>
+      )}
 
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>Annuler</Button>
-        <Button type="submit" disabled={busy}>{busy ? 'Enregistrement…' : 'Enregistrer'}</Button>
+        {duplicate ? (
+          <Button type="button" variant="secondary" onClick={() => doRegister(true)} disabled={busy}>
+            Enregistrer quand même
+          </Button>
+        ) : (
+          <Button type="submit" disabled={busy}>{busy ? 'Enregistrement…' : 'Enregistrer'}</Button>
+        )}
       </div>
     </form>
   );
