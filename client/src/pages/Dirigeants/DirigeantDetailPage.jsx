@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Pencil, Trash2, Phone, Mail, Users, FileText, ClipboardCheck, ChevronRight } from 'lucide-react';
-import { getDirigeant, deleteAssigne } from '../../api/dirigeants';
+import { ArrowLeft, Plus, Pencil, Trash2, Phone, Mail, Users, FileText, ClipboardCheck, ChevronRight, Ban, RotateCcw } from 'lucide-react';
+import { getDirigeant, deleteAssigne, deactivateDirigeant, reactivateDirigeant } from '../../api/dirigeants';
 import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import AssigneForm from './AssigneForm';
-import DirigeantForm from './DirigeantForm';
 import FicheView from './FicheView';
 import ReportView from '../Reports/ReportView';
 import ReportStatusBadge from '../../components/ReportStatusBadge';
@@ -26,7 +25,6 @@ export default function DirigeantDetailPage() {
   const [editing, setEditing] = useState(null);
   const [viewReport, setViewReport] = useState(null);
   const [viewFiche, setViewFiche] = useState(null);
-  const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   // Mirrors backend: Pasteur/PR, the dirigeant himself, or a leader of the
   // same department may edit assignés.
@@ -34,8 +32,20 @@ export default function DirigeantDetailPage() {
     isAdminRole(user?.role) ||
     user?.id === id ||
     (user?.role === 'leader' && user?.departmentId != null && user?.departmentId === data?.dirigeant?.departmentId);
-  // Seuls Pasteur/PR éditent le profil (rôle, département, coordonnées).
-  const canEditProfile = isAdminRole(user?.role);
+
+  // Deactivate/reactivate (CDC EF-05) — reserved to Pasteur/PR.
+  async function handleToggleActive() {
+    if (!data) return;
+    const isActive = data.dirigeant.isActive;
+    if (isActive && !window.confirm(`Désactiver le compte de ${data.dirigeant.fullName} ? Il ne pourra plus se connecter, mais son historique est conservé.`)) return;
+    try {
+      if (isActive) await deactivateDirigeant(id);
+      else await reactivateDirigeant(id);
+      load();
+    } catch (err) {
+      setError(err?.message || 'Action impossible.');
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -86,14 +96,26 @@ export default function DirigeantDetailPage() {
               <div className="-mt-8 flex items-end gap-4">
                 <Avatar name={data.dirigeant.fullName} size="lg" className="ring-4 ring-card" />
                 <div className="min-w-0 flex-1 pb-1">
-                  <h1 className="truncate text-xl font-semibold tracking-tight">{data.dirigeant.fullName}</h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="truncate text-xl font-semibold tracking-tight">{data.dirigeant.fullName}</h1>
+                    {data.dirigeant.isActive === false && (
+                      <span className="shrink-0 rounded-md bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground">Désactivé</span>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     {roleLabel(data.dirigeant.role)} · {data.dirigeant.departmentName || 'Sans département'}
                   </p>
                 </div>
-                {canEditProfile && (
-                  <Button variant="outline" size="sm" onClick={() => setEditProfileOpen(true)}>
-                    <Pencil className="size-4" /> Modifier
+                {isAdminRole(user?.role) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleToggleActive}
+                    className={data.dirigeant.isActive === false ? '' : 'text-destructive-dark'}
+                  >
+                    {data.dirigeant.isActive === false
+                      ? (<><RotateCcw className="size-4" /> Réactiver</>)
+                      : (<><Ban className="size-4" /> Désactiver</>)}
                   </Button>
                 )}
               </div>
@@ -220,16 +242,6 @@ export default function DirigeantDetailPage() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Modifier l’assigné' : 'Ajouter un assigné'}>
         <AssigneForm dirigeantId={id} assigne={editing} onSaved={handleSaved} onCancel={() => setModalOpen(false)} />
-      </Modal>
-
-      <Modal open={editProfileOpen} onClose={() => setEditProfileOpen(false)} title="Modifier le dirigeant">
-        {data && (
-          <DirigeantForm
-            dirigeant={data.dirigeant}
-            onSaved={() => { setEditProfileOpen(false); load(); }}
-            onCancel={() => setEditProfileOpen(false)}
-          />
-        )}
       </Modal>
 
       <Modal open={Boolean(viewReport)} onClose={() => setViewReport(null)} title={viewReport?.title || 'Rapport'}>

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { ArrowLeft, MapPin, Users, Plus, Trash2, ClipboardCheck, Pencil } from 'lucide-react';
-import { getCellule, addMembreCellule, updateMembreCellule, removeMembreCellule, updateCellule, celluleLeaders } from '../../api/cellules';
+import { getCellule, addMembreCellule, updateMembreCellule, removeMembreCellule, updateCellule, celluleLeaders, validateFicheCellule } from '../../api/cellules';
 import { useAuth } from '../../hooks/useAuth';
 import { isAdminRole } from '@/lib/roles';
 import Modal from '../../components/Modal';
@@ -64,6 +64,11 @@ export default function CelluleDetailPage() {
     try { await removeMembreCellule(id, m.id); load(); } catch (er) { setError(er?.message || 'Suppression impossible.'); }
   }
 
+  // Valider la fiche soumise de la semaine (remontée à la PR/au Pasteur).
+  async function handleValidate() {
+    try { await validateFicheCellule(id); load(); } catch (er) { setError(er?.message || 'Validation impossible.'); }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <button type="button" onClick={() => navigate('/cellules')} className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
@@ -91,7 +96,10 @@ export default function CelluleDetailPage() {
                 <Button size="sm" onClick={() => setFicheOpen(true)} disabled={!canManage}>
                   <ClipboardCheck className="size-4" /> Fiche de présence
                 </Button>
-                {data.fiche && <ReportStatusBadge status={data.fiche.status === 'soumis' ? 'soumis' : 'brouillon'} />}
+                {data.fiche && <ReportStatusBadge status={data.fiche.status === 'soumis' ? 'soumis' : data.fiche.status === 'valide' ? 'valide' : 'brouillon'} />}
+                {isAdminRole(user?.role) && data.fiche?.status === 'soumis' && (
+                  <Button size="sm" variant="outline" onClick={handleValidate}>Valider</Button>
+                )}
               </div>
             </div>
           </div>

@@ -1,7 +1,11 @@
+const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const db = require("../db");
 const ApiError = require("../utils/ApiError");
+const config = require("../config/env");
 const { signToken } = require("../utils/jwt");
+const { validatePasswordPolicy, validateForgotPassword, validateResetPassword } = require("../utils/validators");
+const { sendEmail, passwordResetEmailHtml } = require("../utils/email");
 
 // Public projection of a user (never leak the password hash).
 function toPublicUser(user) {
@@ -75,31 +79,6 @@ async function login(req, res) {
   res.json({ token, user: toPublicUser(user) });
 }
 
-// POST /api/auth/change-password — change own password (authenticated).
-async function changePassword(req, res) {
-  const { currentPassword, newPassword } = req.body || {};
-  if (!currentPassword || !newPassword) {
-    throw ApiError.badRequest("Mot de passe actuel et nouveau mot de passe requis");
-  }
-  if (String(newPassword).length < 6) {
-    throw ApiError.badRequest("Le nouveau mot de passe doit contenir au moins 6 caractères");
-  }
-
-  const user = await db.users.findById(req.user.sub);
-  if (!user) throw ApiError.unauthorized("Utilisateur introuvable");
-
-  const ok = await bcrypt.compare(String(currentPassword), user.passwordHash);
-  if (!ok) throw new ApiError(400, "WRONG_PASSWORD", "Mot de passe actuel incorrect");
-
-  if (String(newPassword) === String(currentPassword)) {
-    throw ApiError.badRequest("Le nouveau mot de passe doit être différent de l'actuel");
-  }
-
-  const passwordHash = await bcrypt.hash(String(newPassword), 12);
-  await db.users.updatePassword(user.id, passwordHash);
-  res.status(204).end();
-}
-
 // Stateless JWT — logout is handled client-side by discarding the token.
 async function logout(_req, res) {
   res.status(204).end();
@@ -113,4 +92,82 @@ async function me(req, res) {
   res.json({ user: toPublicUser(user) });
 }
 
-module.exports = { login, logout, me, changePassword };
+// POST /api/auth/change-password — every user may change their own password
+// (CDC EF-04). Requires the current password to confirm identity.
+async function changePassword(req, res) {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    throw ApiError.badRequest("Mot de passe actuel et nouveau mot de passe requis");
+  }
+
+  const user = await db.users.findById(req.user.sub);
+  if (!user) throw ApiError.unauthorized("Utilisateur introuvable");
+
+  const ok = await bcrypt.compare(String(currentPassword), user.passwordHash);
+  if (!ok) throw ApiError.unauthorized("Mot de passe actuel incorrect");
+
+  validatePasswordPolicy(newPassword);
+  if (String(newPassword) === String(currentPassword)) {
+    throw ApiError.badRequest("Le nouveau mot de passe doit être différent de l'ancien");
+  }
+
+  const passwordHash = await bcrypt.hash(String(newPassword), 12);
+  await db.users.updatePassword(user.id, passwordHash);
+  res.status(204).end();
+}
+
+
+// --- Réinitialisation de mot de passe (EF-06) -------------------------------
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 heure
+
+function hashResetToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+// POST /api/auth/forgot-password — PUBLIC. Toujours une réponse générique
+// (204), qu'un compte existe ou non pour cet email : on ne révèle jamais
+// si un email est enregistré (évite l'énumération de comptes).
+async function forgotPassword(req, res) {
+  const { email } = validateForgotPassword(req.body);
+
+  const user = await db.users.findByEmail(email);
+  if (user && user.isActive) {
+    await db.passwordResets.invalidateAllForUser(user.id);
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + RESET_TTL_MS).toISOString();
+    await db.passwordResets.create({ userId: user.id, tokenHash: hashResetToken(token), expiresAt });
+
+    const link = `${config.appUrl}/reset-password/${token}`;
+    await sendEmail({
+      to: user.email,
+      subject: "Réinitialisation de votre mot de passe — Suivi des Âmes",
+      html: passwordResetEmailHtml(link),
+    });
+  }
+
+  res.status(204).end();
+}
+
+// POST /api/auth/reset-password/:token — PUBLIC.
+async function resetPassword(req, res) {
+  const reset = await db.passwordResets.findByTokenHash(hashResetToken(req.params.token));
+  if (!reset) throw ApiError.notFound("Ce lien de réinitialisation est invalide ou a déjà été utilisé");
+  if (reset.usedAt) throw ApiError.badRequest("Ce lien de réinitialisation a déjà été utilisé");
+  if (new Date(reset.expiresAt) < new Date()) {
+    throw ApiError.badRequest("Ce lien de réinitialisation a expiré");
+  }
+
+  const { password } = validateResetPassword(req.body);
+
+  const user = await db.users.findById(reset.userId);
+  if (!user) throw ApiError.notFound("Utilisateur introuvable");
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  await db.users.updatePassword(user.id, passwordHash);
+  await db.passwordResets.markUsed(reset.id);
+
+  res.status(204).end();
+}
+
+module.exports = { login, logout, me, changePassword, forgotPassword, resetPassword };

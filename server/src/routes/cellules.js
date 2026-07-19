@@ -8,7 +8,6 @@ router.use(requireAuth);
 
 router.get("/", asyncHandler(cellules.list));
 router.get("/leaders", requireRole("pasteur", "pr"), asyncHandler(cellules.leaders));
-router.post("/leaders", requireRole("pasteur", "pr"), asyncHandler(cellules.createLeader));
 router.post("/", requireRole("pasteur", "pr"), asyncHandler(cellules.create));
 router.get("/:id", asyncHandler(cellules.getOne));
 router.put("/:id", requireRole("pasteur", "pr"), asyncHandler(cellules.update));
@@ -16,5 +15,6 @@ router.post("/:id/membres", asyncHandler(cellules.addMembre));
 router.put("/:id/membres/:membreId", asyncHandler(cellules.updateMembre));
 router.delete("/:id/membres/:membreId", asyncHandler(cellules.removeMembre));
 router.post("/:id/fiche", asyncHandler(cellules.submitFiche));
+router.post("/:id/fiche/validate", requireRole("pasteur", "pr"), asyncHandler(cellules.validateFiche));
 
 module.exports = router;

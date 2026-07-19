@@ -42,6 +42,14 @@ export function AuthProvider({ children }) {
     return current;
   }, []);
 
+  // Used after accepting an invitation: the accept endpoint already returns
+  // a valid { token, user } pair, so we skip a redundant login round-trip.
+  const setSession = useCallback((token, current) => {
+    setToken(token);
+    setUser(current);
+    setStatus('authenticated');
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await authApi.logout();
@@ -54,8 +62,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, status, login, logout }),
-    [user, status, login, logout]
+    () => ({ user, status, login, logout, setSession }),
+    [user, status, login, logout, setSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -2,15 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { UserCog, Plus, Phone, Mail, HeartHandshake, ArrowLeft } from 'lucide-react';
-import { celluleLeaders, createCelluleLeader } from '../../api/cellules';
+import { UserCog, Plus, Phone, Mail, HeartHandshake, ArrowLeft, Copy, Check, MessageCircle, MessageSquare } from 'lucide-react';
+import { celluleLeaders } from '../../api/cellules';
+import { createInvitation } from '../../api/invitations';
 import { useAuth } from '../../hooks/useAuth';
 import { isAdminRole } from '@/lib/roles';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 
-const EMPTY = { fullName: '', phone: '', email: '', password: '' };
+const EMPTY = { email: '' };
 
+// Invite a new cellule leader (Pasteur/PR only). Cellules are independent of
+// departments (CDC §3.3), so no department picker here — the invited person
+// fills in their own name, phone and password when they open the invite link.
 export default function LeadersCellulePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -21,6 +25,8 @@ export default function LeadersCellulePage() {
   const [form, setForm] = useState(EMPTY);
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState(null); // { ...invitation, token }
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     try { setData((await celluleLeaders()).data); setError(''); }
@@ -34,19 +40,27 @@ export default function LeadersCellulePage() {
 
   const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  function openCreate() { setForm(EMPTY); setFormError(''); setOpen(true); }
+  function openCreate() { setForm(EMPTY); setFormError(''); setCreated(null); setOpen(true); }
 
   async function create(e) {
     e.preventDefault();
     setFormError(''); setBusy(true);
     try {
-      await createCelluleLeader(form);
-      setOpen(false);
-      await load();
+      const result = await createInvitation({ email: form.email, role: 'leader_cellule', departmentId: null });
+      setCreated(result);
     } catch (er) {
-      setFormError(er?.message || 'Création impossible.');
+      setFormError(er?.message || 'Invitation impossible.');
     } finally { setBusy(false); }
   }
+
+  const inviteLink = created ? `${window.location.origin}/invitation/${created.token}` : '';
+  function copyLink() {
+    navigator.clipboard?.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function closeModal() { setOpen(false); if (created) load(); }
 
   return (
     <div className="flex flex-col gap-4">
@@ -59,7 +73,7 @@ export default function LeadersCellulePage() {
           <h1 className="text-2xl font-semibold tracking-tight">Leaders de cellule</h1>
           <p className="text-sm text-muted-foreground">Comptes des responsables de cellules de prière</p>
         </div>
-        <Button onClick={openCreate}><Plus className="size-4" /> Nouveau leader</Button>
+        <Button onClick={openCreate}><Plus className="size-4" /> Inviter un leader</Button>
       </div>
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
@@ -67,7 +81,7 @@ export default function LeadersCellulePage() {
       {loading ? (
         <div className="h-48 animate-pulse rounded-2xl border border-border bg-card" />
       ) : data.length === 0 ? (
-        <EmptyState icon={UserCog} title="Aucun leader de cellule" description="Créez un compte pour qu'un responsable puisse gérer sa cellule et soumettre les fiches de présence." action={<Button size="sm" onClick={openCreate}><Plus className="size-4" /> Nouveau leader</Button>} />
+        <EmptyState icon={UserCog} title="Aucun leader de cellule" description="Invitez un responsable pour qu'il puisse gérer sa cellule et soumettre les fiches de présence." action={<Button size="sm" onClick={openCreate}><Plus className="size-4" /> Inviter un leader</Button>} />
       ) : (
         <ul className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
           {data.map((l) => (
@@ -88,34 +102,58 @@ export default function LeadersCellulePage() {
         </ul>
       )}
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Nouveau leader de cellule">
-        <form onSubmit={create} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="l-nom" className="text-sm font-medium">Nom complet *</label>
-            <Input id="l-nom" value={form.fullName} onChange={setField('fullName')} required autoFocus />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="l-tel" className="text-sm font-medium">Téléphone *</label>
-            <Input id="l-tel" type="tel" inputMode="tel" value={form.phone} onChange={setField('phone')} required />
-            <p className="text-xs text-muted-foreground">Sert d'identifiant de connexion.</p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="l-email" className="text-sm font-medium">Email (optionnel)</label>
-            <Input id="l-email" type="email" value={form.email} onChange={setField('email')} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="l-mdp" className="text-sm font-medium">Mot de passe *</label>
-            <Input id="l-mdp" type="password" value={form.password} onChange={setField('password')} required minLength={6} />
-            <p className="text-xs text-muted-foreground">Au moins 6 caractères. À communiquer au leader.</p>
-          </div>
+      <Modal open={open} onClose={closeModal} title="Inviter un leader de cellule">
+        {created ? (() => {
+          const message = `Bonjour, voici votre lien d'invitation pour rejoindre l'application SSA : ${inviteLink}\nIl est valable 7 jours et à usage unique.`;
+          const whatsappHref = `https://wa.me/?text=${encodeURIComponent(message)}`;
+          const smsHref = `sms:?body=${encodeURIComponent(message)}`;
+          return (
+            <div className="flex flex-col gap-4 p-1">
+              <p className="text-sm text-muted-foreground">
+                Invitation créée pour <strong className="text-foreground">{created.email}</strong>.
+                Envoie-lui ce lien — il est valable 7 jours et à usage unique.
+              </p>
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5">
+                <a href={inviteLink} target="_blank" rel="noopener noreferrer" className="truncate text-sm font-medium text-primary underline-offset-2 hover:underline">
+                  {inviteLink}
+                </a>
+                <Button type="button" variant="ghost" size="sm" onClick={copyLink} className="shrink-0">
+                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                  {copied ? 'Copié' : 'Copier'}
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => window.open(whatsappHref, '_blank', 'noopener,noreferrer')}>
+                  <MessageCircle className="size-4" /> Envoyer par WhatsApp
+                </Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => window.open(smsHref, '_blank')}>
+                  <MessageSquare className="size-4" /> Envoyer par SMS
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sans WhatsApp ni SMS, utilise le bouton « Copier » ci-dessus et colle le lien où tu veux.
+              </p>
+              <div className="flex justify-end pt-2">
+                <Button type="button" onClick={closeModal}>Terminer</Button>
+              </div>
+            </div>
+          );
+        })() : (
+          <form onSubmit={create} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="l-email" className="text-sm font-medium">Email *</label>
+              <Input id="l-email" type="email" value={form.email} onChange={setField('email')} required autoFocus />
+              <p className="text-xs text-muted-foreground">La personne invitée choisit son nom, son téléphone et son mot de passe en acceptant l'invitation.</p>
+            </div>
 
-          {formError && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{formError}</p>}
+            {formError && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{formError}</p>}
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={busy}>Annuler</Button>
-            <Button type="submit" disabled={busy}>{busy ? 'Création…' : 'Créer le compte'}</Button>
-          </div>
-        </form>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={busy}>Annuler</Button>
+              <Button type="submit" disabled={busy}>{busy ? 'Envoi…' : "Envoyer l'invitation"}</Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

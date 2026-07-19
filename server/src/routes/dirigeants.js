@@ -12,6 +12,8 @@ router.get("/", asyncHandler(dirigeants.list));
 router.post("/", requireRole("pasteur", "pr"), asyncHandler(dirigeants.create));
 router.get("/:id", asyncHandler(dirigeants.getOne));
 router.put("/:id", requireRole("pasteur", "pr"), asyncHandler(dirigeants.update));
+router.post("/:id/deactivate", requireRole("pasteur", "pr"), asyncHandler(dirigeants.deactivate));
+router.post("/:id/reactivate", requireRole("pasteur", "pr"), asyncHandler(dirigeants.reactivate));
 
 // Assignés nested under a dirigeant (write-permission checked in controller).
 router.get("/:id/assignes", asyncHandler(assignes.list));

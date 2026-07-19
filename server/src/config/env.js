@@ -23,6 +23,14 @@ const config = {
     // Supabase / managed Postgres usually require SSL.
     ssl: String(process.env.DATABASE_SSL || "").toLowerCase() === "true",
   },
+  // Public URL of the frontend, used to build links embedded in emails
+  // (password reset, etc.).
+  appUrl: process.env.APP_URL || "http://localhost:5173",
+  email: {
+    // Resend (https://resend.com) — transactional email for password reset.
+    resendApiKey: process.env.RESEND_API_KEY || "",
+    from: process.env.EMAIL_FROM || "SSA <onboarding@resend.dev>",
+  },
 };
 
 // Fail fast on a weak secret in production — reject the default and anything

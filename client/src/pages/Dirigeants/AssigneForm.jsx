@@ -15,6 +15,10 @@ export default function AssigneForm({ dirigeantId, assigne, onSaved, onCancel })
     lastName: assigne?.lastName || '',
     phone: assigne?.phone || '',
     email: assigne?.email || '',
+    dateNaissance: assigne?.dateNaissance || '',
+    sexe: assigne?.sexe || '',
+    adresse: assigne?.adresse || '',
+    zoneResidence: assigne?.zoneResidence || '',
     notes: assigne?.notes || '',
   });
   const [error, setError] = useState('');
@@ -59,6 +63,28 @@ export default function AssigneForm({ dirigeantId, assigne, onSaved, onCancel })
           <label htmlFor="email" className={LABEL}>Email</label>
           <Input id="email" type="email" value={form.email} onChange={setField('email')} />
         </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="dateNaissance" className={LABEL}>Date de naissance</label>
+          <Input id="dateNaissance" type="date" value={form.dateNaissance} onChange={setField('dateNaissance')} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="sexe" className={LABEL}>Sexe</label>
+          <select id="sexe" value={form.sexe} onChange={setField('sexe')} className={TEXTAREA}>
+            <option value="">—</option>
+            <option value="M">Masculin</option>
+            <option value="F">Féminin</option>
+          </select>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="adresse" className={LABEL}>Adresse</label>
+        <Input id="adresse" value={form.adresse} onChange={setField('adresse')} />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="zoneResidence" className={LABEL}>Zone de résidence</label>
+        <Input id="zoneResidence" value={form.zoneResidence} onChange={setField('zoneResidence')} />
       </div>
       <div className="flex flex-col gap-1.5">
         <label htmlFor="notes" className={LABEL}>Notes</label>

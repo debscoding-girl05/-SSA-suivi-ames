@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS assignes (
   last_name       TEXT NOT NULL,
   phone           TEXT,
   email           TEXT,
+  date_naissance  DATE,
+  sexe            TEXT CHECK (sexe IN ('M', 'F')),
+  adresse         TEXT,
+  zone_residence  TEXT,
   dirigeant_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   notes           TEXT,
   statut          TEXT NOT NULL DEFAULT 'regulier'
@@ -154,6 +158,8 @@ CREATE TABLE IF NOT EXISTS cellules (
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS idx_cellules_leader ON cellules (leader_cellule_id);
+
 -- Membres d'une cellule (PAS forcément membres de l'église) — liste libre.
 CREATE TABLE IF NOT EXISTS membres_cellule (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -172,17 +178,22 @@ CREATE TABLE IF NOT EXISTS fiches_cellule (
   cellule_id    UUID NOT NULL REFERENCES cellules(id) ON DELETE CASCADE,
   year          INTEGER NOT NULL,
   week          INTEGER NOT NULL,
-  status        TEXT NOT NULL DEFAULT 'brouillon' CHECK (status IN ('brouillon', 'soumis')),
+  status        TEXT NOT NULL DEFAULT 'brouillon' CHECK (status IN ('brouillon', 'soumis', 'valide')),
   present_count INTEGER NOT NULL DEFAULT 0,
   remarques     TEXT,
   presences     JSONB NOT NULL DEFAULT '[]',
   submitted_at  TIMESTAMPTZ,
+  validated_at  TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (cellule_id, year, week)
 );
 
 CREATE INDEX IF NOT EXISTS idx_fiches_cellule ON fiches_cellule (cellule_id);
+
+ALTER TABLE cellules        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE membres_cellule ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fiches_cellule  ENABLE ROW LEVEL SECURITY;
 
 -- Paramètres globaux (ex. objectif d'évangélisation fixé par le Pasteur).
 CREATE TABLE IF NOT EXISTS settings (
@@ -216,3 +227,39 @@ INSERT INTO departments (name, description) VALUES
   ('Sécurité Audiovisuelle', 'Sécurité audiovisuelle et technique'),
   ('Suivi',                  'Intégration des nouveaux venus et suivi des 7 leçons')
 ON CONFLICT (name) DO NOTHING;
+
+-- =============================================================
+-- Invitations de compte (migration 0004)
+-- =============================================================
+CREATE TABLE IF NOT EXISTS invitations (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         TEXT NOT NULL,
+  role          TEXT NOT NULL,
+  department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+  token_hash    TEXT NOT NULL UNIQUE,
+  invited_by    UUID REFERENCES users(id) ON DELETE SET NULL,
+  status        TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'accepted', 'revoked', 'expired')),
+  expires_at    TIMESTAMPTZ NOT NULL,
+  accepted_at   TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_invitations_email  ON invitations(email);
+CREATE INDEX IF NOT EXISTS idx_invitations_status ON invitations(status);
+
+ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
+
+-- =============================================================
+-- Réinitialisation de mot de passe (migration 0005)
+-- =============================================================
+CREATE TABLE IF NOT EXISTS password_resets (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash    TEXT NOT NULL UNIQUE,
+  expires_at    TIMESTAMPTZ NOT NULL,
+  used_at       TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id);
+
+ALTER TABLE password_resets ENABLE ROW LEVEL SECURITY;

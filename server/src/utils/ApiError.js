@@ -24,6 +24,10 @@ class ApiError extends Error {
     return new ApiError(404, "NOT_FOUND", message);
   }
 
+  static conflict(message = "Conflit avec une ressource existante") {
+    return new ApiError(409, "CONFLICT", message);
+  }
+
   static serviceUnavailable(message = "Service indisponible") {
     return new ApiError(503, "SERVICE_UNAVAILABLE", message);
   }

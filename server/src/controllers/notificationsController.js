@@ -34,6 +34,20 @@ async function computeDesired(user) {
         desired.push({ dedupKey: `valider:${d.id}:${wk}`, type: "a_valider", title: "Fiche à valider", message: `${d.fullName} a soumis sa fiche.`, link: "/fiches" });
       }
     }
+
+    // Cellules de prière du département : fiche hebdo manquante / à valider.
+    
+  }
+
+  // 2b. Leader de cellule : rappel pour sa propre fiche.
+  if (user.role === "leader_cellule") {
+    const mine = await db.cellules.list({ scope: { leaderId: user.sub } });
+    for (const c of mine.filter((c) => c.actif !== false)) {
+      const f = await db.cellules.findFicheByCelluleWeek(c.id, year, week);
+      if (!f || f.status === "brouillon") {
+        desired.push({ dedupKey: `self_cellule_manquante:${c.id}:${wk}`, type: "fiche_manquante", title: "Fiche de cellule non soumise", message: `La fiche de ${c.nom} pour la semaine ${week} n'est pas encore soumise.`, link: `/cellules/${c.id}` });
+      }
+    }
   }
 
   // 3. Pasteur / PR : synthèse globale.
@@ -43,6 +57,18 @@ async function computeDesired(user) {
     const aValider = dirs.filter((d) => d.reportStatus === "soumis").length;
     if (manquantes) desired.push({ dedupKey: `global_manquantes:${wk}`, type: "fiche_manquante", title: "Fiches manquantes", message: `${manquantes} fiche(s) non soumise(s) cette semaine.`, link: "/fiches" });
     if (aValider) desired.push({ dedupKey: `global_valider:${wk}`, type: "a_valider", title: "Fiches à valider", message: `${aValider} fiche(s) en attente de validation.`, link: "/fiches" });
+
+    // Synthèse globale des fiches de cellule.
+    const cellulesAll = await db.cellules.list({});
+    const fichesAll = await db.cellules.listFichesByWeek(year, week);
+    const activesCellules = cellulesAll.filter((c) => c.actif !== false);
+    const manquantesCellules = activesCellules.filter((c) => {
+      const f = fichesAll.find((x) => x.celluleId === c.id);
+      return !f || f.status === "brouillon";
+    }).length;
+    const aValiderCellules = fichesAll.filter((f) => f.status === "soumis").length;
+    if (manquantesCellules) desired.push({ dedupKey: `global_cellules_manquantes:${wk}`, type: "fiche_manquante", title: "Fiches de cellule manquantes", message: `${manquantesCellules} cellule(s) n'ont pas soumis leur fiche cette semaine.`, link: "/cellules" });
+    if (aValiderCellules) desired.push({ dedupKey: `global_cellules_valider:${wk}`, type: "a_valider", title: "Fiches de cellule à valider", message: `${aValiderCellules} fiche(s) de cellule en attente de validation.`, link: "/cellules" });
   }
 
   // 3b. Cellules de prière : fiche de présence manquante cette semaine.

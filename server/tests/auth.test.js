@@ -144,32 +144,40 @@ test("GET unknown route → 404 NOT_FOUND", async () => {
   assert.equal(body.code, "NOT_FOUND");
 });
 
-test("POST /api/auth/change-password — flux complet + erreurs", async () => {
+test("POST /api/auth/change-password — flux complet + erreurs (ENF-14)", async () => {
   // Compte dédié (non utilisé ailleurs dans ce fichier).
   const login = await api("POST", "/api/auth/login", { json: { identifier: "encadreur@ssa.app", password: "encadreur1234" } });
   assert.equal(login.status, 200);
   const token = login.body.token;
 
   // Sans authentification → 401
-  assert.equal((await api("POST", "/api/auth/change-password", { json: { currentPassword: "encadreur1234", newPassword: "nouveau123" } })).status, 401);
+  assert.equal((await api("POST", "/api/auth/change-password", { json: { currentPassword: "encadreur1234", newPassword: "Nouveau123!" } })).status, 401);
 
-  // Mot de passe actuel faux → 400 WRONG_PASSWORD
-  const wrong = await api("POST", "/api/auth/change-password", { token, json: { currentPassword: "faux", newPassword: "nouveau123" } });
-  assert.equal(wrong.status, 400);
-  assert.equal(wrong.body.code, "WRONG_PASSWORD");
+  // Mot de passe actuel faux → 401 (ne révèle pas si le compte existe)
+  const wrong = await api("POST", "/api/auth/change-password", { token, json: { currentPassword: "faux", newPassword: "Nouveau123!" } });
+  assert.equal(wrong.status, 401);
 
-  // Nouveau trop court → 400
-  assert.equal((await api("POST", "/api/auth/change-password", { token, json: { currentPassword: "encadreur1234", newPassword: "123" } })).status, 400);
+  // Nouveau trop court (< 8) → 400
+  assert.equal((await api("POST", "/api/auth/change-password", { token, json: { currentPassword: "encadreur1234", newPassword: "Aa1!" } })).status, 400);
+
+  // Nouveau sans majuscule → 400
+  assert.equal((await api("POST", "/api/auth/change-password", { token, json: { currentPassword: "encadreur1234", newPassword: "nouveau123!" } })).status, 400);
+
+  // Nouveau sans chiffre → 400
+  assert.equal((await api("POST", "/api/auth/change-password", { token, json: { currentPassword: "encadreur1234", newPassword: "Nouveauabc!" } })).status, 400);
+
+  // Nouveau sans caractère spécial → 400
+  assert.equal((await api("POST", "/api/auth/change-password", { token, json: { currentPassword: "encadreur1234", newPassword: "Nouveau123" } })).status, 400);
 
   // Identique à l'actuel → 400
   assert.equal((await api("POST", "/api/auth/change-password", { token, json: { currentPassword: "encadreur1234", newPassword: "encadreur1234" } })).status, 400);
 
-  // Changement valide → 204
-  assert.equal((await api("POST", "/api/auth/change-password", { token, json: { currentPassword: "encadreur1234", newPassword: "nouveau123" } })).status, 204);
+  // Changement valide (conforme ENF-14) → 204
+  assert.equal((await api("POST", "/api/auth/change-password", { token, json: { currentPassword: "encadreur1234", newPassword: "Nouveau123!" } })).status, 204);
 
   // L'ancien mot de passe ne marche plus, le nouveau oui
   assert.equal((await api("POST", "/api/auth/login", { json: { identifier: "encadreur@ssa.app", password: "encadreur1234" } })).status, 401);
-  assert.equal((await api("POST", "/api/auth/login", { json: { identifier: "encadreur@ssa.app", password: "nouveau123" } })).status, 200);
+  assert.equal((await api("POST", "/api/auth/login", { json: { identifier: "encadreur@ssa.app", password: "Nouveau123!" } })).status, 200);
 });
 
 // --- Brute-force lockout (CDC UC-01 E1 / ENF-15) ---------------------------

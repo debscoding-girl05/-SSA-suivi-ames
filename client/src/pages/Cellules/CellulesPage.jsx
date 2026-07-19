@@ -67,7 +67,7 @@ export default function CellulesPage() {
           {c.leaderName && <span className="truncate">· {c.leaderName}</span>}
         </div>
       </div>
-      {c.ficheStatus && <ReportStatusBadge status={c.ficheStatus === 'soumis' ? 'soumis' : 'brouillon'} />}
+      {c.ficheStatus && <ReportStatusBadge status={c.ficheStatus === 'soumis' ? 'soumis' : c.ficheStatus === 'valide' ? 'valide' : 'brouillon'} />}
       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
     </button>
   );
