@@ -455,6 +455,23 @@ const users = {
     const { rowCount } = await query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, id]);
     return rowCount > 0;
   },
+
+  // Tous les comptes actifs, tous rôles confondus — utilisé par la tâche
+  // planifiée qui envoie le récapitulatif de notifications par email.
+  async listAllActive() {
+    if (!isPostgres) {
+      return memory.users
+        .filter((u) => u.isActive)
+        .map((u) => mapUserRow(memUserToRow(u)));
+    }
+    const { rows } = await query(
+      `SELECT u.*, r.name AS role, d.name AS department_name
+         FROM users u JOIN roles r ON r.id = u.role_id
+         LEFT JOIN departments d ON d.id = u.department_id
+        WHERE u.is_active = true`
+    );
+    return rows.map(mapUserRow);
+  },
 };
 
 // --- Dirigeants (users with role leader/encadreur, + aggregates) -----------
