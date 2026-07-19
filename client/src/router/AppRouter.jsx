@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from '../pages/Login/LoginPage';
+import ForgotPasswordPage from '../pages/ForgotPassword/ForgotPasswordPage';
+import ResetPasswordPage from '../pages/ResetPassword/ResetPasswordPage';
 import AcceptInvitationPage from '../pages/Invitation/AcceptInvitationPage';
 import DashboardPage from '../pages/Dashboard/DashboardPage';
 import DirigeantsPage from '../pages/Dirigeants/DirigeantsPage';
@@ -22,6 +24,8 @@ export default function AppRouter() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
       <Route path="/invitation/:token" element={<AcceptInvitationPage />} />
 
       {/* Authenticated area with responsive sidebar / bottom nav */}

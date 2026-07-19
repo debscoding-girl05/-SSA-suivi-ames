@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { HeartHandshake, Eye, EyeOff, ShieldCheck, Users, BellRing } from 'lucide-react';
@@ -92,7 +92,10 @@ export default function LoginPage() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="password" className="text-sm font-medium">Mot de passe</label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="text-sm font-medium">Mot de passe</label>
+                  <Link to="/forgot-password" className="text-xs font-medium text-primary hover:underline">Mot de passe oublié ?</Link>
+                </div>
                 <div className="relative">
                   <Input
                     id="password"

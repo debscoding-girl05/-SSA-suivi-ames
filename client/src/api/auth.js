@@ -22,3 +22,19 @@ export function changePassword(currentPassword, newPassword) {
     body: { currentPassword, newPassword },
   });
 }
+
+export function forgotPassword(email) {
+  return request('/api/auth/forgot-password', {
+    method: 'POST',
+    body: { email },
+    auth: false,
+  });
+}
+
+export function resetPassword(token, password) {
+  return request(`/api/auth/reset-password/${token}`, {
+    method: 'POST',
+    body: { password },
+    auth: false,
+  });
+}

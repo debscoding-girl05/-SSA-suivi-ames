@@ -14,6 +14,19 @@ function validatePasswordPolicy(password) {
   return pwd;
 }
 
+// EF-06 — mot de passe oublié : juste un email valide.
+function validateForgotPassword(body = {}) {
+  const email = str(body.email).toLowerCase();
+  if (!EMAIL_RE.test(email)) throw ApiError.badRequest("Un email valide est requis");
+  return { email };
+}
+
+// EF-06 — réinitialisation : nouveau mot de passe conforme ENF-14.
+function validateResetPassword(body = {}) {
+  const password = validatePasswordPolicy(body.password);
+  return { password };
+}
+
 // Assigné payload — { partial } for PUT (validate only provided fields).
 function validateAssigne(body = {}, { partial = false } = {}) {
   const out = {};
@@ -162,4 +175,4 @@ function validateRapport(body = {}) {
   };
 }
 
-module.exports = { validateAssigne, validateDirigeant, validateNewDirigeant, validateInvitation, validateAcceptInvitation, validatePasswordPolicy, validateRapport };
+module.exports = { validateAssigne, validateDirigeant, validateNewDirigeant, validateInvitation, validateAcceptInvitation, validatePasswordPolicy, validateForgotPassword, validateResetPassword, validateRapport };

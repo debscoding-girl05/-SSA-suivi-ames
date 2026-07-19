@@ -1,8 +1,11 @@
+const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const db = require("../db");
 const ApiError = require("../utils/ApiError");
+const config = require("../config/env");
 const { signToken } = require("../utils/jwt");
-const { validatePasswordPolicy } = require("../utils/validators");
+const { validatePasswordPolicy, validateForgotPassword, validateResetPassword } = require("../utils/validators");
+const { sendEmail, passwordResetEmailHtml } = require("../utils/email");
 
 // Public projection of a user (never leak the password hash).
 function toPublicUser(user) {
@@ -113,4 +116,58 @@ async function changePassword(req, res) {
   res.status(204).end();
 }
 
-module.exports = { login, logout, me, changePassword };
+
+// --- Réinitialisation de mot de passe (EF-06) -------------------------------
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 heure
+
+function hashResetToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+// POST /api/auth/forgot-password — PUBLIC. Toujours une réponse générique
+// (204), qu'un compte existe ou non pour cet email : on ne révèle jamais
+// si un email est enregistré (évite l'énumération de comptes).
+async function forgotPassword(req, res) {
+  const { email } = validateForgotPassword(req.body);
+
+  const user = await db.users.findByEmail(email);
+  if (user && user.isActive) {
+    await db.passwordResets.invalidateAllForUser(user.id);
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + RESET_TTL_MS).toISOString();
+    await db.passwordResets.create({ userId: user.id, tokenHash: hashResetToken(token), expiresAt });
+
+    const link = `${config.appUrl}/reset-password/${token}`;
+    await sendEmail({
+      to: user.email,
+      subject: "Réinitialisation de votre mot de passe — Suivi des Âmes",
+      html: passwordResetEmailHtml(link),
+    });
+  }
+
+  res.status(204).end();
+}
+
+// POST /api/auth/reset-password/:token — PUBLIC.
+async function resetPassword(req, res) {
+  const reset = await db.passwordResets.findByTokenHash(hashResetToken(req.params.token));
+  if (!reset) throw ApiError.notFound("Ce lien de réinitialisation est invalide ou a déjà été utilisé");
+  if (reset.usedAt) throw ApiError.badRequest("Ce lien de réinitialisation a déjà été utilisé");
+  if (new Date(reset.expiresAt) < new Date()) {
+    throw ApiError.badRequest("Ce lien de réinitialisation a expiré");
+  }
+
+  const { password } = validateResetPassword(req.body);
+
+  const user = await db.users.findById(reset.userId);
+  if (!user) throw ApiError.notFound("Utilisateur introuvable");
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  await db.users.updatePassword(user.id, passwordHash);
+  await db.passwordResets.markUsed(reset.id);
+
+  res.status(204).end();
+}
+
+module.exports = { login, logout, me, changePassword, forgotPassword, resetPassword };

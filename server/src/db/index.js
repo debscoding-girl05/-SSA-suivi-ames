@@ -51,6 +51,7 @@ const memory = {
   progressions: [],
   notifications: [],
   invitations: [],
+  passwordResets: [],
   settings: {},
   membresCellule: [],
 };
@@ -1741,6 +1742,61 @@ const settings = {
   },
 };
 
+
+// --- Password resets (EF-06) -----------------------------------------------
+const passwordResets = {
+  async create({ userId, tokenHash, expiresAt }) {
+    if (!isPostgres) {
+      const pr = { id: newUuid(), userId, tokenHash, expiresAt, usedAt: null, createdAt: new Date().toISOString() };
+      memory.passwordResets.push(pr);
+      return pr;
+    }
+    const { rows } = await query(
+      `INSERT INTO password_resets (user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3) RETURNING id, user_id AS "userId", token_hash AS "tokenHash",
+                 expires_at AS "expiresAt", used_at AS "usedAt", created_at AS "createdAt"`,
+      [userId, tokenHash, expiresAt]
+    );
+    return rows[0];
+  },
+
+  async findByTokenHash(tokenHash) {
+    if (!isPostgres) {
+      return memory.passwordResets.find((x) => x.tokenHash === tokenHash) || null;
+    }
+    const { rows } = await query(
+      `SELECT id, user_id AS "userId", token_hash AS "tokenHash",
+              expires_at AS "expiresAt", used_at AS "usedAt", created_at AS "createdAt"
+         FROM password_resets WHERE token_hash = $1`,
+      [tokenHash]
+    );
+    return rows[0] || null;
+  },
+
+  // Invalidate any previous pending reset for this user before issuing a new
+  // one, so only the most recently requested link works.
+  async invalidateAllForUser(userId) {
+    if (!isPostgres) {
+      const now = new Date().toISOString();
+      memory.passwordResets.forEach((x) => { if (x.userId === userId && !x.usedAt) x.usedAt = now; });
+      return;
+    }
+    await query(
+      "UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL",
+      [userId]
+    );
+  },
+
+  async markUsed(id) {
+    if (!isPostgres) {
+      const pr = memory.passwordResets.find((x) => x.id === id);
+      if (pr) pr.usedAt = new Date().toISOString();
+      return;
+    }
+    await query("UPDATE password_resets SET used_at = now() WHERE id = $1", [id]);
+  },
+};
+
 module.exports = {
   isPostgres,
   query,
@@ -1758,6 +1814,7 @@ module.exports = {
   integration,
   notifications,
   invitations,
+  passwordResets,
   settings,
   ADMIN_ROLES,
   FD_DEPT_NAMES,
