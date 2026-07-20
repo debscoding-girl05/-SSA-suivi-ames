@@ -1,0 +1,56 @@
+# Render Blueprint — déploiement gratuit (backend + frontend).
+# Doc pas à pas : docs/DEPLOYMENT.md
+#
+# Après « New + → Blueprint » sur render.com, renseigner les variables
+# marquées `sync: false` (secrets / URLs) dans le dashboard.
+
+services:
+  # --- API Express (Node) -------------------------------------------------
+  - type: web
+    name: ssa-api
+    runtime: node
+    plan: free            # gratuit : s'endort après ~15 min d'inactivité
+    region: frankfurt     # au plus près (Europe/Afrique) — ajustable
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true          # Render génère une valeur forte
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      # PostgreSQL (Supabase). À coller depuis Supabase (Connection string).
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      # URL publique du frontend (ci-dessous). Ex : https://ssa-web.onrender.com
+      - key: CORS_ORIGIN
+        sync: false
+      - key: APP_URL
+        sync: false
+      # Email transactionnel (reset mot de passe) — optionnel au lancement.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: SSA <onboarding@resend.dev>
+
+  # --- Frontend React/Vite (site statique, gratuit & toujours en ligne) ---
+  - type: web
+    name: ssa-web
+    runtime: static
+    rootDir: client
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      # URL publique de l'API (ci-dessus). Ex : https://ssa-api.onrender.com
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      # SPA : toute route inconnue → index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
