@@ -263,3 +263,20 @@ CREATE TABLE IF NOT EXISTS password_resets (
 CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id);
 
 ALTER TABLE password_resets ENABLE ROW LEVEL SECURITY;
+
+-- =============================================================
+-- Journal de connexions (migration 0006, EF-08)
+-- =============================================================
+CREATE TABLE IF NOT EXISTS connexions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  identifiant TEXT NOT NULL,
+  user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+  reussie     BOOLEAN NOT NULL,
+  ip          TEXT,
+  user_agent  TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_connexions_created ON connexions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_connexions_user ON connexions(user_id);
+
+ALTER TABLE connexions ENABLE ROW LEVEL SECURITY;

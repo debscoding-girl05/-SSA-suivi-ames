@@ -8,6 +8,11 @@ const { notFound, errorHandler } = require("./middleware/error");
 function createApp() {
   const app = express();
 
+  // Nécessaire pour que req.ip reflète la vraie IP du client (et non celle du
+  // proxy) une fois déployé derrière un reverse proxy (Render, Railway, etc.)
+  // — utilisé par le journal de connexions (EF-08).
+  app.set("trust proxy", 1);
+
   // Bearer-token auth (Authorization header), not cookies — no credentials.
   app.use(cors({ origin: config.corsOrigin }));
   app.use(express.json());
