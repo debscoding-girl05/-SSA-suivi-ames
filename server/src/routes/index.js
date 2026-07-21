@@ -11,6 +11,7 @@ const notificationsRoutes = require("./notifications");
 const invitationsRoutes = require("./invitations");
 const objectifRoutes = require("./objectif");
 const connexionsRoutes = require("./connexions");
+const rapportsHebdoRoutes = require("./rapportsHebdo");
 
 // API router mounted under /api. /health is mounted at the app root.
 const router = express.Router();
@@ -27,5 +28,6 @@ router.use("/notifications", notificationsRoutes);
 router.use("/invitations", invitationsRoutes);
 router.use("/objectif", objectifRoutes);
 router.use("/connexions", connexionsRoutes);
+router.use("/rapports-hebdo", rapportsHebdoRoutes);
 
 module.exports = router;

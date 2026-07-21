@@ -53,6 +53,7 @@ const memory = {
   invitations: [],
   passwordResets: [],
   connexions: [],
+  rapportsHebdo: [],
   settings: {},
   membresCellule: [],
 };
@@ -68,14 +69,51 @@ function getPool() {
   pool = new Pool({
     connectionString: config.db.url,
     ssl: config.db.ssl ? { rejectUnauthorized: false } : undefined,
+    // Supabase (et la plupart des poolers) ferment les connexions inactives.
+    // On garde la connexion vivante et on recycle les clients au repos pour
+    // éviter les coupures « Connection terminated unexpectedly ».
+    keepAlive: true,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    max: 10,
+  });
+  // CRUCIAL : sans ce gestionnaire, une erreur sur un client inactif (coupure
+  // du pooler Supabase) est émise comme événement 'error' non géré et fait
+  // planter tout le processus Node. Ici on se contente de la journaliser ;
+  // le pool remplacera automatiquement le client fautif à la requête suivante.
+  pool.on("error", (err) => {
+    // eslint-disable-next-line no-console
+    console.error("[db] client Postgres inactif en erreur (ignoré, le pool se rétablit) :", err.message);
   });
   return pool;
+}
+
+// Erreurs réseau transitoires (coupure du pooler) pour lesquelles un simple
+// nouvel essai suffit généralement.
+const TRANSIENT_DB_ERRORS = new Set([
+  "ECONNRESET", "EPIPE", "ETIMEDOUT", "ENOTFOUND", "57P01", "08006", "08003", "XX000",
+]);
+
+function isTransientDbError(err) {
+  if (!err) return false;
+  if (TRANSIENT_DB_ERRORS.has(err.code)) return true;
+  return /Connection terminated|terminated unexpectedly|timeout/i.test(err.message || "");
 }
 
 async function query(text, params) {
   const p = getPool();
   if (!p) throw new Error("query() called without a Postgres connection");
-  return p.query(text, params);
+  try {
+    return await p.query(text, params);
+  } catch (err) {
+    // Un seul nouvel essai sur une coupure transitoire ; le pool fournit un
+    // client neuf entre-temps.
+    if (isTransientDbError(err)) {
+      await new Promise((r) => setTimeout(r, 250));
+      return p.query(text, params);
+    }
+    throw err;
+  }
 }
 
 // --- Lifecycle -------------------------------------------------------------
@@ -1914,6 +1952,151 @@ const connexions = {
   },
 };
 
+
+// --- Rapports hebdomadaires structurés (fiches par département) --------------
+function mapRapportHebdoRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    type: row.type,
+    authorId: row.author_id ?? null,
+    authorName: row.author_name ?? null,
+    departmentId: row.department_id ?? null,
+    departmentName: row.department_name ?? null,
+    year: row.year,
+    week: row.week,
+    entete: row.entete || {},
+    lignes: row.lignes || [],
+    status: row.status,
+    submittedAt: row.submitted_at ?? null,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? null,
+  };
+}
+
+const rapportsHebdo = {
+  async create({ type, authorId, departmentId, year, week, entete, lignes, status }) {
+    const st = status === "soumis" ? "soumis" : "brouillon";
+    const submittedAt = st === "soumis" ? new Date().toISOString() : null;
+    if (!isPostgres) {
+      const r = {
+        id: newUuid(), type, authorId: authorId ?? null, departmentId: departmentId ?? null,
+        year, week, entete: entete ?? {}, lignes: lignes ?? [], status: st,
+        submittedAt, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      };
+      memory.rapportsHebdo.push(r);
+      return this.findById(r.id);
+    }
+    const { rows } = await query(
+      `INSERT INTO rapports_hebdo (type, author_id, department_id, year, week, entete, lignes, status, submitted_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [type, authorId ?? null, departmentId ?? null, year, week,
+       JSON.stringify(entete ?? {}), JSON.stringify(lignes ?? []), st, submittedAt]
+    );
+    return this.findById(rows[0].id);
+  },
+
+  async update(id, { entete, lignes, status }) {
+    if (!isPostgres) {
+      const r = memory.rapportsHebdo.find((x) => x.id === id);
+      if (!r) return null;
+      if (entete !== undefined) r.entete = entete;
+      if (lignes !== undefined) r.lignes = lignes;
+      if (status !== undefined) {
+        r.status = status;
+        if (status === "soumis" && !r.submittedAt) r.submittedAt = new Date().toISOString();
+      }
+      r.updatedAt = new Date().toISOString();
+      return this.findById(id);
+    }
+    const sets = [];
+    const params = [];
+    if (entete !== undefined) { params.push(JSON.stringify(entete)); sets.push(`entete = $${params.length}`); }
+    if (lignes !== undefined) { params.push(JSON.stringify(lignes)); sets.push(`lignes = $${params.length}`); }
+    if (status !== undefined) {
+      params.push(status); sets.push(`status = $${params.length}`);
+      if (status === "soumis") sets.push("submitted_at = COALESCE(submitted_at, now())");
+    }
+    sets.push("updated_at = now()");
+    params.push(id);
+    await query(`UPDATE rapports_hebdo SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
+    return this.findById(id);
+  },
+
+  async findById(id) {
+    if (!isPostgres) {
+      const r = memory.rapportsHebdo.find((x) => x.id === id);
+      if (!r) return null;
+      const author = memory.users.find((u) => u.id === r.authorId);
+      const dept = memory.departments.find((d) => d.id === r.departmentId);
+      return mapRapportHebdoRow({
+        id: r.id, type: r.type, author_id: r.authorId, author_name: author?.fullName ?? null,
+        department_id: r.departmentId, department_name: dept?.name ?? null,
+        year: r.year, week: r.week, entete: r.entete, lignes: r.lignes,
+        status: r.status, submitted_at: r.submittedAt, created_at: r.createdAt, updated_at: r.updatedAt,
+      });
+    }
+    const { rows } = await query(
+      `SELECT rh.*, u.full_name AS author_name, d.name AS department_name
+         FROM rapports_hebdo rh
+         LEFT JOIN users u ON u.id = rh.author_id
+         LEFT JOIN departments d ON d.id = rh.department_id
+        WHERE rh.id = $1`,
+      [id]
+    );
+    return mapRapportHebdoRow(rows[0]);
+  },
+
+  // scope: undefined (admin → tout) | { authorId } (auteur → les siens).
+  async list({ type, year, week, scope } = {}) {
+    if (!isPostgres) {
+      let rows = memory.rapportsHebdo.slice();
+      if (type) rows = rows.filter((r) => r.type === type);
+      if (year != null) rows = rows.filter((r) => r.year === Number(year));
+      if (week != null) rows = rows.filter((r) => r.week === Number(week));
+      if (scope?.authorId) rows = rows.filter((r) => r.authorId === scope.authorId);
+      return rows
+        .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+        .map((r) => this._memRow(r));
+    }
+    const params = [];
+    const where = [];
+    if (type) { params.push(type); where.push(`rh.type = $${params.length}`); }
+    if (year != null) { params.push(Number(year)); where.push(`rh.year = $${params.length}`); }
+    if (week != null) { params.push(Number(week)); where.push(`rh.week = $${params.length}`); }
+    if (scope?.authorId) { params.push(scope.authorId); where.push(`rh.author_id = $${params.length}`); }
+    const { rows } = await query(
+      `SELECT rh.*, u.full_name AS author_name, d.name AS department_name
+         FROM rapports_hebdo rh
+         LEFT JOIN users u ON u.id = rh.author_id
+         LEFT JOIN departments d ON d.id = rh.department_id
+        ${where.length ? "WHERE " + where.join(" AND ") : ""}
+        ORDER BY rh.created_at DESC`,
+      params
+    );
+    return rows.map(mapRapportHebdoRow);
+  },
+
+  _memRow(r) {
+    const author = memory.users.find((u) => u.id === r.authorId);
+    const dept = memory.departments.find((d) => d.id === r.departmentId);
+    return mapRapportHebdoRow({
+      id: r.id, type: r.type, author_id: r.authorId, author_name: author?.fullName ?? null,
+      department_id: r.departmentId, department_name: dept?.name ?? null,
+      year: r.year, week: r.week, entete: r.entete, lignes: r.lignes,
+      status: r.status, submitted_at: r.submittedAt, created_at: r.createdAt, updated_at: r.updatedAt,
+    });
+  },
+
+  async remove(id) {
+    if (!isPostgres) {
+      memory.rapportsHebdo = memory.rapportsHebdo.filter((x) => x.id !== id);
+      return;
+    }
+    await query("DELETE FROM rapports_hebdo WHERE id = $1", [id]);
+  },
+};
+
 module.exports = {
   isPostgres,
   query,
@@ -1933,6 +2116,7 @@ module.exports = {
   invitations,
   passwordResets,
   connexions,
+  rapportsHebdo,
   settings,
   ADMIN_ROLES,
   FD_DEPT_NAMES,

@@ -280,3 +280,31 @@ CREATE INDEX IF NOT EXISTS idx_connexions_created ON connexions(created_at DESC)
 CREATE INDEX IF NOT EXISTS idx_connexions_user ON connexions(user_id);
 
 ALTER TABLE connexions ENABLE ROW LEVEL SECURITY;
+
+-- =============================================================
+-- Rapports hebdomadaires structurés (migration 0007)
+-- Un modèle par type de département (huissier, faiseur_disciples,
+-- superviseur, cellule_priere, choristes). En-tête + lignes stockés en
+-- JSONB pour coller fidèlement à chaque fiche papier sans multiplier les
+-- tables.
+-- =============================================================
+CREATE TABLE IF NOT EXISTS rapports_hebdo (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type          TEXT NOT NULL,
+  author_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+  department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+  year          INTEGER NOT NULL,
+  week          INTEGER NOT NULL,
+  entete        JSONB NOT NULL DEFAULT '{}',
+  lignes        JSONB NOT NULL DEFAULT '[]',
+  status        TEXT NOT NULL DEFAULT 'brouillon'
+                CHECK (status IN ('brouillon', 'soumis', 'valide')),
+  submitted_at  TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_rapports_hebdo_author ON rapports_hebdo(author_id);
+CREATE INDEX IF NOT EXISTS idx_rapports_hebdo_week ON rapports_hebdo(year, week);
+CREATE INDEX IF NOT EXISTS idx_rapports_hebdo_type ON rapports_hebdo(type);
+
+ALTER TABLE rapports_hebdo ENABLE ROW LEVEL SECURITY;
