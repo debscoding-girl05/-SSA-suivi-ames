@@ -3,6 +3,15 @@ const ApiError = require("../utils/ApiError");
 const { currentWeek } = require("../utils/week");
 
 const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
+
+// Libellés des types de rapports hebdo structurés (pour les notifications).
+const RH_LABELS = {
+  huissier: "rapport d'assiduité",
+  faiseur_disciples: "rapport du faiseur de disciples",
+  superviseur: "fiche des superviseurs",
+  cellule_priere: "rapport de cellule de prière",
+  choristes: "fiche de suivi des choristes",
+};
 const weeksSince = (iso) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / (7 * 24 * 3600 * 1000)) : null);
 
 // Compute the current set of notifications for a user, based on live state.
@@ -23,6 +32,20 @@ async function computeDesired(user) {
     }
   }
 
+  // 1b. Absences consécutives parmi mes assignés (EF-41).
+  if (user.role === "leader" || user.role === "encadreur") {
+    const abs = await db.rapports.listConsecutiveAbsences(user.sub, 2);
+    for (const a of abs) {
+      desired.push({
+        dedupKey: `absences:${a.id}`,
+        type: "absence_consecutive",
+        title: "Absences consécutives",
+        message: `${a.firstName} ${a.lastName} a été absent(e) lors des 2 derniers cultes suivis.`,
+        link: `/dirigeants/${user.sub}`,
+      });
+    }
+  }
+
   // 2. Leader : fiches manquantes / à valider dans son département.
   if (user.role === "leader") {
     const dirs = await db.dirigeants.list({ year, week, scope: { departmentId: user.departmentId ?? -1 } });
@@ -34,16 +57,13 @@ async function computeDesired(user) {
         desired.push({ dedupKey: `valider:${d.id}:${wk}`, type: "a_valider", title: "Fiche à valider", message: `${d.fullName} a soumis sa fiche.`, link: "/fiches" });
       }
     }
-
-    // Cellules de prière du département : fiche hebdo manquante / à valider.
-    
   }
 
   // 2b. Leader de cellule : rappel pour sa propre fiche.
   if (user.role === "leader_cellule") {
     const mine = await db.cellules.list({ scope: { leaderId: user.sub } });
     for (const c of mine.filter((c) => c.actif !== false)) {
-      const f = await db.cellules.findFicheByCelluleWeek(c.id, year, week);
+      const f = await db.cellules.getFiche(c.id, year, week);
       if (!f || f.status === "brouillon") {
         desired.push({ dedupKey: `self_cellule_manquante:${c.id}:${wk}`, type: "fiche_manquante", title: "Fiche de cellule non soumise", message: `La fiche de ${c.nom} pour la semaine ${week} n'est pas encore soumise.`, link: `/cellules/${c.id}` });
       }
@@ -69,21 +89,23 @@ async function computeDesired(user) {
     const aValiderCellules = fichesAll.filter((f) => f.status === "soumis").length;
     if (manquantesCellules) desired.push({ dedupKey: `global_cellules_manquantes:${wk}`, type: "fiche_manquante", title: "Fiches de cellule manquantes", message: `${manquantesCellules} cellule(s) n'ont pas soumis leur fiche cette semaine.`, link: "/cellules" });
     if (aValiderCellules) desired.push({ dedupKey: `global_cellules_valider:${wk}`, type: "a_valider", title: "Fiches de cellule à valider", message: `${aValiderCellules} fiche(s) de cellule en attente de validation.`, link: "/cellules" });
-  }
 
-  // 3b. Cellules de prière : fiche de présence manquante cette semaine.
-  if (user.role === "leader_cellule") {
-    const cells = await db.cellules.list({ year, week, scope: { leaderId: user.sub } });
-    for (const c of cells) {
-      if (c.ficheStatus !== "soumis") {
-        desired.push({ dedupKey: `cellule_manquante:${c.id}:${wk}`, type: "cellule_manquante", title: "Fiche de cellule manquante", message: `La fiche de « ${c.nom} » n'est pas soumise.`, link: `/cellules/${c.id}` });
-      }
+    // Rapports hebdomadaires structurés soumis (par département) — un par fiche.
+    let rhSoumis = [];
+    try { rhSoumis = await db.rapportsHebdo.list({ year, week }); } catch { rhSoumis = []; }
+    for (const rh of rhSoumis.filter((x) => x.status === "soumis")) {
+      const label = RH_LABELS[rh.type] || "rapport hebdomadaire";
+      // Département : uniquement celui saisi dans la fiche (pas celui du compte).
+      const dept = rh.entete?.departement;
+      const nom = rh.entete?.nomLeader || rh.entete?.nomFaiseur || rh.entete?.nomSuperviseur || rh.authorName || "Un responsable";
+      desired.push({
+        dedupKey: `rh_soumis:${rh.id}`,
+        type: "rapport_soumis",
+        title: "Rapport hebdomadaire soumis",
+        message: `${nom} a soumis : ${label}${dept ? " — " + dept : ""}.`,
+        link: "/rapports-hebdo",
+      });
     }
-  }
-  if (admin) {
-    const cells = await db.cellules.list({ year, week });
-    const manq = cells.filter((c) => c.ficheStatus !== "soumis").length;
-    if (manq) desired.push({ dedupKey: `cellules_manquantes:${wk}`, type: "cellule_manquante", title: "Cellules sans fiche", message: `${manq} cellule(s) n'ont pas soumis leur fiche cette semaine.`, link: "/cellules" });
   }
 
   // 4. Stagnation des nouveaux venus (périmètre FD/Suivi).
@@ -123,4 +145,4 @@ async function markAllRead(req, res) {
   res.status(204).end();
 }
 
-module.exports = { list, markRead, markAllRead };
+module.exports = { list, markRead, markAllRead, computeDesired };

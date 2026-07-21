@@ -16,6 +16,8 @@ import ReportsPage from '../pages/Reports/ReportsPage';
 import NouveauxVenusPage from '../pages/NouveauxVenus/NouveauxVenusPage';
 import NotificationsPage from '../pages/Notifications/NotificationsPage';
 import ProfilePage from '../pages/Profile/ProfilePage';
+import ConnexionsPage from '../pages/Connexions/ConnexionsPage';
+import RapportsHebdoPage from '../pages/RapportsHebdo/RapportsHebdoPage';
 import NotFoundPage from '../pages/NotFound/NotFoundPage';
 import ProtectedRoute from '../components/ProtectedRoute';
 import AppLayout from '../components/AppLayout';
@@ -50,6 +52,8 @@ export default function AppRouter() {
         <Route path="/rapports" element={<ReportsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/connexions" element={<ConnexionsPage />} />
+        <Route path="/rapports-hebdo" element={<RapportsHebdoPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

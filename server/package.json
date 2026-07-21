@@ -10,7 +10,8 @@
     "tasks:mine": "node notion-tasks.js mine",
     "tasks:today": "node notion-tasks.js today",
     "tasks:update": "node notion-tasks.js update",
-    "test": "node --test"
+    "test": "node --test",
+    "digest:test": "node src/jobs/run-once.js"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +24,8 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.6.0",
+    "pdfkit": "^0.19.1",
     "pg": "^8.21.0"
   },
   "devDependencies": {

@@ -46,6 +46,19 @@ function clearFailures(key) {
 async function login(req, res) {
   const { password } = req.body || {};
   const identifier = (req.body?.identifier || req.body?.email || "").trim();
+  const ip = req.ip;
+  const userAgent = req.headers["user-agent"];
+
+  // Trace la tentative (réussie ou non) sans jamais bloquer la connexion sur
+  // un échec d'écriture du journal (EF-08) — la sécurité de l'app ne doit
+  // jamais dépendre de la disponibilité du log.
+  const logAttempt = async (userId, reussie) => {
+    try {
+      await db.connexions.log({ identifiant: identifier, userId, reussie, ip, userAgent });
+    } catch {
+      /* le journal ne doit jamais faire échouer la connexion elle-même */
+    }
+  };
 
   if (!identifier || !password) {
     throw ApiError.badRequest("Identifiant et mot de passe requis");
@@ -53,6 +66,7 @@ async function login(req, res) {
 
   const key = identifier.toLowerCase();
   if (isLocked(key)) {
+    await logAttempt(null, false);
     throw new ApiError(429, "TOO_MANY_ATTEMPTS", "Trop de tentatives. Réessayez dans quelques minutes.");
   }
 
@@ -60,16 +74,19 @@ async function login(req, res) {
   // Generic message on purpose — never reveal whether the identifier exists.
   if (!user || !user.isActive) {
     recordFailure(key);
+    await logAttempt(user?.id ?? null, false);
     throw ApiError.unauthorized("Identifiants invalides");
   }
 
   const ok = await bcrypt.compare(String(password), user.passwordHash);
   if (!ok) {
     recordFailure(key);
+    await logAttempt(user.id, false);
     throw ApiError.unauthorized("Identifiants invalides");
   }
 
   clearFailures(key);
+  await logAttempt(user.id, true);
   const token = signToken({
     sub: user.id,
     email: user.email,

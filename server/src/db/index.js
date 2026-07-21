@@ -52,6 +52,8 @@ const memory = {
   notifications: [],
   invitations: [],
   passwordResets: [],
+  connexions: [],
+  rapportsHebdo: [],
   settings: {},
   membresCellule: [],
 };
@@ -67,14 +69,51 @@ function getPool() {
   pool = new Pool({
     connectionString: config.db.url,
     ssl: config.db.ssl ? { rejectUnauthorized: false } : undefined,
+    // Supabase (et la plupart des poolers) ferment les connexions inactives.
+    // On garde la connexion vivante et on recycle les clients au repos pour
+    // éviter les coupures « Connection terminated unexpectedly ».
+    keepAlive: true,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    max: 10,
+  });
+  // CRUCIAL : sans ce gestionnaire, une erreur sur un client inactif (coupure
+  // du pooler Supabase) est émise comme événement 'error' non géré et fait
+  // planter tout le processus Node. Ici on se contente de la journaliser ;
+  // le pool remplacera automatiquement le client fautif à la requête suivante.
+  pool.on("error", (err) => {
+    // eslint-disable-next-line no-console
+    console.error("[db] client Postgres inactif en erreur (ignoré, le pool se rétablit) :", err.message);
   });
   return pool;
+}
+
+// Erreurs réseau transitoires (coupure du pooler) pour lesquelles un simple
+// nouvel essai suffit généralement.
+const TRANSIENT_DB_ERRORS = new Set([
+  "ECONNRESET", "EPIPE", "ETIMEDOUT", "ENOTFOUND", "57P01", "08006", "08003", "XX000",
+]);
+
+function isTransientDbError(err) {
+  if (!err) return false;
+  if (TRANSIENT_DB_ERRORS.has(err.code)) return true;
+  return /Connection terminated|terminated unexpectedly|timeout/i.test(err.message || "");
 }
 
 async function query(text, params) {
   const p = getPool();
   if (!p) throw new Error("query() called without a Postgres connection");
-  return p.query(text, params);
+  try {
+    return await p.query(text, params);
+  } catch (err) {
+    // Un seul nouvel essai sur une coupure transitoire ; le pool fournit un
+    // client neuf entre-temps.
+    if (isTransientDbError(err)) {
+      await new Promise((r) => setTimeout(r, 250));
+      return p.query(text, params);
+    }
+    throw err;
+  }
 }
 
 // --- Lifecycle -------------------------------------------------------------
@@ -454,6 +493,23 @@ const users = {
     }
     const { rowCount } = await query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, id]);
     return rowCount > 0;
+  },
+
+  // Tous les comptes actifs, tous rôles confondus — utilisé par la tâche
+  // planifiée qui envoie le récapitulatif de notifications par email.
+  async listAllActive() {
+    if (!isPostgres) {
+      return memory.users
+        .filter((u) => u.isActive)
+        .map((u) => mapUserRow(memUserToRow(u)));
+    }
+    const { rows } = await query(
+      `SELECT u.*, r.name AS role, d.name AS department_name
+         FROM users u JOIN roles r ON r.id = u.role_id
+         LEFT JOIN departments d ON d.id = u.department_id
+        WHERE u.is_active = true`
+    );
+    return rows.map(mapUserRow);
   },
 };
 
@@ -923,6 +979,54 @@ const rapports = {
   },
 
   // All submitted reports for a given week (joined with dirigeant + department).
+  // EF-41 — assignés absents lors des `n` derniers cultes suivis (rapports
+  // réellement soumis, en ignorant les brouillons). Retourne [] tant qu'il
+  // n'y a pas encore `n` rapports soumis pour ce dirigeant (pas assez
+  // d'historique pour se prononcer).
+  async listConsecutiveAbsences(dirigeantId, n = 2) {
+    if (!isPostgres) {
+      const dirigeantRapports = memory.rapports
+        .filter((r) => r.dirigeantId === dirigeantId && r.submittedAt)
+        .sort((a, b) => (b.year - a.year) || (b.week - a.week))
+        .slice(0, n);
+      if (dirigeantRapports.length < n) return [];
+      const rapportIds = dirigeantRapports.map((r) => r.id);
+      return memory.assignes
+        .filter((a) => a.dirigeantId === dirigeantId)
+        .filter((a) =>
+          rapportIds.every((rid) =>
+            memory.presences.some((p) => p.rapportId === rid && p.assigneId === a.id && p.statut === "absent")
+          )
+        )
+        .map((a) => ({ id: a.id, firstName: a.firstName, lastName: a.lastName }));
+    }
+
+    const { rows: rapportRows } = await query(
+      `SELECT id FROM rapports
+        WHERE dirigeant_id = $1 AND submitted_at IS NOT NULL
+        ORDER BY year DESC, week DESC
+        LIMIT $2`,
+      [dirigeantId, n]
+    );
+    if (rapportRows.length < n) return [];
+    const rapportIds = rapportRows.map((r) => r.id);
+
+    const { rows } = await query(
+      `SELECT a.id, a.first_name, a.last_name
+         FROM assignes a
+        WHERE a.dirigeant_id = $1
+          AND (
+            SELECT COUNT(DISTINCT p.rapport_id)
+              FROM presences p
+             WHERE p.assigne_id = a.id
+               AND p.rapport_id = ANY($2)
+               AND p.statut = 'absent'
+          ) = $3`,
+      [dirigeantId, rapportIds, n]
+    );
+    return rows.map((r) => ({ id: r.id, firstName: r.first_name, lastName: r.last_name }));
+  },
+
   async listByWeek(year, week) {
     if (!isPostgres) {
       return memory.rapports
@@ -1797,6 +1901,202 @@ const passwordResets = {
   },
 };
 
+
+// --- Journal de connexions (EF-08) ------------------------------------------
+const connexions = {
+  async log({ identifiant, userId, reussie, ip, userAgent }) {
+    if (!isPostgres) {
+      memory.connexions.unshift({
+        id: newUuid(), identifiant, userId: userId ?? null, reussie,
+        ip: ip ?? null, userAgent: userAgent ?? null, createdAt: new Date().toISOString(),
+      });
+      // Garde un historique borné en mémoire (dev/démo uniquement).
+      if (memory.connexions.length > 1000) memory.connexions.length = 1000;
+      return;
+    }
+    await query(
+      `INSERT INTO connexions (identifiant, user_id, reussie, ip, user_agent)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [identifiant, userId ?? null, reussie, ip ?? null, userAgent ?? null]
+    );
+  },
+
+  // Les `limit` tentatives les plus récentes, avec le nom de l'utilisateur
+  // quand la tentative a pu être rattachée à un compte existant.
+  async listRecent({ limit = 200 } = {}) {
+    if (!isPostgres) {
+      return memory.connexions.slice(0, limit).map((c) => {
+        const u = memory.users.find((x) => x.id === c.userId);
+        return {
+          id: c.id, identifiant: c.identifiant, reussie: c.reussie,
+          ip: c.ip, userAgent: c.userAgent, createdAt: c.createdAt,
+          userId: c.userId, userFullName: u?.fullName ?? null, userRole: u ? memory.roles.find((r) => r.id === u.roleId)?.name ?? null : null,
+        };
+      });
+    }
+    const { rows } = await query(
+      `SELECT c.id, c.identifiant, c.reussie, c.ip, c.user_agent, c.created_at,
+              c.user_id, u.full_name AS user_full_name, r.name AS user_role
+         FROM connexions c
+         LEFT JOIN users u ON u.id = c.user_id
+         LEFT JOIN roles r ON r.id = u.role_id
+        ORDER BY c.created_at DESC
+        LIMIT $1`,
+      [limit]
+    );
+    return rows.map((row) => ({
+      id: row.id, identifiant: row.identifiant, reussie: row.reussie,
+      ip: row.ip, userAgent: row.user_agent, createdAt: row.created_at,
+      userId: row.user_id, userFullName: row.user_full_name ?? null, userRole: row.user_role ?? null,
+    }));
+  },
+};
+
+
+// --- Rapports hebdomadaires structurés (fiches par département) --------------
+function mapRapportHebdoRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    type: row.type,
+    authorId: row.author_id ?? null,
+    authorName: row.author_name ?? null,
+    departmentId: row.department_id ?? null,
+    departmentName: row.department_name ?? null,
+    year: row.year,
+    week: row.week,
+    entete: row.entete || {},
+    lignes: row.lignes || [],
+    status: row.status,
+    submittedAt: row.submitted_at ?? null,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? null,
+  };
+}
+
+const rapportsHebdo = {
+  async create({ type, authorId, departmentId, year, week, entete, lignes, status }) {
+    const st = status === "soumis" ? "soumis" : "brouillon";
+    const submittedAt = st === "soumis" ? new Date().toISOString() : null;
+    if (!isPostgres) {
+      const r = {
+        id: newUuid(), type, authorId: authorId ?? null, departmentId: departmentId ?? null,
+        year, week, entete: entete ?? {}, lignes: lignes ?? [], status: st,
+        submittedAt, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      };
+      memory.rapportsHebdo.push(r);
+      return this.findById(r.id);
+    }
+    const { rows } = await query(
+      `INSERT INTO rapports_hebdo (type, author_id, department_id, year, week, entete, lignes, status, submitted_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [type, authorId ?? null, departmentId ?? null, year, week,
+       JSON.stringify(entete ?? {}), JSON.stringify(lignes ?? []), st, submittedAt]
+    );
+    return this.findById(rows[0].id);
+  },
+
+  async update(id, { entete, lignes, status }) {
+    if (!isPostgres) {
+      const r = memory.rapportsHebdo.find((x) => x.id === id);
+      if (!r) return null;
+      if (entete !== undefined) r.entete = entete;
+      if (lignes !== undefined) r.lignes = lignes;
+      if (status !== undefined) {
+        r.status = status;
+        if (status === "soumis" && !r.submittedAt) r.submittedAt = new Date().toISOString();
+      }
+      r.updatedAt = new Date().toISOString();
+      return this.findById(id);
+    }
+    const sets = [];
+    const params = [];
+    if (entete !== undefined) { params.push(JSON.stringify(entete)); sets.push(`entete = $${params.length}`); }
+    if (lignes !== undefined) { params.push(JSON.stringify(lignes)); sets.push(`lignes = $${params.length}`); }
+    if (status !== undefined) {
+      params.push(status); sets.push(`status = $${params.length}`);
+      if (status === "soumis") sets.push("submitted_at = COALESCE(submitted_at, now())");
+    }
+    sets.push("updated_at = now()");
+    params.push(id);
+    await query(`UPDATE rapports_hebdo SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
+    return this.findById(id);
+  },
+
+  async findById(id) {
+    if (!isPostgres) {
+      const r = memory.rapportsHebdo.find((x) => x.id === id);
+      if (!r) return null;
+      const author = memory.users.find((u) => u.id === r.authorId);
+      const dept = memory.departments.find((d) => d.id === r.departmentId);
+      return mapRapportHebdoRow({
+        id: r.id, type: r.type, author_id: r.authorId, author_name: author?.fullName ?? null,
+        department_id: r.departmentId, department_name: dept?.name ?? null,
+        year: r.year, week: r.week, entete: r.entete, lignes: r.lignes,
+        status: r.status, submitted_at: r.submittedAt, created_at: r.createdAt, updated_at: r.updatedAt,
+      });
+    }
+    const { rows } = await query(
+      `SELECT rh.*, u.full_name AS author_name, d.name AS department_name
+         FROM rapports_hebdo rh
+         LEFT JOIN users u ON u.id = rh.author_id
+         LEFT JOIN departments d ON d.id = rh.department_id
+        WHERE rh.id = $1`,
+      [id]
+    );
+    return mapRapportHebdoRow(rows[0]);
+  },
+
+  // scope: undefined (admin → tout) | { authorId } (auteur → les siens).
+  async list({ type, year, week, scope } = {}) {
+    if (!isPostgres) {
+      let rows = memory.rapportsHebdo.slice();
+      if (type) rows = rows.filter((r) => r.type === type);
+      if (year != null) rows = rows.filter((r) => r.year === Number(year));
+      if (week != null) rows = rows.filter((r) => r.week === Number(week));
+      if (scope?.authorId) rows = rows.filter((r) => r.authorId === scope.authorId);
+      return rows
+        .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+        .map((r) => this._memRow(r));
+    }
+    const params = [];
+    const where = [];
+    if (type) { params.push(type); where.push(`rh.type = $${params.length}`); }
+    if (year != null) { params.push(Number(year)); where.push(`rh.year = $${params.length}`); }
+    if (week != null) { params.push(Number(week)); where.push(`rh.week = $${params.length}`); }
+    if (scope?.authorId) { params.push(scope.authorId); where.push(`rh.author_id = $${params.length}`); }
+    const { rows } = await query(
+      `SELECT rh.*, u.full_name AS author_name, d.name AS department_name
+         FROM rapports_hebdo rh
+         LEFT JOIN users u ON u.id = rh.author_id
+         LEFT JOIN departments d ON d.id = rh.department_id
+        ${where.length ? "WHERE " + where.join(" AND ") : ""}
+        ORDER BY rh.created_at DESC`,
+      params
+    );
+    return rows.map(mapRapportHebdoRow);
+  },
+
+  _memRow(r) {
+    const author = memory.users.find((u) => u.id === r.authorId);
+    const dept = memory.departments.find((d) => d.id === r.departmentId);
+    return mapRapportHebdoRow({
+      id: r.id, type: r.type, author_id: r.authorId, author_name: author?.fullName ?? null,
+      department_id: r.departmentId, department_name: dept?.name ?? null,
+      year: r.year, week: r.week, entete: r.entete, lignes: r.lignes,
+      status: r.status, submitted_at: r.submittedAt, created_at: r.createdAt, updated_at: r.updatedAt,
+    });
+  },
+
+  async remove(id) {
+    if (!isPostgres) {
+      memory.rapportsHebdo = memory.rapportsHebdo.filter((x) => x.id !== id);
+      return;
+    }
+    await query("DELETE FROM rapports_hebdo WHERE id = $1", [id]);
+  },
+};
+
 module.exports = {
   isPostgres,
   query,
@@ -1815,6 +2115,8 @@ module.exports = {
   notifications,
   invitations,
   passwordResets,
+  connexions,
+  rapportsHebdo,
   settings,
   ADMIN_ROLES,
   FD_DEPT_NAMES,

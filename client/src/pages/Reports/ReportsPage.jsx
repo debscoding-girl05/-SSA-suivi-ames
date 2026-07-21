@@ -2,32 +2,46 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { FileText, Plus } from 'lucide-react';
 import { listReports, transmitReport, deleteReport } from '../../api/reports';
+import { listRapportsHebdo } from '../../api/rapportsHebdo';
 import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import ReportEditor from './ReportEditor';
 import ReportView from './ReportView';
+import RapportHebdoView from './RapportHebdoView';
+import { ClipboardList } from 'lucide-react';
+import { rhLabel, rhShortLabel } from '../RapportsHebdo/types';
 
 export default function ReportsPage() {
   const { user } = useAuth();
   const canAuthor = user?.role === 'leader' || user?.role === 'pr';
+  const isAdmin = user?.role === 'pasteur' || user?.role === 'pr';
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null); // { mode:'view'|'edit'|'create', report }
+  const [fiches, setFiches] = useState([]);
+  const [ficheView, setFicheView] = useState(null);
 
   const load = useCallback(async () => {
     try {
       const res = await listReports();
       setData(res.data);
+      if (isAdmin) {
+        try {
+          const rh = await listRapportsHebdo();
+          // Seules les fiches soumises / validées sont lisibles ici.
+          setFiches((rh.data || []).filter((f) => f.status === 'soumis' || f.status === 'valide'));
+        } catch { setFiches([]); }
+      }
       setError('');
     } catch (err) {
       setError(err?.message || 'Chargement impossible.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     const t = setTimeout(load, 0);
@@ -97,6 +111,36 @@ export default function ReportsPage() {
         </ul>
       )}
 
+      {isAdmin && fiches.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Fiches hebdomadaires soumises</h2>
+          <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {fiches.map((f) => (
+              <li key={f.id}>
+                <button
+                  type="button"
+                  onClick={() => setFicheView(f)}
+                  className="lift flex w-full items-start gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-card"
+                >
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-transparent text-primary">
+                    <ClipboardList className="size-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{rhShortLabel(f.type)}{f.entete?.departement ? ` — ${f.entete.departement}` : ''}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {f.entete?.nomLeader || f.authorName || '—'}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${f.status === 'valide' ? 'bg-success text-success-foreground' : 'bg-primary-transparent text-primary'}`}>
+                    {f.status === 'valide' ? 'Validé' : 'Soumis'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <Modal
         open={Boolean(modal)}
         onClose={close}
@@ -114,6 +158,10 @@ export default function ReportsPage() {
         {(modal?.mode === 'edit' || modal?.mode === 'create') && (
           <ReportEditor report={modal.report} onSaved={afterSave} onCancel={close} />
         )}
+      </Modal>
+
+      <Modal size="lg" open={Boolean(ficheView)} onClose={() => setFicheView(null)} title={ficheView ? rhLabel(ficheView.type) : ''}>
+        {ficheView && <RapportHebdoView rapport={ficheView} />}
       </Modal>
     </div>
   );

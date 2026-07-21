@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 
 // Lightweight accessible modal: fixed overlay + centered panel.
 // Closes on Escape and overlay click.
-export default function Modal({ open, onClose, title, children }) {
+export default function Modal({ open, onClose, title, children, size = 'md' }) {
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => {
@@ -19,6 +19,9 @@ export default function Modal({ open, onClose, title, children }) {
 
   if (!open) return null;
 
+  const sizeClass =
+    size === 'xl' ? 'max-w-5xl' : size === 'lg' ? 'max-w-3xl' : 'max-w-md';
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
@@ -30,7 +33,7 @@ export default function Modal({ open, onClose, title, children }) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-md rounded-t-2xl bg-card text-card-foreground shadow-lg sm:rounded-2xl max-h-[90vh] overflow-y-auto"
+        className={`w-full ${sizeClass} rounded-t-2xl bg-card text-card-foreground shadow-lg sm:rounded-2xl max-h-[90vh] overflow-y-auto`}
       >
         <div className="flex items-center justify-between border-b px-5 py-4">
           <h2 className="text-lg font-semibold">{title}</h2>
