@@ -20,7 +20,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
   if (!open) return null;
 
   const sizeClass =
-    size === 'xl' ? 'max-w-5xl' : size === 'lg' ? 'max-w-3xl' : 'max-w-md';
+    size === 'full' ? 'max-w-[96vw]' : size === 'xl' ? 'max-w-5xl' : size === 'lg' ? 'max-w-3xl' : 'max-w-md';
 
   return (
     <div

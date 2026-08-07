@@ -10,7 +10,8 @@ const RH_LABELS = {
   faiseur_disciples: "rapport du faiseur de disciples",
   superviseur: "fiche des superviseurs",
   cellule_priere: "rapport de cellule de prière",
-  choristes: "fiche de suivi des choristes",
+  choristes: "fiche de suivi hebdomadaire des choristes",
+  audiovisuel: "rapport d'assiduit\u00e9 des ouvriers",
 };
 const weeksSince = (iso) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / (7 * 24 * 3600 * 1000)) : null);
 
@@ -91,19 +92,23 @@ async function computeDesired(user) {
     if (aValiderCellules) desired.push({ dedupKey: `global_cellules_valider:${wk}`, type: "a_valider", title: "Fiches de cellule à valider", message: `${aValiderCellules} fiche(s) de cellule en attente de validation.`, link: "/cellules" });
 
     // Rapports hebdomadaires structurés soumis (par département) — un par fiche.
+    // On ne filtre PAS par semaine : le Pasteur/PR doit être notifié d'une
+    // fiche soumise même s'il ouvre l'app une autre semaine. On borne aux
+    // ~60 derniers jours pour éviter l'accumulation.
     let rhSoumis = [];
-    try { rhSoumis = await db.rapportsHebdo.list({ year, week }); } catch { rhSoumis = []; }
-    for (const rh of rhSoumis.filter((x) => x.status === "soumis")) {
+    try { rhSoumis = await db.rapportsHebdo.list({}); } catch { rhSoumis = []; }
+    const rhCutoff = Date.now() - 60 * 24 * 3600 * 1000;
+    for (const rh of rhSoumis.filter((x) => x.status === "soumis" && (!x.createdAt || new Date(x.createdAt).getTime() >= rhCutoff))) {
       const label = RH_LABELS[rh.type] || "rapport hebdomadaire";
       // Département : uniquement celui saisi dans la fiche (pas celui du compte).
       const dept = rh.entete?.departement;
-      const nom = rh.entete?.nomLeader || rh.entete?.nomFaiseur || rh.entete?.nomSuperviseur || rh.authorName || "Un responsable";
+      const nom = rh.entete?.nomLeader || rh.entete?.nomFaiseur || rh.entete?.nomSuperviseur || rh.entete?.leader || rh.entete?.encadreur || rh.authorName || "Un responsable";
       desired.push({
         dedupKey: `rh_soumis:${rh.id}`,
         type: "rapport_soumis",
         title: "Rapport hebdomadaire soumis",
         message: `${nom} a soumis : ${label}${dept ? " — " + dept : ""}.`,
-        link: "/rapports-hebdo",
+        link: "/rapports",
       });
     }
   }

@@ -40,7 +40,7 @@ export default function FaiseurDisciplesForm({ initial, onSaved }) {
       let saved;
       if (id) saved = await updateRapportHebdo(id, payload);
       else { saved = await createRapportHebdo(payload); setId(saved.id); }
-      onSaved?.(saved);
+      onSaved?.(saved, status);
       return saved;
     } catch (err) { setError(err?.message || 'Enregistrement impossible.'); return null; }
     finally { setBusy(false); }

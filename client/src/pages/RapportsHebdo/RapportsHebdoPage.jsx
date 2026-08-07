@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ClipboardList, Plus, Download, Trash2, Pencil, ChevronRight } from 'lucide-react';
+import { ClipboardList, Plus, Download, Trash2, Pencil, ChevronRight, Check } from 'lucide-react';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import { listRapportsHebdo, getRapportHebdo, deleteRapportHebdo, downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
@@ -9,12 +9,18 @@ import { RH_TYPES, rhLabel } from './types';
 import HuissierForm from './HuissierForm';
 import FaiseurDisciplesForm from './FaiseurDisciplesForm';
 import SuperviseurForm from './SuperviseurForm';
+import CellulePriereForm from './CellulePriereForm';
+import ChoristesForm from './ChoristesForm';
+import AudiovisuelForm from './AudiovisuelForm';
 
 // Registre des formulaires par type.
 const FORMS = {
   huissier: HuissierForm,
   faiseur_disciples: FaiseurDisciplesForm,
   superviseur: SuperviseurForm,
+  cellule_priere: CellulePriereForm,
+  choristes: ChoristesForm,
+  audiovisuel: AudiovisuelForm,
 };
 
 export default function RapportsHebdoPage() {
@@ -26,6 +32,7 @@ export default function RapportsHebdoPage() {
   const [error, setError] = useState('');
   const [picker, setPicker] = useState(false);       // choix du type (création)
   const [modal, setModal] = useState(null);           // { type, report? }
+  const [toast, setToast] = useState('');             // message de succès éphémère
 
   const load = useCallback(async () => {
     try {
@@ -42,6 +49,15 @@ export default function RapportsHebdoPage() {
   useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t); }, [load]);
 
   function closeModal() { setModal(null); }
+
+  function handleSaved(saved, status) {
+    load();
+    if (status === 'soumis') {
+      setModal(null);
+      setToast('Fiche soumise avec succès');
+      setTimeout(() => setToast(''), 2500);
+    }
+  }
 
   function startCreate(type) { setPicker(false); setModal({ type }); }
 
@@ -67,6 +83,13 @@ export default function RapportsHebdoPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {toast && (
+        <div className="fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4">
+          <div className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg">
+            <Check className="size-4" /> {toast}
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Rapports hebdomadaires</h1>
@@ -129,9 +152,9 @@ export default function RapportsHebdoPage() {
       </Modal>
 
       {/* Formulaire du type choisi */}
-      <Modal size="xl" open={!!modal} onClose={closeModal} title={modal ? rhLabel(modal.type) : ''}>
+      <Modal size={modal?.type === 'choristes' || modal?.type === 'audiovisuel' ? 'full' : 'xl'} open={!!modal} onClose={closeModal} title={modal ? rhLabel(modal.type) : ''}>
         {modal && FormComponent && (
-          <FormComponent initial={modal.report} onSaved={() => load()} />
+          <FormComponent initial={modal.report} onSaved={handleSaved} />
         )}
       </Modal>
     </div>

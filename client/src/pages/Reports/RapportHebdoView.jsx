@@ -14,7 +14,8 @@ export default function RapportHebdoView({ rapport }) {
   const conf = RH_VIEW[rapport.type] || RH_VIEW.huissier;
   const header = conf.header(e, rapport);
   const columns = conf.columns;
-  const nomAffiche = e.nomLeader || e.nomFaiseur || rapport.authorName;
+  const sections = conf.sections ? conf.sections(e, rapport) : null;
+  const nomAffiche = e.nomLeader || e.nomFaiseur || e.nomSuperviseur || e.leader || rapport.authorName;
 
   async function download() {
     setBusy(true); setError('');
@@ -39,40 +40,59 @@ export default function RapportHebdoView({ rapport }) {
         ))}
       </dl>
 
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[600px] text-sm">
-          <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 w-10">N°</th>
-              {columns.map((col) => (
-                <th key={col.key} className={`px-3 py-2 ${col.kind === 'presence' ? 'w-24 text-center' : ''}`}>{col.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {lignes.map((row, i) => (
-              <tr key={i}>
-                <td className="px-3 py-2 text-center text-muted-foreground">{i + 1}</td>
-                {columns.map((col) => {
-                  if (col.kind === 'presence') {
-                    return (
-                      <td key={col.key} className="px-3 py-2 text-center">
-                        {row.present === true ? <span className="font-medium text-primary">Présent</span>
-                          : row.present === false ? <span className="font-medium text-destructive-dark">Absent</span>
-                          : <span className="text-muted-foreground">—</span>}
-                      </td>
-                    );
-                  }
-                  return <td key={col.key} className="px-3 py-2">{row[col.key]}</td>;
-                })}
+      {sections ? (
+        <div className="flex flex-col gap-4">
+          {sections.map((sec) => (
+            <div key={sec.title} className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-primary">{sec.title}</h3>
+              <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-2">
+                {sec.rows.map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-3 text-sm">
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="text-right font-medium">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full min-w-[600px] text-sm">
+            <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 w-10">N°</th>
+                {columns.map((col) => (
+                  <th key={col.key} className={`px-3 py-2 ${col.kind === 'presence' ? 'w-24 text-center' : ''}`}>{col.label}</th>
+                ))}
               </tr>
-            ))}
-            {lignes.length === 0 && (
-              <tr><td colSpan={columns.length + 1} className="px-3 py-6 text-center text-muted-foreground">Aucune ligne.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {lignes.map((row, i) => (
+                <tr key={i}>
+                  <td className="px-3 py-2 text-center text-muted-foreground">{i + 1}</td>
+                  {columns.map((col) => {
+                    if (col.kind === 'presence') {
+                      return (
+                        <td key={col.key} className="px-3 py-2 text-center">
+                          {row.present === true ? <span className="font-medium text-primary">Présent</span>
+                            : row.present === false ? <span className="font-medium text-destructive-dark">Absent</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      );
+                    }
+                    const v = col.compute ? col.compute(row) : row[col.key];
+                    return <td key={col.key} className="px-3 py-2">{v}</td>;
+                  })}
+                </tr>
+              ))}
+              {lignes.length === 0 && (
+                <tr><td colSpan={columns.length + 1} className="px-3 py-6 text-center text-muted-foreground">Aucune ligne.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
 

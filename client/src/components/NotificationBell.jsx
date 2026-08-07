@@ -1,21 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { listNotifications } from '../api/notifications';
 
-// Bell with unread badge. Refreshes on mount and on navigation.
+const REFRESH_MS = 60 * 1000; // vérification automatique toutes les 60 s
+
+// Bell with unread badge. Refreshes on mount, on navigation, périodiquement
+// (toutes les 60 s) et au retour sur l'onglet — pour que la pastille apparaisse
+// d'elle-même sans avoir à ouvrir la cloche.
 export function NotificationBell({ className }) {
   const [unread, setUnread] = useState(0);
   const location = useLocation();
 
-  useEffect(() => {
-    let on = true;
+  const refresh = useCallback(() => {
     listNotifications()
-      .then((d) => { if (on) setUnread(d.unread || 0); })
+      .then((d) => setUnread(d.unread || 0))
       .catch(() => {});
-    return () => { on = false; };
-  }, [location.pathname]);
+  }, []);
+
+  // Au montage + à chaque navigation.
+  useEffect(() => { refresh(); }, [refresh, location.pathname]);
+
+  // Vérification périodique en arrière-plan.
+  useEffect(() => {
+    const id = setInterval(refresh, REFRESH_MS);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  // Rafraîchit quand l'utilisateur revient sur l'onglet.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refresh]);
 
   return (
     <Link
