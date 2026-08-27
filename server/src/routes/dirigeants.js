@@ -18,6 +18,7 @@ router.post("/:id/reactivate", requireRole("pasteur", "pr"), asyncHandler(dirige
 // Assignés nested under a dirigeant (write-permission checked in controller).
 router.get("/:id/assignes", asyncHandler(assignes.list));
 router.post("/:id/assignes", asyncHandler(assignes.create));
+router.post("/:id/assignes/attach", asyncHandler(assignes.attach));
 router.put("/:id/assignes/:assigneId", asyncHandler(assignes.update));
 router.delete("/:id/assignes/:assigneId", asyncHandler(assignes.remove));
 

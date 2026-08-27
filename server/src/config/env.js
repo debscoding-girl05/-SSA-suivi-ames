@@ -31,6 +31,22 @@ const config = {
     resendApiKey: process.env.RESEND_API_KEY || "",
     from: process.env.EMAIL_FROM || "SSA <onboarding@resend.dev>",
   },
+  // Object storage for report attachments (photo of the paper fiche).
+  // Falls back to local disk (server/uploads) when absent — fine for local
+  // dev, but NOT durable on Render's free tier (ephemeral filesystem), so
+  // this must be set in production.
+  storage: {
+    supabaseUrl: process.env.SUPABASE_URL || "",
+    supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY || "",
+    bucket: process.env.SUPABASE_STORAGE_BUCKET || "rapport-attachments",
+  },
+  // Web Push (VAPID) — browser push notifications, no third-party service
+  // or per-message cost. Generate once with `npx web-push generate-vapid-keys`.
+  push: {
+    vapidPublicKey: process.env.VAPID_PUBLIC_KEY || "",
+    vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || "",
+    vapidSubject: process.env.VAPID_SUBJECT || "mailto:contact@example.com",
+  },
 };
 
 // Fail fast on a weak secret in production — reject the default and anything

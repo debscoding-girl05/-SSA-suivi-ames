@@ -308,3 +308,33 @@ CREATE INDEX IF NOT EXISTS idx_rapports_hebdo_week ON rapports_hebdo(year, week)
 CREATE INDEX IF NOT EXISTS idx_rapports_hebdo_type ON rapports_hebdo(type);
 
 ALTER TABLE rapports_hebdo ENABLE ROW LEVEL SECURITY;
+
+-- Pièces jointes des rapports hebdomadaires (ex : photo de la fiche papier).
+-- `storage_path` est le chemin dans le bucket Supabase Storage (prod) ou le
+-- nom de fichier local sous server/uploads (dev sans Supabase configuré) —
+-- jamais une URL publique en dur, pour pouvoir signer l'accès à la demande.
+CREATE TABLE IF NOT EXISTS rapport_hebdo_attachments (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  rapport_id    UUID NOT NULL REFERENCES rapports_hebdo(id) ON DELETE CASCADE,
+  uploader_id   UUID REFERENCES users(id) ON DELETE SET NULL,
+  storage_path  TEXT NOT NULL,
+  mime_type     TEXT NOT NULL,
+  size_bytes    INTEGER,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_rapport_attachments_rapport ON rapport_hebdo_attachments(rapport_id);
+
+ALTER TABLE rapport_hebdo_attachments ENABLE ROW LEVEL SECURITY;
+
+-- Abonnements Web Push (un par appareil/navigateur) — voir server/src/utils/push.js.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint    TEXT NOT NULL UNIQUE,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;

@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Download, Send } from 'lucide-react';
 import { createRapportHebdo, updateRapportHebdo, downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
+import { fetchLastRapportHebdo } from './carryForward';
+import RapportAttachments from './RapportAttachments';
 
 const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
 
@@ -18,6 +20,25 @@ export default function CellulePriereForm({ initial, onSaved }) {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // Nouvelle fiche : reprend le nom de la cellule/leader/téléphone de la
+  // dernière fois — ces champs ne changent presque jamais d'une semaine à
+  // l'autre, inutile de les retaper.
+  useEffect(() => {
+    if (initial) return;
+    let cancelled = false;
+    fetchLastRapportHebdo('cellule_priere').then((last) => {
+      if (cancelled || !last?.entete) return;
+      setF((s) => ({
+        ...s,
+        nomCellule: s.nomCellule || last.entete.nomCellule || '',
+        leader: s.leader || last.entete.leader || '',
+        telephone: s.telephone || last.entete.telephone || '',
+      }));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [showErrors, setShowErrors] = useState(false);
 
   const set = (patch) => setF((s) => ({ ...s, ...patch }));
@@ -58,6 +79,7 @@ export default function CellulePriereForm({ initial, onSaved }) {
   }
 
   async function submit() { const s = await save('soumis'); if (s) setError(''); return s; }
+  async function ensureSavedId() { if (id) return id; const s = await save(initial?.status || 'brouillon'); return s?.id || null; }
   async function downloadCurrent() {
     const s = await save(initial?.status || 'brouillon');
     if (!s) return;
@@ -149,6 +171,8 @@ export default function CellulePriereForm({ initial, onSaved }) {
             className="rounded-md border border-border bg-transparent px-3 py-2 text-sm" />
         </label>
       </div>
+
+      <RapportAttachments rapportId={id} ensureId={ensureSavedId} disabled={initial?.status === 'valide'} />
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
 

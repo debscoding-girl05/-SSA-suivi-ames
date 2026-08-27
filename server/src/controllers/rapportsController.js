@@ -38,6 +38,7 @@ async function weekOverview(req, res) {
   const rows = dirigeants.map((d) => ({
     dirigeantId: d.id,
     fullName: d.fullName,
+    phone: d.phone,
     departmentName: d.departmentName,
     assigneCount: d.assigneCount,
     status: norm(d.reportStatus),

@@ -27,12 +27,24 @@ function formatDateFr(v) {
   return d.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 }
 
-function beginPdf(res, filename, opts = {}) {
-  const doc = new PDFDocument({ size: "A4", layout: opts.layout || "portrait", margin: opts.margin || 40 });
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}.pdf"`);
-  doc.pipe(res);
-  return doc;
+// Rend le PDF en mémoire avant d'écrire quoi que ce soit sur `res` : si un
+// renderer plante en cours de route (entete/lignes malformées), la réponse
+// n'a encore rien reçu et l'appelant peut renvoyer une erreur JSON propre
+// plutôt qu'un PDF tronqué/corrompu (ce qui arrivait avec un pipe direct).
+function renderToBuffer(renderFn, opts = {}) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: "A4", layout: opts.layout || "portrait", margin: opts.margin || 40 });
+      const chunks = [];
+      doc.on("data", (chunk) => chunks.push(chunk));
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", reject);
+      renderFn(doc);
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
 }
 
 function churchHeader(doc, sousTitre) {
@@ -500,16 +512,22 @@ const RENDERERS = {
   audiovisuel: { title: "rapport_assiduite_ouvriers", render: renderAudiovisuel },
 };
 
-function streamRapportHebdoPdf(rapport, res) {
+async function streamRapportHebdoPdf(rapport, res) {
   const conf = RENDERERS[rapport.type];
   const filename = safeName(conf ? conf.title : rapport.type, "rapport");
-  const doc = beginPdf(res, filename, { layout: conf?.layout, margin: conf?.margin });
-  if (conf) conf.render(doc, rapport);
-  else {
-    churchHeader(doc, "Rapport hebdomadaire");
-    doc.fillColor(INK).text("Type de rapport non pris en charge.");
-  }
-  doc.end();
+  const buffer = await renderToBuffer(
+    (doc) => {
+      if (conf) conf.render(doc, rapport);
+      else {
+        churchHeader(doc, "Rapport hebdomadaire");
+        doc.fillColor(INK).text("Type de rapport non pris en charge.");
+      }
+    },
+    { layout: conf?.layout, margin: conf?.margin }
+  );
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}.pdf"`);
+  res.send(buffer);
 }
 
 module.exports = { streamRapportHebdoPdf, RENDERERS };

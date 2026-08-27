@@ -56,6 +56,8 @@ const memory = {
   rapportsHebdo: [],
   settings: {},
   membresCellule: [],
+  rapportAttachments: [],
+  pushSubscriptions: [],
 };
 
 // Rôles ayant une vue "administrative" globale (CDC : Pasteur + PR).
@@ -655,7 +657,10 @@ const dirigeants = {
 const assignes = {
   // Global directory (annuaire) of assignés, enriched with dirigeant + department.
   // `scope`: { dirigeantId } (encadreur — own) or { departmentId } (leader).
-  async listAll({ search, departmentId, scope } = {}) {
+  // Paginated — at real scale (thousands d'âmes) renvoyer la liste entière à
+  // chaque frappe de recherche ou chargement de page ferait planter le
+  // téléphone bien avant le serveur. `limit`/`offset` par défaut : 50/0.
+  async listAll({ search, departmentId, scope, limit = 50, offset = 0 } = {}) {
     if (!isPostgres) {
       let rows = memory.assignes.map((a) => {
         const dir = memory.users.find((u) => u.id === a.dirigeantId);
@@ -676,9 +681,11 @@ const assignes = {
           `${r.firstName} ${r.lastName} ${r.phone || ""} ${r.email || ""}`.toLowerCase().includes(q)
         );
       }
-      return rows.sort((a, b) =>
+      rows = rows.sort((a, b) =>
         `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, "fr")
       );
+      const total = rows.length;
+      return { rows: rows.slice(offset, offset + limit), total };
     }
 
     const params = [];
@@ -702,21 +709,30 @@ const assignes = {
         `(LOWER(a.first_name) LIKE $${i} OR LOWER(a.last_name) LIKE $${i} OR LOWER(COALESCE(a.phone,'')) LIKE $${i} OR LOWER(COALESCE(a.email,'')) LIKE $${i})`
       );
     }
+    params.push(limit);
+    const limitIdx = params.length;
+    params.push(offset);
+    const offsetIdx = params.length;
     const { rows } = await query(
-      `SELECT a.*, u.full_name AS dirigeant_name, u.department_id, d.name AS department_name
+      `SELECT a.*, u.full_name AS dirigeant_name, u.department_id, d.name AS department_name,
+              COUNT(*) OVER() AS total_count
          FROM assignes a
          JOIN users u ON u.id = a.dirigeant_id
          LEFT JOIN departments d ON d.id = u.department_id
          ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-        ORDER BY a.last_name ASC, a.first_name ASC`,
+        ORDER BY a.last_name ASC, a.first_name ASC
+        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params
     );
-    return rows.map((r) => ({
-      ...mapAssigneRow(r),
-      dirigeantName: r.dirigeant_name ?? null,
-      departmentId: r.department_id ?? null,
-      departmentName: r.department_name ?? null,
-    }));
+    return {
+      rows: rows.map((r) => ({
+        ...mapAssigneRow(r),
+        dirigeantName: r.dirigeant_name ?? null,
+        departmentId: r.department_id ?? null,
+        departmentName: r.department_name ?? null,
+      })),
+      total: rows[0] ? Number(rows[0].total_count) : 0,
+    };
   },
 
   async listByDirigeant(dirigeantId) {
@@ -800,6 +816,9 @@ const assignes = {
       dateNaissance: "date_naissance", sexe: "sexe",
       adresse: "adresse", zoneResidence: "zone_residence",
       isVisiteur: "is_visiteur",
+      // Ownership transfer (rattacher un assigné existant à un autre dirigeant) —
+      // voir assignesController.attach.
+      dirigeantId: "dirigeant_id",
     };
     if (!isPostgres) {
       const a = memory.assignes.find((x) => x.id === id);
@@ -2097,6 +2116,98 @@ const rapportsHebdo = {
   },
 };
 
+// Pièces jointes des rapports hebdomadaires (ex : photo de la fiche papier).
+// `storagePath` est opaque ici (chemin Supabase Storage ou nom de fichier
+// local) — voir server/src/utils/storage.js pour la résolution en URL.
+const rapportAttachments = {
+  async create({ rapportId, uploaderId, storagePath, mimeType, sizeBytes }) {
+    if (!isPostgres) {
+      const a = {
+        id: newUuid(), rapportId, uploaderId: uploaderId ?? null,
+        storagePath, mimeType, sizeBytes: sizeBytes ?? null,
+        createdAt: new Date().toISOString(),
+      };
+      memory.rapportAttachments.push(a);
+      return a;
+    }
+    const { rows } = await query(
+      `INSERT INTO rapport_hebdo_attachments (rapport_id, uploader_id, storage_path, mime_type, size_bytes)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [rapportId, uploaderId ?? null, storagePath, mimeType, sizeBytes ?? null]
+    );
+    const r = rows[0];
+    return { id: r.id, rapportId: r.rapport_id, uploaderId: r.uploader_id, storagePath: r.storage_path, mimeType: r.mime_type, sizeBytes: r.size_bytes, createdAt: r.created_at };
+  },
+
+  async listByRapport(rapportId) {
+    if (!isPostgres) {
+      return memory.rapportAttachments
+        .filter((a) => a.rapportId === rapportId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    }
+    const { rows } = await query(
+      "SELECT * FROM rapport_hebdo_attachments WHERE rapport_id = $1 ORDER BY created_at ASC",
+      [rapportId]
+    );
+    return rows.map((r) => ({ id: r.id, rapportId: r.rapport_id, uploaderId: r.uploader_id, storagePath: r.storage_path, mimeType: r.mime_type, sizeBytes: r.size_bytes, createdAt: r.created_at }));
+  },
+
+  async findById(id) {
+    if (!isPostgres) return memory.rapportAttachments.find((x) => x.id === id) || null;
+    const { rows } = await query("SELECT * FROM rapport_hebdo_attachments WHERE id = $1", [id]);
+    const r = rows[0];
+    if (!r) return null;
+    return { id: r.id, rapportId: r.rapport_id, uploaderId: r.uploader_id, storagePath: r.storage_path, mimeType: r.mime_type, sizeBytes: r.size_bytes, createdAt: r.created_at };
+  },
+
+  async remove(id) {
+    if (!isPostgres) {
+      memory.rapportAttachments = memory.rapportAttachments.filter((x) => x.id !== id);
+      return;
+    }
+    await query("DELETE FROM rapport_hebdo_attachments WHERE id = $1", [id]);
+  },
+};
+
+// Abonnements Web Push — un par (utilisateur, appareil/navigateur).
+const pushSubscriptions = {
+  async upsert({ userId, endpoint, p256dh, auth }) {
+    if (!isPostgres) {
+      let s = memory.pushSubscriptions.find((x) => x.endpoint === endpoint);
+      if (s) {
+        s.userId = userId; s.p256dh = p256dh; s.auth = auth;
+      } else {
+        s = { id: newUuid(), userId, endpoint, p256dh, auth, createdAt: new Date().toISOString() };
+        memory.pushSubscriptions.push(s);
+      }
+      return s;
+    }
+    const { rows } = await query(
+      `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth
+       RETURNING *`,
+      [userId, endpoint, p256dh, auth]
+    );
+    const r = rows[0];
+    return { id: r.id, userId: r.user_id, endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth };
+  },
+
+  async remove(endpoint) {
+    if (!isPostgres) {
+      memory.pushSubscriptions = memory.pushSubscriptions.filter((x) => x.endpoint !== endpoint);
+      return;
+    }
+    await query("DELETE FROM push_subscriptions WHERE endpoint = $1", [endpoint]);
+  },
+
+  async listByUser(userId) {
+    if (!isPostgres) return memory.pushSubscriptions.filter((x) => x.userId === userId);
+    const { rows } = await query("SELECT * FROM push_subscriptions WHERE user_id = $1", [userId]);
+    return rows.map((r) => ({ id: r.id, userId: r.user_id, endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth }));
+  },
+};
+
 module.exports = {
   isPostgres,
   query,
@@ -2117,6 +2228,8 @@ module.exports = {
   passwordResets,
   connexions,
   rapportsHebdo,
+  rapportAttachments,
+  pushSubscriptions,
   settings,
   ADMIN_ROLES,
   FD_DEPT_NAMES,

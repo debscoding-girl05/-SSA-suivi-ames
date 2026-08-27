@@ -1,8 +1,12 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Download, Send } from 'lucide-react';
 import { createRapportHebdo, updateRapportHebdo, downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
+import ReprendreDerniereFiche from './ReprendreDerniereFiche';
+import RapportAttachments from './RapportAttachments';
+import { fetchOwnAssignes } from './carryForward';
+import { useAuth } from '../../hooks/useAuth';
 
 const DAYS = [
   ['lundi', 'Lun'], ['mardi', 'Mar'], ['mercredi', 'Mer'], ['jeudi', 'Jeu'],
@@ -20,6 +24,13 @@ const emptyRow = () => ({
   presence: Object.fromEntries(PRES.map(([d]) => [d, false])),
   remarques: '',
 });
+// Garde le membre + son téléphone, remet à zéro la semaine (croissance/présence/remarques).
+const resetRow = (r) => ({
+  membre: r.membre || '', telephone: r.telephone || '',
+  croissance: Object.fromEntries(DAYS.map(([d]) => [d, { bible: false, livret: false }])),
+  presence: Object.fromEntries(PRES.map(([d]) => [d, false])),
+  remarques: '',
+});
 
 // Petite case à cocher cliquable.
 function Toggle({ on, onClick, title }) {
@@ -33,6 +44,7 @@ function Toggle({ on, onClick, title }) {
 
 // Fiche de suivi hebdomadaire des choristes (Chorale).
 export default function ChoristesForm({ initial, onSaved }) {
+  const { user } = useAuth();
   const [id, setId] = useState(initial?.id || null);
   const [entete, setEntete] = useState({
     encadreur: initial?.entete?.encadreur || '',
@@ -43,6 +55,18 @@ export default function ChoristesForm({ initial, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [showErrors, setShowErrors] = useState(false);
+
+  // Nouvelle fiche : pré-remplit avec les choristes actuellement assignés.
+  useEffect(() => {
+    if (initial || !user?.id) return;
+    let cancelled = false;
+    fetchOwnAssignes(user.id).then((assignes) => {
+      if (cancelled || !assignes.length) return;
+      const roster = assignes.map((a) => resetRow({ membre: `${a.firstName} ${a.lastName}`.trim(), telephone: a.phone || '' }));
+      setLignes((current) => (current.every((r) => !(r.membre || '').trim()) ? roster : current));
+    });
+    return () => { cancelled = true; };
+  }, [initial, user?.id]);
 
   const encadreurInvalid = !entete.encadreur.trim();
 
@@ -75,6 +99,7 @@ export default function ChoristesForm({ initial, onSaved }) {
   }
 
   async function submit() { const s = await save('soumis'); if (s) setError(''); return s; }
+  async function ensureSavedId() { if (id) return id; const s = await save(initial?.status || 'brouillon'); return s?.id || null; }
   async function downloadCurrent() {
     const s = await save(initial?.status || 'brouillon');
     if (!s) return;
@@ -172,9 +197,12 @@ export default function ChoristesForm({ initial, onSaved }) {
         </table>
       </div>
 
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={addRow}><Plus className="size-4" /> Ajouter un membre</Button>
+        {!id && <ReprendreDerniereFiche type="choristes" currentId={id} resetRow={resetRow} onApply={setLignes} />}
       </div>
+
+      <RapportAttachments rapportId={id} ensureId={ensureSavedId} disabled={initial?.status === 'valide'} />
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
 

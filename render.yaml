@@ -1,15 +1,19 @@
-# Render Blueprint — déploiement gratuit (backend + frontend).
+# Render Blueprint — déploiement (backend + frontend).
 # Doc pas à pas : docs/DEPLOYMENT.md
 #
 # Après « New + → Blueprint » sur render.com, renseigner les variables
 # marquées `sync: false` (secrets / URLs) dans le dashboard.
+#
+# plan: starter ci-dessous suppose un budget mensuel confirmé (~7 $/mois pour
+# ce service, cf. « Plan à budget mensuel » dans docs/DEPLOYMENT.md). Repasser
+# à `plan: free` si le budget redevient ponctuel — rien d'autre à changer.
 
 services:
   # --- API Express (Node) -------------------------------------------------
   - type: web
     name: ssa-api
     runtime: node
-    plan: free            # gratuit : s'endort après ~15 min d'inactivité
+    plan: starter         # 7 $/mois : jamais de mise en veille (cron/notifications fiables)
     region: frankfurt     # au plus près (Europe/Afrique) — ajustable
     rootDir: server
     buildCommand: npm ci
@@ -32,11 +36,29 @@ services:
         sync: false
       - key: APP_URL
         sync: false
-      # Email transactionnel (reset mot de passe) — optionnel au lancement.
+      # Email transactionnel (reset mot de passe, invitations, rappels) —
+      # optionnel au tout premier lancement, mais fortement recommandé.
       - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM
         value: SSA <onboarding@resend.dev>
+      # Stockage des photos de fiche papier (Supabase Storage). Sans ça, les
+      # photos sont perdues au moindre redéploiement (disque non persistant
+      # sur l'offre gratuite Render).
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: rapport-attachments
+      # Notifications push navigateur — générer avec :
+      # npx web-push generate-vapid-keys
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
 
   # --- Frontend React/Vite (site statique, gratuit & toujours en ligne) ---
   - type: web

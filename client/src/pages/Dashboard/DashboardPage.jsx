@@ -6,6 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { Avatar } from '@/components/ui/avatar';
 import StatCard from '../../components/StatCard';
 import ProgressRing from '../../components/ProgressRing';
+import RelanceActions from '../../components/RelanceActions';
 import ObjectifCard from './ObjectifCard';
 
 export default function DashboardPage() {
@@ -102,17 +103,17 @@ export default function DashboardPage() {
           ) : (
             <ul>
               {manquants.slice(0, 6).map((d) => (
-                <li key={d.dirigeantId}>
-                  <Link
-                    to={`/dirigeants/${d.dirigeantId}`}
-                    className="flex items-center gap-3 border-b border-border px-4 py-2.5 transition-colors last:border-0 hover:bg-muted/60"
-                  >
+                <li key={d.dirigeantId} className="flex items-center gap-2 border-b border-border px-4 py-2.5 last:border-0 hover:bg-muted/60">
+                  <Link to={`/dirigeants/${d.dirigeantId}`} className="flex min-w-0 flex-1 items-center gap-3">
                     <Avatar name={d.fullName} size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{d.fullName}</p>
                       <p className="truncate text-xs text-muted-foreground">{d.departmentName || 'Sans département'}</p>
                     </div>
                     <span className="rounded-md bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground">Manquant</span>
+                  </Link>
+                  <RelanceActions phone={d.phone} name={d.fullName} message={`Bonjour ${(d.fullName || '').split(' ').slice(-1)[0]}, un petit rappel pour soumettre votre fiche de cette semaine sur Suivi des Âmes 🙏`} />
+                  <Link to={`/dirigeants/${d.dirigeantId}`} aria-label="Voir la fiche">
                     <ChevronRight className="size-4 text-muted-foreground" />
                   </Link>
                 </li>

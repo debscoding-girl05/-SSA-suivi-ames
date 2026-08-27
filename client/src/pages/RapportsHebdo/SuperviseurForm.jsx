@@ -3,8 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Download, Send } from 'lucide-react';
 import { createRapportHebdo, updateRapportHebdo, downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
+import ReprendreDerniereFiche from './ReprendreDerniereFiche';
+import RapportAttachments from './RapportAttachments';
 
 const emptyRow = () => ({ faiseur: '', telephone: '', nomsAme: '', commentaires: '' });
+const resetRow = (r) => ({ faiseur: r.faiseur || '', telephone: r.telephone || '', nomsAme: r.nomsAme || '', commentaires: '' });
 const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
 
 // Fiche des Superviseurs (Département du Suivi).
@@ -49,6 +52,7 @@ export default function SuperviseurForm({ initial, onSaved }) {
   }
 
   async function submit() { const s = await save('soumis'); if (s) setError(''); return s; }
+  async function ensureSavedId() { if (id) return id; const s = await save(initial?.status || 'brouillon'); return s?.id || null; }
   async function downloadCurrent() {
     const s = await save(initial?.status || 'brouillon');
     if (!s) return;
@@ -115,9 +119,12 @@ export default function SuperviseurForm({ initial, onSaved }) {
         </table>
       </div>
 
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={addRow}><Plus className="size-4" /> Ajouter une ligne</Button>
+        {!id && <ReprendreDerniereFiche type="superviseur" currentId={id} resetRow={resetRow} onApply={setLignes} />}
       </div>
+
+      <RapportAttachments rapportId={id} ensureId={ensureSavedId} disabled={initial?.status === 'valide'} />
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
 

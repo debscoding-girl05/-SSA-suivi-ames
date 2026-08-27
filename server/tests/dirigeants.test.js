@@ -243,6 +243,56 @@ test("10. Assigné RBAC: Jean→Esther 403; Marie→Jean(same dept) 201; Marie�
   assert.equal(marieToEsther.status, 403);
 });
 
+// --- 10b. Assigné duplicate detection + attach (rattacher) -----------------
+test("10b. Assigné duplicate detection (409) + attach transfers ownership without retyping", async () => {
+  const pasteurTok = await pasteurToken();
+  const jean = await findDirigeantByEmail(pasteurTok, "encadreur@ssa.app");
+  const paul = await findDirigeantByEmail(pasteurTok, "paul@ssa.app");
+  const esther = await findDirigeantByEmail(pasteurTok, "esther@ssa.app");
+  const marieTok = await login("leader@ssa.app", "leader1234");
+
+  const phone = "+237 6 13 57 90 21";
+  const created = await api("POST", `/api/dirigeants/${jean.id}/assignes`, marieTok, {
+    firstName: "Doublon", lastName: "Test", phone,
+  });
+  assert.equal(created.status, 201);
+  const assigneId = created.body.id;
+
+  // Same phone under a different dirigeant (same dept, Marie can manage both) → 409.
+  const dup = await api("POST", `/api/dirigeants/${paul.id}/assignes`, marieTok, {
+    firstName: "Autre", lastName: "Saisie", phone,
+  });
+  assert.equal(dup.status, 409);
+  assert.equal(dup.body.code, "DUPLICATE");
+  assert.equal(dup.body.existing.id, assigneId);
+
+  // force:true still allows an intentional duplicate.
+  const forced = await api("POST", `/api/dirigeants/${paul.id}/assignes`, marieTok, {
+    firstName: "Autre", lastName: "Saisie", phone, force: true,
+  });
+  assert.equal(forced.status, 201);
+  await api("DELETE", `/api/dirigeants/${paul.id}/assignes/${forced.body.id}`, marieTok);
+
+  // Attach: rattache le doublon existant à Paul plutôt que de le ressaisir.
+  const attached = await api("POST", `/api/dirigeants/${paul.id}/assignes/attach`, marieTok, {
+    assigneId,
+  });
+  assert.equal(attached.status, 200);
+  assert.equal(attached.body.dirigeantId, paul.id);
+  assert.equal(attached.body.firstName, "Doublon", "identity is preserved, not retyped");
+
+  // Encadreur Jean can't attach someone outside his own scope (Esther, other dept).
+  const jeanTok = await login("encadreur@ssa.app", "encadreur1234");
+  const estherAssignes = await api("GET", `/api/dirigeants/${esther.id}/assignes`, pasteurTok);
+  assert.ok(estherAssignes.body.data.length > 0, "esther should have assignes from seed");
+  const forbidden = await api("POST", `/api/dirigeants/${jean.id}/assignes/attach`, jeanTok, {
+    assigneId: estherAssignes.body.data[0].id,
+  });
+  assert.equal(forbidden.status, 403);
+
+  await api("DELETE", `/api/dirigeants/${paul.id}/assignes/${assigneId}`, marieTok);
+});
+
 // --- 11. PUT dirigeant RBAC ------------------------------------------------
 test("11. PUT /api/dirigeants/:id: encadreur → 403; pasteur (change departmentId) → 200", async () => {
   const pasteurTok = await pasteurToken();
