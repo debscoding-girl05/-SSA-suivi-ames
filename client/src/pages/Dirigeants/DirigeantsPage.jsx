@@ -8,6 +8,7 @@ import { listDirigeants } from '../../api/dirigeants';
 import { listInvitations, revokeInvitation } from '../../api/invitations';
 import { listDepartments } from '../../api/departments';
 import ReportStatusBadge from '../../components/ReportStatusBadge';
+import RelanceActions from '../../components/RelanceActions';
 import EmptyState from '../../components/EmptyState';
 import Modal from '../../components/Modal';
 import DirigeantForm from './DirigeantForm';
@@ -193,26 +194,36 @@ export default function DirigeantsPage() {
               </div>
 
               {g.items.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  onClick={() => navigate(`/dirigeants/${d.id}`)}
-                  className="flex w-full items-center gap-3 border-b border-border px-4 py-2.5 text-left transition-colors last:border-0 hover:bg-muted/50"
-                >
-                  <Avatar name={d.fullName} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{d.fullName}</p>
-                    <p className="truncate text-xs text-muted-foreground">{roleLabel(d.role)}</p>
-                  </div>
-                  {d.isActive === false && (
-                    <span className="hidden shrink-0 rounded-md bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground sm:inline-block">Désactivé</span>
+                <div key={d.id} className="flex items-center gap-2 border-b border-border px-4 py-2.5 last:border-0 hover:bg-muted/50">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/dirigeants/${d.id}`)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  >
+                    <Avatar name={d.fullName} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{d.fullName}</p>
+                      <p className="truncate text-xs text-muted-foreground">{roleLabel(d.role)}</p>
+                    </div>
+                    {d.isActive === false && (
+                      <span className="hidden shrink-0 rounded-md bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground sm:inline-block">Désactivé</span>
+                    )}
+                    <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
+                      <UsersRound className="size-3.5" />{d.assigneCount}
+                    </span>
+                    <ReportStatusBadge status={d.reportStatus === 'soumis' ? 'soumis' : 'manquant'} />
+                  </button>
+                  {d.reportStatus !== 'soumis' && (
+                    <RelanceActions
+                      phone={d.phone}
+                      name={d.fullName}
+                      message={`Bonjour ${(d.fullName || '').split(' ').slice(-1)[0]}, un petit rappel pour soumettre votre fiche de cette semaine sur Suivi des Âmes 🙏`}
+                    />
                   )}
-                  <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
-                    <UsersRound className="size-3.5" />{d.assigneCount}
-                  </span>
-                  <ReportStatusBadge status={d.reportStatus === 'soumis' ? 'soumis' : 'manquant'} />
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                </button>
+                  <button type="button" onClick={() => navigate(`/dirigeants/${d.id}`)} aria-label="Voir la fiche">
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                  </button>
+                </div>
               ))}
             </div>
           ))}

@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Download, Send } from 'lucide-react';
 import { createRapportHebdo, updateRapportHebdo, downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
+import ReprendreDerniereFiche from './ReprendreDerniereFiche';
+import RapportAttachments from './RapportAttachments';
+import { fetchOwnAssignes } from './carryForward';
+import { useAuth } from '../../hooks/useAuth';
 
 const LEGENDE = ['', 'P', 'R', 'A', 'E', 'M'];
 const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
@@ -12,9 +16,16 @@ const emptyRow = () => ({
   m: '', j: '', nuitsPrieres: '', progSpecial: '', dim: '',
   cpSamedi: '', devo: '', service: '', xtere: '',
 });
+// Garde l'ouvrier + son téléphone, remet à zéro l'assiduité de la semaine.
+const resetRow = (r) => ({
+  nom: r.nom || '', telephone: r.telephone || '',
+  m: '', j: '', nuitsPrieres: '', progSpecial: '', dim: '',
+  cpSamedi: '', devo: '', service: '', xtere: '',
+});
 
 // Rapport d'assiduité des ouvriers (Audiovisuel).
 export default function AudiovisuelForm({ initial, onSaved }) {
+  const { user } = useAuth();
   const [id, setId] = useState(initial?.id || null);
   const [entete, setEntete] = useState({
     mois: initial?.entete?.mois || '',
@@ -26,6 +37,18 @@ export default function AudiovisuelForm({ initial, onSaved }) {
   });
   const [lignes, setLignes] = useState(initial?.lignes?.length ? initial.lignes : [emptyRow(), emptyRow(), emptyRow()]);
   const [busy, setBusy] = useState(false);
+
+  // Nouvelle fiche : pré-remplit avec les ouvriers actuellement assignés.
+  useEffect(() => {
+    if (initial || !user?.id) return;
+    let cancelled = false;
+    fetchOwnAssignes(user.id).then((assignes) => {
+      if (cancelled || !assignes.length) return;
+      const roster = assignes.map((a) => resetRow({ nom: `${a.firstName} ${a.lastName}`.trim(), telephone: a.phone || '' }));
+      setLignes((current) => (current.every((r) => !(r.nom || '').trim()) ? roster : current));
+    });
+    return () => { cancelled = true; };
+  }, [initial, user?.id]);
   const [error, setError] = useState('');
   const [showErrors, setShowErrors] = useState(false);
 
@@ -55,6 +78,7 @@ export default function AudiovisuelForm({ initial, onSaved }) {
   }
 
   async function submit() { const s = await save('soumis'); if (s) setError(''); return s; }
+  async function ensureSavedId() { if (id) return id; const s = await save(initial?.status || 'brouillon'); return s?.id || null; }
   async function downloadCurrent() {
     const s = await save(initial?.status || 'brouillon');
     if (!s) return;
@@ -151,9 +175,12 @@ export default function AudiovisuelForm({ initial, onSaved }) {
         </table>
       </div>
 
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={addRow}><Plus className="size-4" /> Ajouter un ouvrier</Button>
+        {!id && <ReprendreDerniereFiche type="audiovisuel" currentId={id} resetRow={resetRow} onApply={setLignes} />}
       </div>
+
+      <RapportAttachments rapportId={id} ensureId={ensureSavedId} disabled={initial?.status === 'valide'} />
 
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         Remarque particulière concernant certains cas

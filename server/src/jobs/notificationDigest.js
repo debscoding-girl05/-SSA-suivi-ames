@@ -1,6 +1,7 @@
 const db = require("../db");
 const config = require("../config/env");
 const { sendEmail } = require("../utils/email");
+const { sendPushToUser } = require("../utils/push");
 const { computeDesired } = require("../controllers/notificationsController");
 
 // Only these roles ever receive notifications in the app (see
@@ -31,15 +32,21 @@ function digestEmailHtml(notifications) {
   `;
 }
 
-// Recalcule et envoie, pour chaque compte concerné, un email récapitulatif
-// des notifications non lues — appelé par le planificateur (voir scheduler.js)
-// 3 fois par semaine. Ne fait rien pour un utilisateur qui n'a aucune
-// notification non lue au moment de l'exécution.
+// Recalcule et envoie, pour chaque compte concerné, un rappel des
+// notifications non lues (email ET/OU push, selon ce que la personne a
+// configuré) — appelé par le planificateur (voir scheduler.js) 3 fois par
+// semaine. Ne fait rien pour un utilisateur qui n'a aucune notification non
+// lue au moment de l'exécution, ni pour un canal non configuré côté serveur
+// (RESEND_API_KEY / VAPID absents — voir email.js / push.js).
 async function runNotificationDigest() {
   const users = await db.users.listAllActive();
-  const targets = users.filter((u) => NOTIFIABLE_ROLES.includes(u.role) && u.email);
+  // Ciblé par rôle uniquement : contrairement à l'email, le push ne dépend
+  // pas d'avoir un email renseigné — on filtre donc par rôle seulement, et
+  // chaque canal décide lui-même s'il a de quoi contacter la personne.
+  const targets = users.filter((u) => NOTIFIABLE_ROLES.includes(u.role));
 
-  let sent = 0;
+  let emailsSent = 0;
+  let pushSent = 0;
   for (const u of targets) {
     try {
       const desired = await computeDesired({ sub: u.id, role: u.role, departmentId: u.departmentId });
@@ -49,22 +56,31 @@ async function runNotificationDigest() {
       const unread = all.filter((n) => !n.isRead);
       if (!unread.length) continue;
 
-      await sendEmail({
-        to: u.email,
-        subject: `[SSA] ${unread.length} notification(s) en attente`,
-        html: digestEmailHtml(unread),
+      if (u.email) {
+        await sendEmail({
+          to: u.email,
+          subject: `[SSA] ${unread.length} notification(s) en attente`,
+          html: digestEmailHtml(unread),
+        });
+        emailsSent += 1;
+      }
+
+      const { sent } = await sendPushToUser(u.id, {
+        title: `SSA — ${unread.length} notification(s) en attente`,
+        body: unread[0].title,
+        url: "/notifications",
       });
-      sent += 1;
+      if (sent) pushSent += 1;
     } catch (error) {
       // Un échec pour une personne ne doit jamais bloquer les autres.
       // eslint-disable-next-line no-console
-      console.error(`[notification-digest] échec pour ${u.email}:`, error.message);
+      console.error(`[notification-digest] échec pour ${u.email || u.id}:`, error.message);
     }
   }
 
   // eslint-disable-next-line no-console
-  console.log(`[notification-digest] terminé — ${sent}/${targets.length} email(s) envoyé(s).`);
-  return { checked: targets.length, sent };
+  console.log(`[notification-digest] terminé — ${emailsSent} email(s), ${pushSent} push(es) envoyé(s) sur ${targets.length} compte(s).`);
+  return { checked: targets.length, emailsSent, pushSent };
 }
 
 module.exports = { runNotificationDigest, digestEmailHtml };

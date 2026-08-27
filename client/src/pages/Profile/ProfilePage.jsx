@@ -1,16 +1,43 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Lock, LogOut, ChevronRight, Phone, Building2 } from 'lucide-react';
+import { Bell, BellRing, Lock, LogOut, ChevronRight, Phone, Building2, Loader2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { roleLabel } from '@/lib/roles';
 import { Avatar } from '@/components/ui/avatar';
 import Modal from '../../components/Modal';
 import ChangePasswordForm from './ChangePasswordForm';
+import { getPushStatus, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [pushStatus, setPushStatus] = useState('checking'); // checking | unsupported | denied | subscribed | not-subscribed
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => getPushStatus().then(setPushStatus).catch(() => setPushStatus('unsupported')), 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  async function togglePush() {
+    setPushError('');
+    setPushBusy(true);
+    try {
+      if (pushStatus === 'subscribed') {
+        await unsubscribeFromPush();
+        setPushStatus('not-subscribed');
+      } else {
+        await subscribeToPush();
+        setPushStatus('subscribed');
+      }
+    } catch (err) {
+      setPushError(err?.message || 'Action impossible.');
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   const rows = [
     { icon: Bell, label: 'Notifications', onClick: () => navigate('/notifications') },
@@ -61,6 +88,41 @@ export default function ProfilePage() {
           </button>
         ))}
       </div>
+
+      {pushStatus !== 'unsupported' && (
+        <div className="flex flex-col gap-1.5 rounded-2xl border border-border bg-card p-4 shadow-card">
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <BellRing className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Notifications sur cet appareil</p>
+              <p className="text-xs text-muted-foreground">
+                {pushStatus === 'denied'
+                  ? 'Bloquées dans les réglages du navigateur.'
+                  : pushStatus === 'subscribed'
+                    ? 'Activées — vous serez prévenu même app fermée.'
+                    : 'Recevez un rappel même sans ouvrir l’appli.'}
+              </p>
+            </div>
+            {pushStatus === 'checking' ? (
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            ) : pushStatus !== 'denied' ? (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={pushStatus === 'subscribed'}
+                onClick={togglePush}
+                disabled={pushBusy}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${pushStatus === 'subscribed' ? 'bg-primary' : 'bg-muted'}`}
+              >
+                <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform ${pushStatus === 'subscribed' ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            ) : null}
+          </div>
+          {pushError && <p role="alert" className="text-xs text-destructive-dark">{pushError}</p>}
+        </div>
+      )}
 
       <button
         type="button"

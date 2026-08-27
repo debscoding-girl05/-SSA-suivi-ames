@@ -1,32 +1,42 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Select } from '@/components/ui/select';
 import { SearchInput } from '@/components/ui/search-input';
-import { Phone, Mail, BookUser } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Phone, Mail, BookUser, ChevronLeft, ChevronRight } from 'lucide-react';
 import { listAnnuaire } from '../../api/annuaire';
 import { listDepartments } from '../../api/departments';
 import EmptyState from '../../components/EmptyState';
 import { Avatar } from '@/components/ui/avatar';
 
+const PAGE_SIZE = 50;
+
 export default function AnnuairePage() {
   const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
 
+  // Une nouvelle recherche/filtre repart toujours de la page 1.
+  const changeSearch = (v) => { setSearch(v); setPage(1); };
+  const changeDepartmentFilter = (v) => { setDepartmentFilter(v); setPage(1); };
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await listAnnuaire({ search, departmentId: departmentFilter });
+      const res = await listAnnuaire({ search, departmentId: departmentFilter, page, pageSize: PAGE_SIZE });
       setData(res.data);
+      setTotal(res.total ?? res.data.length);
     } catch (err) {
       setError(err?.message || 'Chargement impossible.');
     } finally {
       setLoading(false);
     }
-  }, [search, departmentFilter]);
+  }, [search, departmentFilter, page]);
 
   useEffect(() => {
     const t = setTimeout(load, 250);
@@ -49,12 +59,12 @@ export default function AnnuairePage() {
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Annuaire</h1>
-        <p className="text-sm text-muted-foreground">Âmes suivies · {data.length} contact{data.length > 1 ? 's' : ''}</p>
+        <p className="text-sm text-muted-foreground">Âmes suivies · {total} contact{total > 1 ? 's' : ''}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2 shadow-card">
-        <SearchInput value={search} onChange={setSearch} placeholder="Rechercher un nom, un numéro…" className="h-9 min-w-[180px] flex-1 border-0 shadow-none" />
-        <Select value={departmentFilter} onChange={setDepartmentFilter} options={departmentOptions} searchable size="sm" className="w-52" />
+        <SearchInput value={search} onChange={changeSearch} placeholder="Rechercher un nom, un numéro…" className="h-9 min-w-[180px] flex-1 border-0 shadow-none" />
+        <Select value={departmentFilter} onChange={changeDepartmentFilter} options={departmentOptions} searchable size="sm" className="w-52" />
       </div>
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
@@ -95,6 +105,22 @@ export default function AnnuairePage() {
             );
           })}
         </ul>
+      )}
+
+      {!loading && total > PAGE_SIZE && (
+        <div className="flex items-center justify-between gap-2 px-1">
+          <span className="text-xs text-muted-foreground">
+            Page {page} / {Math.ceil(total / PAGE_SIZE)}
+          </span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <ChevronLeft className="size-4" /> Précédent
+            </Button>
+            <Button variant="outline" size="sm" disabled={page * PAGE_SIZE >= total} onClick={() => setPage((p) => p + 1)}>
+              Suivant <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -4,6 +4,8 @@ const db = require("../db");
 const ApiError = require("../utils/ApiError");
 const { validateInvitation, validateAcceptInvitation } = require("../utils/validators");
 const { signToken } = require("../utils/jwt");
+const { sendEmail, invitationEmailHtml } = require("../utils/email");
+const config = require("../config/env");
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
 
@@ -35,9 +37,11 @@ async function create(req, res) {
     }
   }
 
+  let departmentName = null;
   if (payload.departmentId) {
     const dept = await db.departments.findById(payload.departmentId);
     if (!dept) throw ApiError.badRequest("Département introuvable");
+    departmentName = dept.name;
   }
 
   const role = await db.roles.findByName(payload.role);
@@ -53,6 +57,19 @@ async function create(req, res) {
     invitedBy: req.user.sub,
     tokenHash: hashToken(token),
     expiresAt,
+  });
+
+  // Best-effort : l'admin garde de toute façon le lien (copier / WhatsApp /
+  // SMS) affiché côté client, donc un échec d'envoi ne doit jamais faire
+  // échouer la création de l'invitation elle-même.
+  const link = `${config.appUrl}/invitation/${token}`;
+  sendEmail({
+    to: payload.email,
+    subject: "Invitation — Suivi des Âmes",
+    html: invitationEmailHtml({ link, role: payload.role, departmentName }),
+  }).catch((error) => {
+    // eslint-disable-next-line no-console
+    console.error(`[invitation] échec de l'envoi de l'email à ${payload.email}:`, error.message);
   });
 
   res.status(201).json({ ...invitation, token });

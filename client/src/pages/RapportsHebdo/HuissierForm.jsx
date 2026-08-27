@@ -1,15 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Download, Send } from 'lucide-react';
 import { createRapportHebdo, updateRapportHebdo, downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
+import ReprendreDerniereFiche from './ReprendreDerniereFiche';
+import RapportAttachments from './RapportAttachments';
+import { fetchOwnAssignes } from './carryForward';
+import { useAuth } from '../../hooks/useAuth';
 
 const emptyRow = () => ({ nom: '', telephone: '', lieu: '', numeroCulte: '', present: null });
+// Garde l'identité de la personne, efface ce qui change chaque semaine.
+const resetRow = (r) => ({ nom: r.nom || '', telephone: r.telephone || '', lieu: r.lieu || '', numeroCulte: '', present: null });
 
 // Un téléphone valide = uniquement des chiffres (espaces tolérés).
 const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
 
 export default function HuissierForm({ initial, onSaved }) {
+  const { user } = useAuth();
   const [id, setId] = useState(initial?.id || null);
   const [entete, setEntete] = useState({
     departement: initial?.entete?.departement || 'Huissier',
@@ -22,6 +29,20 @@ export default function HuissierForm({ initial, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [showErrors, setShowErrors] = useState(false);
+
+  // Nouvelle fiche : pré-remplit avec la liste actuelle des assignés de
+  // l'auteur — évite de retaper des noms qui sont déjà dans l'annuaire.
+  // Ne touche à rien si l'utilisateur a déjà commencé à saisir une ligne.
+  useEffect(() => {
+    if (initial || !user?.id) return;
+    let cancelled = false;
+    fetchOwnAssignes(user.id).then((assignes) => {
+      if (cancelled || !assignes.length) return;
+      const roster = assignes.map((a) => resetRow({ nom: `${a.firstName} ${a.lastName}`.trim(), telephone: a.phone || '' }));
+      setLignes((current) => (current.every((r) => !(r.nom || '').trim()) ? roster : current));
+    });
+    return () => { cancelled = true; };
+  }, [initial, user?.id]);
 
   // Total de présents calculé automatiquement (cases « P » cochées).
   const totalPresents = useMemo(
@@ -78,6 +99,12 @@ export default function HuissierForm({ initial, onSaved }) {
     if (!saved) return;
     try { await downloadRapportHebdoPdf(saved.id, 'rapport-assiduite'); }
     catch (e) { setError(e?.message || 'Téléchargement impossible.'); }
+  }
+
+  async function ensureSavedId() {
+    if (id) return id;
+    const saved = await save(initial?.status || 'brouillon');
+    return saved?.id || null;
   }
 
   return (
@@ -165,11 +192,14 @@ export default function HuissierForm({ initial, onSaved }) {
         </table>
       </div>
 
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={addRow}>
           <Plus className="size-4" /> Ajouter une ligne
         </Button>
+        {!id && <ReprendreDerniereFiche type="huissier" currentId={id} resetRow={resetRow} onApply={setLignes} />}
       </div>
+
+      <RapportAttachments rapportId={id} ensureId={ensureSavedId} disabled={initial?.status === 'valide'} />
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
 

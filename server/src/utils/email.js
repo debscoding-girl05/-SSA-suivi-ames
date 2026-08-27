@@ -54,4 +54,27 @@ function passwordResetEmailHtml(link) {
   `;
 }
 
-module.exports = { sendEmail, passwordResetEmailHtml };
+function invitationEmailHtml({ link, role, departmentName }) {
+  const roleLabels = {
+    pr: "Première Responsable",
+    leader: "Leader principal",
+    encadreur: "Encadreur",
+    leader_cellule: "Leader de cellule",
+  };
+  const roleText = roleLabels[role] || role;
+  return `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2>Invitation — Suivi des Âmes</h2>
+      <p>Vous avez été invité(e) à rejoindre l'application Suivi des Âmes en tant que
+        <strong>${roleText}</strong>${departmentName ? ` — ${departmentName}` : ""}.</p>
+      <p>
+        <a href="${link}" style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;
+           text-decoration:none;border-radius:8px;">Créer mon compte</a>
+      </p>
+      <p>Ce lien est valable 7 jours et à usage unique.</p>
+      <p>Si vous ne vous attendiez pas à cette invitation, ignorez simplement cet email.</p>
+    </div>
+  `;
+}
+
+module.exports = { sendEmail, passwordResetEmailHtml, invitationEmailHtml };

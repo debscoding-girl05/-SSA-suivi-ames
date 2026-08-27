@@ -74,8 +74,9 @@ export default function DirigeantForm({ onSaved, onCancel }) {
     return (
       <div className="flex flex-col gap-4 p-5">
         <p className="text-sm text-muted-foreground">
-          Invitation créée pour <strong className="text-foreground">{created.email}</strong>.
-          Envoie-lui ce lien — il est valable 7 jours et à usage unique.
+          Invitation créée pour <strong className="text-foreground">{created.email}</strong> — un email
+          vient de lui être envoyé automatiquement. Tu peux aussi lui transmettre ce lien directement ;
+          il est valable 7 jours et à usage unique.
         </p>
         <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5">
           <a href={inviteLink} target="_blank" rel="noopener noreferrer" className="truncate text-sm font-medium text-primary underline-offset-2 hover:underline">

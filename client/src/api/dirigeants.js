@@ -34,8 +34,18 @@ export function reactivateDirigeant(id) {
 }
 
 // Assignés (nested under a dirigeant)
+export function listAssignes(dirigeantId) {
+  return request(`/api/dirigeants/${dirigeantId}/assignes`);
+}
+
 export function createAssigne(dirigeantId, payload) {
   return request(`/api/dirigeants/${dirigeantId}/assignes`, { method: 'POST', body: payload });
+}
+
+// Rattache un assigné déjà existant (trouvé via l'annuaire ou une détection
+// de doublon) à ce dirigeant, sans ressaisir ses informations.
+export function attachAssigne(dirigeantId, assigneId) {
+  return request(`/api/dirigeants/${dirigeantId}/assignes/attach`, { method: 'POST', body: { assigneId } });
 }
 
 export function updateAssigne(dirigeantId, assigneId, payload) {
