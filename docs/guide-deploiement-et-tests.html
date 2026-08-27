@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Guide de déploiement et de test — SSA</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 22mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1530;
+    line-height: 1.5;
+    font-size: 13px;
+    margin: 0;
+  }
+  .cover {
+    padding-top: 60px;
+    text-align: center;
+    page-break-after: always;
+  }
+  .cover .mark {
+    width: 64px; height: 64px; border-radius: 16px;
+    background: #534ab7; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: Georgia, serif; font-size: 26px; font-weight: 600;
+    margin-bottom: 22px;
+  }
+  .cover .church { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6679; margin-bottom: 10px; }
+  .cover h1 { font-family: Georgia, serif; font-weight: 500; font-size: 32px; margin: 0 0 14px; }
+  .cover .sub { font-size: 15px; color: #444; max-width: 440px; margin: 0 auto 30px; }
+  .cover .meta { font-size: 12px; color: #6b6679; margin-top: 40px; }
+  .cover .audience {
+    display: inline-block; margin-top: 26px; padding: 10px 18px;
+    border: 1px solid #d8d4ea; border-radius: 10px; background: #f6f4fb;
+    font-size: 12.5px; color: #3c3489;
+  }
+
+  h2 {
+    font-family: Georgia, serif; font-weight: 500; font-size: 19px;
+    color: #3c3489; margin: 0 0 4px; padding-top: 6px;
+    border-bottom: 2px solid #534ab7; padding-bottom: 8px;
+  }
+  h2 .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #534ab7; color: #fff; font-size: 12px; font-weight: 700;
+    margin-right: 8px; vertical-align: middle;
+  }
+  h3 { font-size: 14px; font-weight: 700; margin: 16px 0 6px; color: #1a1530; }
+  section { margin-bottom: 22px; page-break-inside: avoid; }
+  p { margin: 6px 0; }
+  .lead { color: #444; font-size: 12.5px; margin-bottom: 14px; }
+
+  ol.steps { margin: 8px 0; padding-left: 20px; }
+  ol.steps li { margin-bottom: 8px; }
+  code, .code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    background: #f1eff8; border: 1px solid #e1ddf0; border-radius: 5px;
+    padding: 1px 6px; font-size: 12px; color: #3c3489;
+  }
+  pre.code-block {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    background: #211c33; color: #efebfa; border-radius: 8px;
+    padding: 10px 14px; font-size: 11.5px; overflow-x: auto;
+    margin: 8px 0;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e6e3f0; vertical-align: top; }
+  th { background: #f6f4fb; color: #3c3489; font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+
+  .box { border: 1px solid #e1ddf0; border-radius: 10px; padding: 12px 14px; margin: 10px 0; background: #faf9ff; }
+  .box.warn { background: #fdf3e4; border-color: #f0d9ab; }
+  .box.danger { background: #fbe9e9; border-color: #f0b9b9; }
+  .box .label { font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .box.warn .label { color: #a06a10; }
+  .box.danger .label { color: #a83232; }
+  .box.info .label { color: #3c3489; }
+
+  .checklist { list-style: none; margin: 8px 0; padding: 0; }
+  .checklist li {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 6px 0; border-bottom: 1px dashed #e6e3f0; font-size: 12.5px;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist .box-ch {
+    flex: none; width: 14px; height: 14px; margin-top: 2px;
+    border: 1.5px solid #9187c9; border-radius: 4px;
+  }
+  .checklist b { color: #1a1530; }
+
+  footer { margin-top: 30px; font-size: 10.5px; color: #918da3; border-top: 1px solid #eee; padding-top: 8px; }
+  .two-col { display: flex; gap: 18px; }
+  .two-col > div { flex: 1; }
+  a { color: #3c3489; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="mark">SSA</div>
+  <div class="church">Cathédrale des Signes et Prodiges</div>
+  <h1>Guide de déploiement &amp; de test</h1>
+  <p class="sub">Application Suivi des Âmes — mettre l'application en ligne et vérifier que tout fonctionne, étape par étape.</p>
+  <div class="audience">Destiné à l'équipe technique chargée de la mise en ligne — aucune connaissance en programmation n'est nécessaire, seulement de suivre les étapes dans l'ordre.</div>
+  <p class="meta">Document de travail — août 2026 · Dépôt GitHub : debscoding-girl05/-SSA-suivi-ames (branche <code>main</code>)</p>
+</div>
+
+<section>
+  <h2><span class="num">1</span>Avant de commencer</h2>
+  <p class="lead">Comptez environ 45–60 minutes pour la première mise en ligne. Prévoir :</p>
+  <ul class="checklist">
+    <li><span class="box-ch"></span><div><b>Une carte bancaire internationale</b> (Visa/Mastercard) qui fonctionne depuis le Cameroun, ou une carte virtuelle (ex. Wise) rechargée à l'avance — Render, Supabase et Resend prélèvent automatiquement chaque mois.</div></li>
+    <li><span class="box-ch"></span><div>Un accès au dépôt GitHub du projet (<code>debscoding-girl05/-SSA-suivi-ames</code>).</div></li>
+    <li><span class="box-ch"></span><div>Une adresse email pour créer les comptes Render / Supabase / Resend.</div></li>
+    <li><span class="box-ch"></span><div>Un ordinateur avec un terminal (pour lancer 1–2 commandes fournies plus bas — copier/coller uniquement).</div></li>
+  </ul>
+  <div class="box info">
+    <div class="label">Budget</div>
+    Environ <b>32 $/mois</b> (Render 7 $ + Supabase 25 $) + <b>~12 $/an</b> de nom de domaine. Détail complet et alternative gratuite dans <code>docs/DEPLOYMENT.md</code> du dépôt.
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">2</span>Créer la base de données (Supabase)</h2>
+  <ol class="steps">
+    <li>Compte sur <b>supabase.com</b> → <b>New project</b> (choisir une région proche, ex. Europe).</li>
+    <li>Dans <b>Project Settings → Billing</b>, passer le projet en plan <b>Pro</b> (25 $/mois).</li>
+    <li>Dans <b>Project Settings → Database → Connection string → URI</b>, copier l'adresse. Elle ressemble à :
+      <pre class="code-block">postgresql://postgres:[MOT_DE_PASSE]@db.[REF].supabase.co:5432/postgres</pre>
+      → c'est la valeur de <code>DATABASE_URL</code> (à garder de côté pour l'étape 6).
+    </li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="num">3</span>Créer l'espace de stockage des photos (Supabase Storage)</h2>
+  <ol class="steps">
+    <li>Dans le même projet Supabase : <b>Storage → New bucket</b>.</li>
+    <li>Nom exact : <code>rapport-attachments</code>.</li>
+    <li><b>Public bucket : désactivé</b> (OFF) — ces photos peuvent concerner des personnes suivies, elles ne doivent pas être publiques.</li>
+    <li>Dans <b>Project Settings → API</b>, noter deux valeurs : <code>Project URL</code> (= <code>SUPABASE_URL</code>) et la clé <code>service_role</code> (= <code>SUPABASE_SERVICE_KEY</code>, pas la clé <code>anon</code>).</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="num">4</span>Générer les clés de notifications push</h2>
+  <p>Aucun compte à créer — une seule commande dans le terminal :</p>
+  <pre class="code-block">npx web-push generate-vapid-keys</pre>
+  <p>Copier les deux valeurs affichées (<code>VAPID_PUBLIC_KEY</code> et <code>VAPID_PRIVATE_KEY</code>). Pour <code>VAPID_SUBJECT</code>, utiliser une adresse email de contact au format <code>mailto:contact@exemple.com</code>.</p>
+</section>
+
+<section>
+  <h2><span class="num">5</span>Créer le compte email (Resend)</h2>
+  <ol class="steps">
+    <li>Compte gratuit sur <b>resend.com</b> (gratuit jusqu'à 3 000 emails/mois).</li>
+    <li><b>API Keys → Create API Key</b> → copier la clé (= <code>RESEND_API_KEY</code>).</li>
+    <li>Envoi possible tout de suite depuis l'adresse partagée par défaut. Si l'église a son propre nom de domaine, le vérifier dans <b>Domains → Add Domain</b> pour une meilleure délivrabilité (optionnel, peut se faire plus tard).</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="num">6</span>Déployer sur Render</h2>
+  <ol class="steps">
+    <li>Compte sur <b>render.com</b>, puis <b>connecter le compte GitHub</b> du projet.</li>
+    <li><b>New + → Blueprint</b> → sélectionner le dépôt <code>-SSA-suivi-ames</code>. Render détecte automatiquement le fichier <code>render.yaml</code> et propose de créer deux services : <code>ssa-api</code> (le serveur) et <code>ssa-web</code> (le site).</li>
+    <li>Avant de valider, renseigner les champs demandés pour <code>ssa-api</code> :</li>
+  </ol>
+  <table>
+    <tr><th>Variable</th><th>Valeur</th></tr>
+    <tr><td><code>DATABASE_URL</code></td><td>copiée à l'étape 2</td></tr>
+    <tr><td><code>SUPABASE_URL</code> / <code>SUPABASE_SERVICE_KEY</code></td><td>copiées à l'étape 3</td></tr>
+    <tr><td><code>VAPID_PUBLIC_KEY</code> / <code>VAPID_PRIVATE_KEY</code> / <code>VAPID_SUBJECT</code></td><td>générées à l'étape 4</td></tr>
+    <tr><td><code>RESEND_API_KEY</code></td><td>copiée à l'étape 5</td></tr>
+    <tr><td><code>CORS_ORIGIN</code> / <code>APP_URL</code></td><td>laisser vide pour l'instant → étape 7</td></tr>
+  </table>
+  <p>Pour <code>ssa-web</code>, laisser <code>VITE_API_URL</code> vide pour l'instant.</p>
+</section>
+
+<section>
+  <h2><span class="num">7</span>Relier les deux adresses</h2>
+  <p class="lead">Render donne une adresse à chaque service (ex. <code>https://ssa-api.onrender.com</code> et <code>https://ssa-web.onrender.com</code>) — elles doivent se connaître mutuellement :</p>
+  <ol class="steps">
+    <li>Noter les deux adresses réelles affichées dans le tableau de bord Render.</li>
+    <li>Sur <b>ssa-web</b> : régler <code>VITE_API_URL</code> = adresse de <b>ssa-api</b>, puis <b>Manual Deploy</b>.</li>
+    <li>Sur <b>ssa-api</b> : régler <code>CORS_ORIGIN</code> et <code>APP_URL</code> = adresse de <b>ssa-web</b> (redéploiement automatique).</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="num">8</span>Créer le premier compte (Pasteur)</h2>
+  <p>Sur Render, ouvrir l'onglet <b>Shell</b> du service <code>ssa-api</code>, puis coller (en remplaçant l'email, le mot de passe et le nom) :</p>
+  <pre class="code-block">npm run create-pasteur -- pasteur@exemple.com "UnMotDePasseSolide!23" "Nom du Pasteur"</pre>
+  <div class="box danger">
+    <div class="label">Important</div>
+    Ne jamais utiliser <code>npm run seed</code> sur le vrai site : cette commande crée aussi des comptes de démonstration avec des mots de passe visibles publiquement. Utiliser uniquement <code>create-pasteur</code>.
+  </div>
+  <p>Une fois connecté avec ce compte, inviter le reste de l'équipe depuis <b>Dirigeants → Inviter un dirigeant</b> — chacun reçoit un lien par email pour créer son propre compte.</p>
+</section>
+
+<div style="page-break-before: always;"></div>
+
+<section>
+  <h2><span class="num">9</span>Checklist de test — à faire après chaque mise en ligne</h2>
+  <p class="lead">À cocher un par un. Si une case ne passe pas, voir « En cas de problème » à la fin.</p>
+
+  <h3>Accès de base</h3>
+  <ul class="checklist">
+    <li><span class="box-ch"></span><div><code>https://votre-api.onrender.com/health</code> répond <code>{"status":"ok","database":{"backend":"postgres"}}</code>.</div></li>
+    <li><span class="box-ch"></span><div>Le site s'ouvre, la connexion avec le compte Pasteur fonctionne, le tableau de bord affiche des données.</div></li>
+  </ul>
+
+  <h3>Départements et équipe</h3>
+  <ul class="checklist">
+    <li><span class="box-ch"></span><div>Créer un département de test dans <b>Départements</b>.</div></li>
+    <li><span class="box-ch"></span><div>Inviter un dirigeant de test — l'email d'invitation arrive bien (pas seulement visible dans les logs Render).</div></li>
+    <li><span class="box-ch"></span><div>Le lien d'invitation permet de créer un compte et de se connecter.</div></li>
+  </ul>
+
+  <h3>Annuaire et assignés</h3>
+  <ul class="checklist">
+    <li><span class="box-ch"></span><div>Ajouter un assigné (une âme suivie) à un dirigeant depuis sa fiche.</div></li>
+    <li><span class="box-ch"></span><div>Dans le formulaire d'ajout, taper un nom déjà existant dans « Déjà dans l'annuaire ? » → il apparaît, et « Rattacher à moi » fonctionne sans avoir à ressaisir les informations.</div></li>
+    <li><span class="box-ch"></span><div>La page <b>Annuaire</b> affiche le total de contacts et les boutons Précédent/Suivant si plus de 50 résultats.</div></li>
+  </ul>
+
+  <h3>Fiches hebdomadaires</h3>
+  <ul class="checklist">
+    <li><span class="box-ch"></span><div>Créer une nouvelle fiche (Choristes, Audiovisuel, Huissier ou Faiseur de Disciples) → les noms des assignés apparaissent déjà pré-remplis.</div></li>
+    <li><span class="box-ch"></span><div>Ajouter une photo (« Photo de la fiche papier ») → elle s'affiche en miniature ; recharger la page → la photo est toujours là (preuve que le stockage Supabase fonctionne, pas juste le disque temporaire du serveur).</div></li>
+    <li><span class="box-ch"></span><div>Télécharger le PDF de la fiche → le fichier s'ouvre correctement, avec les bonnes informations.</div></li>
+  </ul>
+
+  <h3>Relances et notifications</h3>
+  <ul class="checklist">
+    <li><span class="box-ch"></span><div>Sur le tableau de bord, la liste « À relancer » propose un bouton Appeler / WhatsApp à côté de chaque dirigeant en retard.</div></li>
+    <li><span class="box-ch"></span><div>Dans <b>Profil</b>, activer « Notifications sur cet appareil » → la permission du navigateur est demandée et acceptée.</div></li>
+    <li><span class="box-ch"></span><div>Depuis le Shell Render, lancer <code>npm run digest:test</code> → une notification apparaît sur l'appareil qui a activé le push, même onglet fermé.</div></li>
+  </ul>
+
+  <h3>Sécurité</h3>
+  <ul class="checklist">
+    <li><span class="box-ch"></span><div>Se connecter avec un compte encadreur et vérifier qu'il ne voit <b>que</b> ses propres assignés (pas ceux des autres).</div></li>
+    <li><span class="box-ch"></span><div>Changer le mot de passe du compte Pasteur depuis <b>Profil</b> (indispensable si <code>create-pasteur</code> a été fait avec un mot de passe provisoire).</div></li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">10</span>En cas de problème</h2>
+  <table>
+    <tr><th>Symptôme</th><th>À vérifier</th></tr>
+    <tr><td>Le site met 30–60 secondes à répondre au premier chargement</td><td>Normal si le plan Render est resté sur « Free ». Vérifier que <code>ssa-api</code> est bien sur le plan <b>Starter</b>.</td></tr>
+    <tr><td>Les photos de fiches disparaissent après quelques jours</td><td><code>SUPABASE_URL</code> / <code>SUPABASE_SERVICE_KEY</code> mal renseignées → les photos sont alors stockées sur le disque temporaire de Render, qui s'efface.</td></tr>
+    <tr><td>Les emails n'arrivent jamais</td><td>Vérifier <code>RESEND_API_KEY</code> sur Render, et regarder les logs du service <code>ssa-api</code> (onglet <b>Logs</b>) pour un message commençant par <code>[email]</code>.</td></tr>
+    <tr><td>Les notifications push n'arrivent pas</td><td>Vérifier que les 3 variables <code>VAPID_*</code> sont bien renseignées et identiques à celles générées à l'étape 4 (elles ne doivent jamais changer une fois des personnes abonnées).</td></tr>
+    <tr><td>Erreur de connexion à la base de données</td><td>Vérifier <code>DATABASE_URL</code> (mot de passe correctement recopié) et que <code>DATABASE_SSL=true</code> est bien réglé.</td></tr>
+  </table>
+  <p style="margin-top:14px;">Pour le détail technique complet (coûts, alternative gratuite, évolution du plan), voir <code>docs/DEPLOYMENT.md</code> dans le dépôt du projet.</p>
+</section>
+
+<footer>
+  Suivi des Âmes — Cathédrale des Signes et Prodiges · Guide généré pour l'équipe de déploiement · Dépôt : github.com/debscoding-girl05/-SSA-suivi-ames
+</footer>
+
+</body>
+</html>
