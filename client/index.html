@@ -12,7 +12,10 @@
     <meta name="color-scheme" content="light" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- .json plutôt que .webmanifest : Render sert ce dernier en
+         binary/octet-stream et le site renvoie X-Content-Type-Options:
+         nosniff — le navigateur refusait donc de lire le manifeste. -->
+    <link rel="manifest" href="/manifest.json" />
 
     <!-- iOS ignore le manifest pour l'icône d'accueil : il lui faut un PNG. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
