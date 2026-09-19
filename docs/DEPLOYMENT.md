@@ -5,6 +5,40 @@ Objectif : mettre l'application en ligne de façon fiable, avec un budget
 plus bas. `render.yaml` est déjà réglé sur cette base ; repasser en gratuit
 reste possible (un seul champ à changer) si le budget redevient ponctuel.
 
+## Production actuelle
+
+Les services réellement en ligne ne portent pas les noms d'exemple du
+blueprint (`ssa-api` / `ssa-web`) — ils ont été créés à la main :
+
+| Rôle | URL |
+|---|---|
+| Frontend | https://ssa-suivi-ames-frontend.onrender.com |
+| API | https://ssa-suivi-ames-backend.onrender.com |
+
+Contrôles rapides :
+
+```bash
+curl -s https://ssa-suivi-ames-backend.onrender.com/health
+# → {"status":"ok","database":{"backend":"postgres","ok":true}}
+```
+
+Le frontend doit être construit avec
+`VITE_API_URL=https://ssa-suivi-ames-backend.onrender.com` et l'API doit avoir
+`CORS_ORIGIN=https://ssa-suivi-ames-frontend.onrender.com`.
+
+### Compatibilité iPhone / Safari
+
+`vite.config.js` fixe explicitement `build.target`. Sans ça, Vite 8 compile
+par défaut pour `safari16.4 / ios16.4` : tout iPhone resté sous iOS 16.4
+(iPhone 7, 6s, SE 1re génération — bloqués sur iOS 15) recevait un bundle
+qu'il ne savait pas interpréter, donc **une page blanche**. Ne pas retirer ce
+réglage.
+
+L'application est installable (`manifest.webmanifest` + `apple-touch-icon`).
+Sur iPhone, les **notifications push ne fonctionnent que depuis l'icône de
+l'écran d'accueil** (Partager → « Sur l'écran d'accueil »), jamais depuis un
+onglet Safari : c'est une limite d'iOS, pas un défaut de l'application.
+
 ## Architecture
 
 | Brique | Hébergeur | Plan | Remarque |

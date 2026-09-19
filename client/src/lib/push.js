@@ -11,10 +11,33 @@ export function pushSupported() {
   return 'serviceWorker' in navigator && 'PushManager' in window;
 }
 
+// iPhone / iPad : Safari n'expose PushManager QUE dans une PWA installée sur
+// l'écran d'accueil (iOS 16.4+). Dans un onglet classique, l'API est absente —
+// il ne s'agit donc pas d'un « non supporté » définitif, mais d'un « à
+// installer ». On distingue les deux pour pouvoir guider l'utilisateur.
+export function isIos() {
+  const ua = navigator.userAgent || '';
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    // iPadOS 13+ se déclare « Macintosh » mais expose le tactile.
+    (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+  );
+}
+
+export function isStandalone() {
+  return (
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    // Propriété historique propre à Safari iOS.
+    window.navigator.standalone === true
+  );
+}
+
 // Statut actuel de l'abonnement sur CET appareil (pas au niveau du compte —
 // chaque navigateur/téléphone a son propre abonnement).
 export async function getPushStatus() {
-  if (!pushSupported()) return 'unsupported';
+  if (!pushSupported()) {
+    return isIos() && !isStandalone() ? 'needs-install' : 'unsupported';
+  }
   if (Notification.permission === 'denied') return 'denied';
   const reg = await navigator.serviceWorker.getRegistration();
   const sub = await reg?.pushManager.getSubscription();

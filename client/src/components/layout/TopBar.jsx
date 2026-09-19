@@ -9,7 +9,9 @@ export default function TopBar() {
   const { user } = useAuth();
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card/85 px-4 py-3 backdrop-blur-md md:hidden">
+    // pt-[env(safe-area-inset-top)] : en PWA installée sur iPhone, la page
+    // passe sous la barre d'état — sans ce retrait le logo est masqué.
+    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card/85 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md md:hidden">
       <div className="flex items-center gap-2">
         <div className="flex size-8 items-center justify-center rounded-lg bg-primary-gradient text-primary-foreground shadow-primary">
           <HeartHandshake className="size-4" />

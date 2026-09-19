@@ -100,14 +100,16 @@ export default function ProfilePage() {
               <p className="text-xs text-muted-foreground">
                 {pushStatus === 'denied'
                   ? 'Bloquées dans les réglages du navigateur.'
-                  : pushStatus === 'subscribed'
-                    ? 'Activées — vous serez prévenu même app fermée.'
-                    : 'Recevez un rappel même sans ouvrir l’appli.'}
+                  : pushStatus === 'needs-install'
+                    ? 'Sur iPhone : touchez Partager puis « Sur l’écran d’accueil », et rouvrez l’appli depuis l’icône pour les activer.'
+                    : pushStatus === 'subscribed'
+                      ? 'Activées — vous serez prévenu même app fermée.'
+                      : 'Recevez un rappel même sans ouvrir l’appli.'}
               </p>
             </div>
             {pushStatus === 'checking' ? (
               <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            ) : pushStatus !== 'denied' ? (
+            ) : pushStatus !== 'denied' && pushStatus !== 'needs-install' ? (
               <button
                 type="button"
                 role="switch"

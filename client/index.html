@@ -1,10 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
+    <title>Suivi des Âmes — Cathédrale des Signes et Prodiges</title>
+    <meta name="description" content="Le suivi pastoral de la Cathédrale des Signes et Prodiges, centralisé et en temps réel." />
+
+    <!-- viewport-fit=cover + les safe-area-inset du CSS : évite que la barre
+         d'onglets de Safari iOS recouvre la navigation du bas. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#534ab7" />
+    <meta name="color-scheme" content="light" />
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>client</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- iOS ignore le manifest pour l'icône d'accueil : il lui faut un PNG. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Suivi des Âmes" />
   </head>
   <body>
     <div id="root"></div>
