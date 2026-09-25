@@ -26,6 +26,8 @@ function generateTempPassword() {
 }
 
 const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
+// Lecture globale (Pasteur, PR, Secrétaire du pasteur) — pas un « dirigeant ».
+const readsAll = (role) => db.READ_ALL_ROLES.includes(role);
 
 // Public projection of a dirigeant — never leak passwordHash.
 const toPublic = (d) => ({
@@ -36,6 +38,8 @@ const toPublic = (d) => ({
   role: d.role,
   departmentId: d.departmentId,
   departmentName: d.departmentName,
+  leaderId: d.leaderId ?? null,
+  leaderName: d.leaderName ?? null,
 });
 
 // RBAC visibility scope (CDC Annexe D):
@@ -43,14 +47,14 @@ const toPublic = (d) => ({
 //  - Leader        → son département
 //  - Encadreur / Leader de cellule → lui-même uniquement
 function scopeFor(user) {
-  if (isAdmin(user.role)) return undefined;
+  if (readsAll(user.role)) return undefined;
   if (user.role === "leader") return { departmentId: user.departmentId ?? -1 };
   return { selfId: user.sub };
 }
 
 // Can the requesting user see this dirigeant's detail?
 function canView(user, dirigeant) {
-  if (isAdmin(user.role)) return true;
+  if (readsAll(user.role)) return true;
   if (user.role === "leader") {
     return user.departmentId != null && dirigeant.departmentId === user.departmentId;
   }
@@ -73,8 +77,8 @@ async function list(req, res) {
 // GET /api/dirigeants/:id — detail + assignés + report history.
 async function getOne(req, res) {
   const dirigeant = await db.dirigeants.findById(req.params.id);
-  if (!dirigeant || isAdmin(dirigeant.role)) throw ApiError.notFound("Dirigeant introuvable");
-  if (!canView(req.user, dirigeant)) throw ApiError.notFound("Dirigeant introuvable");
+  if (!dirigeant || readsAll(dirigeant.role)) throw ApiError.notFound("Responsable introuvable");
+  if (!canView(req.user, dirigeant)) throw ApiError.notFound("Responsable introuvable");
 
   const [assignes, fiches, reports] = await Promise.all([
     db.assignes.listByDirigeant(dirigeant.id),
@@ -91,12 +95,41 @@ async function getOne(req, res) {
       role: dirigeant.role,
       departmentId: dirigeant.departmentId,
       departmentName: dirigeant.departmentName,
+      leaderId: dirigeant.leaderId ?? null,
+      leaderName: dirigeant.leaderName ?? null,
       isActive: dirigeant.isActive,
     },
     assignes,
     fiches,
     reports,
   });
+}
+
+// Le leader d'un encadreur doit être un compte leader actif — idéalement du
+// même département, mais on ne l'impose pas (un leader peut encadrer des
+// personnes d'un département voisin).
+async function checkLeader(leaderId) {
+  if (!leaderId) return;
+  const leader = await db.users.findById(leaderId);
+  if (!leader || leader.role !== "leader") throw ApiError.badRequest("Leader introuvable");
+}
+
+// GET /api/dirigeants/equipe — l'équipe du leader connecté : les encadreurs
+// dont il est responsable et tous les membres suivis (les siens + ceux de ses
+// encadreurs). Sert l'accueil du leader.
+async function equipe(req, res) {
+  if (req.user.role !== "leader") throw ApiError.forbidden("Réservé aux leaders");
+  const { year, week } = parseWeek(req.query);
+  const encadreurs = await db.dirigeants.list({
+    year, week, team: { leaderId: req.user.sub, departmentId: req.user.departmentId ?? null },
+  });
+  const ids = [req.user.sub, ...encadreurs.map((e) => e.id)];
+  const { rows: membres, total } = await db.assignes.listAll({
+    scope: { dirigeantIds: ids },
+    search: req.query.search,
+    limit: Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 100)),
+  });
+  res.json({ encadreurs, membres, membresTotal: total, week: { year, week } });
 }
 
 // POST /api/dirigeants — Pasteur/PR create a new account (leader, encadreur,
@@ -106,6 +139,10 @@ async function getOne(req, res) {
 // dirigeant directly. It is never stored in plaintext nor retrievable again.
 async function create(req, res) {
   const payload = validateNewDirigeant(req.body);
+  // Comptes « bureau » (PR, Secrétaire) : gérés par le Pasteur seul (CDC Annexe D).
+  if (["pr", "secretaire"].includes(payload.role) && req.user.role !== "pasteur") {
+    throw ApiError.forbidden("Seul le Pasteur peut créer un compte PR ou Secrétaire");
+  }
 
   const existing = await db.users.findByEmail(payload.email);
   if (existing) throw ApiError.conflict("Un compte existe déjà avec cet email");
@@ -117,6 +154,7 @@ async function create(req, res) {
 
   const role = await db.roles.findByName(payload.role);
   if (!role) throw ApiError.badRequest("Rôle introuvable");
+  await checkLeader(payload.leaderId);
 
   const tempPassword = generateTempPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 12);
@@ -128,6 +166,7 @@ async function create(req, res) {
     phone: payload.phone,
     roleId: role.id,
     departmentId: payload.departmentId,
+    leaderId: payload.leaderId,
   });
 
   res.status(201).json({
@@ -138,6 +177,8 @@ async function create(req, res) {
     role: u.role,
     departmentId: u.departmentId,
     departmentName: u.departmentName,
+    leaderId: u.leaderId,
+    leaderName: u.leaderName,
     tempPassword,
   });
 }
@@ -146,7 +187,7 @@ async function create(req, res) {
 // it (CDC EF-05). The account can no longer log in; its history is kept.
 async function deactivate(req, res) {
   const existing = await db.dirigeants.findById(req.params.id);
-  if (!existing || isAdmin(existing.role)) throw ApiError.notFound("Dirigeant introuvable");
+  if (!existing || isAdmin(existing.role)) throw ApiError.notFound("Responsable introuvable");
 
   const u = await db.dirigeants.setActive(req.params.id, false);
   res.json({ id: u.id, fullName: u.fullName, isActive: u.isActive });
@@ -155,7 +196,7 @@ async function deactivate(req, res) {
 // POST /api/dirigeants/:id/reactivate — restore access to a deactivated account.
 async function reactivate(req, res) {
   const existing = await db.dirigeants.findById(req.params.id);
-  if (!existing || isAdmin(existing.role)) throw ApiError.notFound("Dirigeant introuvable");
+  if (!existing || isAdmin(existing.role)) throw ApiError.notFound("Responsable introuvable");
 
   const u = await db.dirigeants.setActive(req.params.id, true);
   res.json({ id: u.id, fullName: u.fullName, isActive: u.isActive });
@@ -164,15 +205,22 @@ async function reactivate(req, res) {
 // PUT /api/dirigeants/:id — Pasteur/PR edit profile (name, phone, department).
 async function update(req, res) {
   const existing = await db.dirigeants.findById(req.params.id);
-  if (!existing || isAdmin(existing.role)) throw ApiError.notFound("Dirigeant introuvable");
+  if (!existing || isAdmin(existing.role)) throw ApiError.notFound("Responsable introuvable");
 
   const payload = validateDirigeant(req.body);
   if (payload.departmentId) {
     const dept = await db.departments.findById(payload.departmentId);
     if (!dept) throw ApiError.badRequest("Département introuvable");
   }
+  if (payload.leaderId !== undefined) {
+    if (payload.leaderId && existing.role !== "encadreur") {
+      throw ApiError.badRequest("Seul un encadreur peut être rattaché à un leader");
+    }
+    if (payload.leaderId === existing.id) throw ApiError.badRequest("Un compte ne peut pas être son propre leader");
+    await checkLeader(payload.leaderId);
+  }
   const u = await db.dirigeants.update(req.params.id, payload);
   res.json(toPublic(u));
 }
 
-module.exports = { list, getOne, create, update, deactivate, reactivate, canView, isAdmin };
+module.exports = { list, equipe, getOne, create, update, deactivate, reactivate, canView, isAdmin };

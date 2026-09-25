@@ -150,7 +150,7 @@ export default function RapportForm({ dirigeantId, mode = 'edit', onSaved, onCan
       {/* Reviewer comment */}
       {isReview && (
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="comment" className="text-sm font-medium">Commentaire au dirigeant</label>
+          <label htmlFor="comment" className="text-sm font-medium">Commentaire au leader</label>
           <textarea id="comment" rows={2} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Obligatoire pour une demande de correction" className={TEXTAREA} />
         </div>
       )}

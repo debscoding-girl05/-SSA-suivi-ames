@@ -63,7 +63,7 @@ function AnnuaireSearch({ dirigeantId, onAttached }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{m.firstName} {m.lastName}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {m.phone || m.email || 'Sans contact'}{m.dirigeantName ? ` · actuellement suivi par ${m.dirigeantName}` : ''}
+                  {m.phone || 'Sans numéro'}{m.dirigeantName ? ` · actuellement suivi par ${m.dirigeantName}` : ''}
                 </p>
               </div>
               <Button type="button" size="sm" variant="outline" disabled={attachingId === m.id} onClick={() => attach(m)}>
@@ -84,10 +84,7 @@ export default function AssigneForm({ dirigeantId, assigne, onSaved, onCancel })
     firstName: assigne?.firstName || '',
     lastName: assigne?.lastName || '',
     phone: assigne?.phone || '',
-    email: assigne?.email || '',
-    dateNaissance: assigne?.dateNaissance || '',
     sexe: assigne?.sexe || '',
-    adresse: assigne?.adresse || '',
     zoneResidence: assigne?.zoneResidence || '',
     notes: assigne?.notes || '',
   });
@@ -159,16 +156,6 @@ export default function AssigneForm({ dirigeantId, assigne, onSaved, onCancel })
           <Input id="phone" type="tel" inputMode="tel" value={form.phone} onChange={setField('phone')} />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="email" className={LABEL}>Email</label>
-          <Input id="email" type="email" value={form.email} onChange={setField('email')} />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="dateNaissance" className={LABEL}>Date de naissance</label>
-          <Input id="dateNaissance" type="date" value={form.dateNaissance} onChange={setField('dateNaissance')} />
-        </div>
-        <div className="flex flex-col gap-1.5">
           <label htmlFor="sexe" className={LABEL}>Sexe</label>
           <select id="sexe" value={form.sexe} onChange={setField('sexe')} className={TEXTAREA}>
             <option value="">—</option>
@@ -176,10 +163,6 @@ export default function AssigneForm({ dirigeantId, assigne, onSaved, onCancel })
             <option value="F">Féminin</option>
           </select>
         </div>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="adresse" className={LABEL}>Adresse</label>
-        <Input id="adresse" value={form.adresse} onChange={setField('adresse')} />
       </div>
       <div className="flex flex-col gap-1.5">
         <label htmlFor="zoneResidence" className={LABEL}>Zone de résidence</label>

@@ -65,7 +65,7 @@ async function create(req, res) {
   const link = `${config.appUrl}/invitation/${token}`;
   sendEmail({
     to: payload.email,
-    subject: "Invitation — Suivi des Âmes",
+    subject: "Invitation — CSP-SSA",
     html: invitationEmailHtml({ link, role: payload.role, departmentName }),
   }).catch((error) => {
     // eslint-disable-next-line no-console

@@ -6,7 +6,7 @@ const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
 
 async function loadDirigeant(id) {
   const dirigeant = await db.dirigeants.findById(id);
-  if (!dirigeant || isAdmin(dirigeant.role)) throw ApiError.notFound("Dirigeant introuvable");
+  if (!dirigeant || isAdmin(dirigeant.role)) throw ApiError.notFound("Responsable introuvable");
   return dirigeant;
 }
 

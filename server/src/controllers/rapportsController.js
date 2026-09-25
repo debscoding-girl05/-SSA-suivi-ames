@@ -4,17 +4,20 @@ const { validateRapport } = require("../utils/validators");
 const { parseWeek } = require("../utils/week");
 
 const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
+// Lecture (vue d'ensemble, consultation d'une fiche) : la Secrétaire du
+// pasteur lit tout ; la validation reste réservée à isAdmin / au leader.
+const readsAll = (role) => db.READ_ALL_ROLES.includes(role);
 const PRESENCE_STATUS = ["present", "absent", "justifie"];
 
 function scopeFor(user) {
-  if (isAdmin(user.role)) return undefined;
+  if (readsAll(user.role)) return undefined;
   if (user.role === "leader") return { departmentId: user.departmentId ?? -1 };
   return { selfId: user.sub };
 }
 
 // Can `user` view a dirigeant's fiche? self, admin, or leader of same dept.
 function canViewDirigeant(user, dirigeant) {
-  if (isAdmin(user.role)) return true;
+  if (readsAll(user.role)) return true;
   if (user.sub === dirigeant.id) return true;
   if (user.role === "leader") return user.departmentId != null && dirigeant.departmentId === user.departmentId;
   return false;
@@ -68,7 +71,7 @@ async function mine(req, res) {
 // GET /api/rapports/fiche/:dirigeantId?year&week — a dirigeant's fiche (reviewer/self).
 async function getFiche(req, res) {
   const dirigeant = await db.dirigeants.findById(req.params.dirigeantId);
-  if (!dirigeant || isAdmin(dirigeant.role)) throw ApiError.notFound("Dirigeant introuvable");
+  if (!dirigeant || isAdmin(dirigeant.role)) throw ApiError.notFound("Responsable introuvable");
   if (!canViewDirigeant(req.user, dirigeant)) throw ApiError.forbidden("Accès refusé");
 
   const { year, week } = parseWeek(req.query);
@@ -87,7 +90,7 @@ async function submit(req, res) {
   }
 
   const dirigeant = await db.dirigeants.findById(targetId);
-  if (!dirigeant || isAdmin(dirigeant.role)) throw ApiError.badRequest("Dirigeant invalide");
+  if (!dirigeant || isAdmin(dirigeant.role)) throw ApiError.badRequest("Responsable invalide");
 
   // Lock: the author cannot edit a fiche awaiting review or already validated.
   if (isSelf && !isAdmin(req.user.role)) {
@@ -125,7 +128,7 @@ async function doReview(req, res, action) {
   }
 
   const dirigeant = await db.dirigeants.findById(fiche.dirigeantId);
-  if (!dirigeant) throw ApiError.notFound("Dirigeant introuvable");
+  if (!dirigeant) throw ApiError.notFound("Responsable introuvable");
   if (!canReview(req.user, dirigeant)) throw ApiError.forbidden("Vous ne pouvez pas valider cette fiche");
 
   const comment = typeof req.body.comment === "string" ? req.body.comment.trim() : "";

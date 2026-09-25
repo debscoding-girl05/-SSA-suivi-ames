@@ -1,0 +1,13 @@
+{
+  "name": "ssa-e2e",
+  "private": true,
+  "description": "Tests de bout en bout (Playwright) — démarre l'API en mémoire + le client Vite",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56"
+  }
+}

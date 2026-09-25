@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, X, Loader2 } from 'lucide-react';
+import { Camera, ImageUp, X, Loader2 } from 'lucide-react';
 import { listRapportAttachments, uploadRapportAttachment, deleteRapportAttachment, fetchRapportAttachmentUrl } from '../../api/rapportsHebdo';
 
 // Vignette : va chercher l'image (endpoint protégé par token) et affiche un
@@ -55,12 +55,15 @@ function Thumb({ rapportId, attachment, onDelete, disabled }) {
 // `ensureId` : si le rapport n'a pas encore d'id (brouillon jamais
 // enregistré), sauvegarde d'abord et renvoie l'id — même logique que le
 // téléchargement PDF dans chaque formulaire.
-export default function RapportAttachments({ rapportId, ensureId, disabled }) {
+// Deux entrées : « Prendre une photo » ouvre directement l'appareil photo sur
+// mobile (capture), « Importer une image » ouvre la galerie / les fichiers.
+export default function RapportAttachments({ rapportId, ensureId, disabled, title = 'Photo de la fiche papier' }) {
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
-  const inputRef = useRef(null);
+  const cameraRef = useRef(null);
+  const importRef = useRef(null);
 
   const load = useCallback((id) => {
     if (!id) return;
@@ -74,16 +77,18 @@ export default function RapportAttachments({ rapportId, ensureId, disabled }) {
   }, [rapportId, load]);
 
   async function handleFile(e) {
-    const file = e.target.files?.[0];
+    const files = [...(e.target.files || [])];
     e.target.value = '';
-    if (!file) return;
+    if (!files.length) return;
     setError('');
     setUploading(true);
     try {
       const id = rapportId || (await ensureId?.());
       if (!id) { setError('Enregistrez la fiche avant d’ajouter une photo.'); return; }
-      const saved = await uploadRapportAttachment(id, file);
-      setAttachments((list) => [...list, saved]);
+      for (const file of files) {
+        const saved = await uploadRapportAttachment(id, file);
+        setAttachments((list) => [...list, saved]);
+      }
       if (!rapportId) load(id);
     } catch (err) {
       setError(err?.message || "L'envoi de la photo a échoué.");
@@ -92,21 +97,30 @@ export default function RapportAttachments({ rapportId, ensureId, disabled }) {
     }
   }
 
+  // Lecture seule sans aucune photo : rien à montrer.
+  if (disabled && !loading && attachments.length === 0) return null;
+
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm font-medium">Photo de la fiche papier</p>
+      <p className="text-sm font-medium">{title}</p>
       <div className="flex flex-wrap items-center gap-2">
         {attachments.map((a) => (
           <Thumb key={a.id} rapportId={rapportId} attachment={a} disabled={disabled} onDelete={(id) => setAttachments((list) => list.filter((x) => x.id !== id))} />
         ))}
         {loading && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
         {!disabled && (
-          <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
-            {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />}
-            {uploading ? 'Envoi…' : 'Ajouter une photo'}
-          </Button>
+          <>
+            <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => cameraRef.current?.click()}>
+              {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />}
+              {uploading ? 'Envoi…' : 'Prendre une photo'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => importRef.current?.click()}>
+              <ImageUp className="size-3.5" /> Importer une image
+            </Button>
+          </>
         )}
-        <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+        <input ref={importRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFile} />
       </div>
       {error && <p role="alert" className="text-xs text-destructive-dark">{error}</p>}
     </div>

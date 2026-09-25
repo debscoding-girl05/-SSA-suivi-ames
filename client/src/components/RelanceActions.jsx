@@ -14,7 +14,7 @@ export default function RelanceActions({ phone, name, message, size = 'sm' }) {
   const waNumber = digits.startsWith('237') ? digits : digits.startsWith('0') ? `237${digits.slice(1)}` : digits;
 
   const firstName = (name || '').trim().split(/\s+/)[0] || '';
-  const text = message || `Bonjour${firstName ? ' ' + firstName : ''}, un petit rappel pour la fiche de cette semaine sur Suivi des Âmes 🙏`;
+  const text = message || `Bonjour${firstName ? ' ' + firstName : ''}, un petit rappel pour la fiche de cette semaine sur CSP-SSA 🙏`;
   const iconSize = size === 'sm' ? 'size-3.5' : 'size-4';
   const btnSize = size === 'sm' ? 'size-8' : 'size-9';
 

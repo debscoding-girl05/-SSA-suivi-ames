@@ -158,7 +158,7 @@ async function forgotPassword(req, res) {
     const link = `${config.appUrl}/reset-password/${token}`;
     await sendEmail({
       to: user.email,
-      subject: "Réinitialisation de votre mot de passe — Suivi des Âmes",
+      subject: "Réinitialisation de votre mot de passe — CSP-SSA",
       html: passwordResetEmailHtml(link),
     });
   }

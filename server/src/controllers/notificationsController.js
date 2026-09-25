@@ -8,10 +8,17 @@ const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
 const RH_LABELS = {
   huissier: "rapport d'assiduité",
   faiseur_disciples: "rapport du faiseur de disciples",
-  superviseur: "fiche des superviseurs",
+  superviseur: "fiche des encadreurs",
   cellule_priere: "rapport de cellule de prière",
   choristes: "fiche de suivi hebdomadaire des choristes",
   audiovisuel: "rapport d'assiduit\u00e9 des ouvriers",
+  leader_mensuel: "rapport mensuel du leader",
+};
+
+// Mois courant au format AAAA-MM (clé de la fiche mensuelle du leader).
+const currentMonth = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 const weeksSince = (iso) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / (7 * 24 * 3600 * 1000)) : null);
 
@@ -57,6 +64,17 @@ async function computeDesired(user) {
       } else if (d.reportStatus === "soumis") {
         desired.push({ dedupKey: `valider:${d.id}:${wk}`, type: "a_valider", title: "Fiche à valider", message: `${d.fullName} a soumis sa fiche.`, link: "/fiches" });
       }
+    }
+  }
+
+  // 2a. Leader : fiche mensuelle à remettre au Pasteur (rappel à partir du 25).
+  if (user.role === "leader" && new Date().getDate() >= 25) {
+    const mois = currentMonth();
+    let mine = [];
+    try { mine = await db.rapportsHebdo.list({ type: "leader_mensuel", scope: { authorId: user.sub } }); } catch { mine = []; }
+    const done = mine.some((r) => r.entete?.mois === mois && (r.status === "soumis" || r.status === "valide"));
+    if (!done) {
+      desired.push({ dedupKey: `self_mensuel:${mois}`, type: "fiche_manquante", title: "Fiche mensuelle à remettre", message: "Pensez à remettre votre rapport mensuel au Pasteur avant la fin du mois.", link: "/rapports-hebdo" });
     }
   }
 
@@ -106,7 +124,7 @@ async function computeDesired(user) {
       desired.push({
         dedupKey: `rh_soumis:${rh.id}`,
         type: "rapport_soumis",
-        title: "Rapport hebdomadaire soumis",
+        title: rh.type === "leader_mensuel" ? "Rapport mensuel soumis" : "Rapport hebdomadaire soumis",
         message: `${nom} a soumis : ${label}${dept ? " — " + dept : ""}.`,
         link: "/rapports",
       });

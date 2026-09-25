@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath, URL } from 'node:url'
+import process from 'node:process'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -10,6 +11,11 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
+  },
+  // Relais « /api » local : reproduit la règle de réécriture de Render, pour
+  // tester le mode « même domaine » (build sans VITE_API_URL) avec vite preview.
+  preview: {
+    proxy: { '/api': { target: process.env.SSA_API_TARGET || 'http://localhost:3000', changeOrigin: true } },
   },
   build: {
     // Vite 8 cible par défaut `safari16.4 / ios16.4` : tout iPhone resté sous

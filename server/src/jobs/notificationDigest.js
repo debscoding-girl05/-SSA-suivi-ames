@@ -59,14 +59,14 @@ async function runNotificationDigest() {
       if (u.email) {
         await sendEmail({
           to: u.email,
-          subject: `[SSA] ${unread.length} notification(s) en attente`,
+          subject: `[CSP-SSA] ${unread.length} notification(s) en attente`,
           html: digestEmailHtml(unread),
         });
         emailsSent += 1;
       }
 
       const { sent } = await sendPushToUser(u.id, {
-        title: `SSA — ${unread.length} notification(s) en attente`,
+        title: `CSP-SSA — ${unread.length} notification(s) en attente`,
         body: unread[0].title,
         url: "/notifications",
       });

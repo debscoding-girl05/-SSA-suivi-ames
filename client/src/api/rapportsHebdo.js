@@ -1,6 +1,6 @@
-import { request, getToken } from './client';
+import { request, getToken, BASE_URL } from './client';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Même adresse d'API que le reste de l'appli (voir client.js).
 
 export function listRapportsHebdo(params = {}) {
   const qs = new URLSearchParams();

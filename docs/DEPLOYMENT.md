@@ -22,9 +22,44 @@ curl -s https://ssa-suivi-ames-backend.onrender.com/health
 # → {"status":"ok","database":{"backend":"postgres","ok":true}}
 ```
 
-Le frontend doit être construit avec
-`VITE_API_URL=https://ssa-suivi-ames-backend.onrender.com` et l'API doit avoir
-`CORS_ORIGIN=https://ssa-suivi-ames-frontend.onrender.com`.
+L'API doit avoir `CORS_ORIGIN=https://ssa-suivi-ames-frontend.onrender.com`.
+
+### Accès sur données mobiles : API sur le même domaine que le site
+
+Symptôme corrigé : l'appli s'ouvrait en Wi-Fi mais pas sur données mobiles.
+Avec l'API sur un autre domaine, chaque appel est « cross-site » : requête
+CORS préalable (OPTIONS) puis filtrage anti-robots de Cloudflare appliqué au
+domaine de l'API. Les réseaux mobiles partagent une même adresse IP entre des
+milliers d'abonnés (CGNAT) : ce sont elles que Cloudflare met le plus souvent
+en « vérification », ce qui passe pour l'ouverture d'une page mais fait
+échouer les appels d'API. Le site relaie donc désormais `/api/*` vers l'API :
+le téléphone ne parle plus qu'à un seul domaine.
+
+Réglage dans le dashboard Render (services créés à la main, le blueprint ne
+s'applique pas) — **dans cet ordre** :
+
+1. Service **ssa-suivi-ames-frontend** → *Redirects/Rewrites* → ajouter, **au-dessus**
+   de la règle `/*` → `/index.html` :
+   - Source : `/api/*`
+   - Destination : `https://ssa-suivi-ames-backend.onrender.com/api/*`
+   - Action : **Rewrite**
+2. Vérifier que le relais répond (doit renvoyer du JSON, pas une page HTML) :
+   ```bash
+   curl -s https://ssa-suivi-ames-frontend.onrender.com/api/push/public-key
+   ```
+3. Service **ssa-suivi-ames-frontend** → *Environment* → **supprimer**
+   `VITE_API_URL`, puis *Manual Deploy → Clear build cache & deploy*.
+   Sans cette variable, le build de production appelle l'API sur son propre
+   domaine (`/api/…`).
+4. Vérifier dans le bundle publié qu'il n'y a plus l'URL de l'API :
+   ```bash
+   curl -s https://ssa-suivi-ames-frontend.onrender.com/login | grep -o '/assets/index-[^"]*\.js'
+   # puis : curl -s https://ssa-suivi-ames-frontend.onrender.com/assets/<fichier>.js | grep -c ssa-suivi-ames-backend   → 0
+   ```
+
+Tant que l'étape 3 n'est pas faite, l'appli continue d'appeler l'API
+directement (comportement actuel) : l'ordre 1 → 3 évite toute coupure.
+Pour revenir en arrière, remettre `VITE_API_URL` et redéployer.
 
 ### Compatibilité iPhone / Safari
 

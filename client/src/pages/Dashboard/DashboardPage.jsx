@@ -8,6 +8,7 @@ import StatCard from '../../components/StatCard';
 import ProgressRing from '../../components/ProgressRing';
 import RelanceActions from '../../components/RelanceActions';
 import ObjectifCard from './ObjectifCard';
+import LeaderEquipe from './LeaderEquipe';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -63,6 +64,7 @@ export default function DashboardPage() {
       </div>
 
       {user?.role === 'pasteur' && <ObjectifCard />}
+      {user?.role === 'leader' && <LeaderEquipe />}
 
       {/* Hero — taux de soumission */}
       <div className="flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-soft">
@@ -84,7 +86,7 @@ export default function DashboardPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-3">
-        <StatCard icon={Users} tint="violet" value={s?.total ?? 0} label="Dirigeants" />
+        <StatCard icon={Users} tint="violet" value={s?.total ?? 0} label="Leaders" />
         <StatCard icon={Check} tint="emerald" value={rendues} label="Rendues" />
         <StatCard icon={AlertCircle} tint="rose" value={enRetard} label="À relancer" />
       </div>
@@ -112,7 +114,7 @@ export default function DashboardPage() {
                     </div>
                     <span className="rounded-md bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground">Manquant</span>
                   </Link>
-                  <RelanceActions phone={d.phone} name={d.fullName} message={`Bonjour ${(d.fullName || '').split(' ').slice(-1)[0]}, un petit rappel pour soumettre votre fiche de cette semaine sur Suivi des Âmes 🙏`} />
+                  <RelanceActions phone={d.phone} name={d.fullName} message={`Bonjour ${(d.fullName || '').split(' ').slice(-1)[0]}, un petit rappel pour soumettre votre fiche de cette semaine sur CSP-SSA 🙏`} />
                   <Link to={`/dirigeants/${d.dirigeantId}`} aria-label="Voir la fiche">
                     <ChevronRight className="size-4 text-muted-foreground" />
                   </Link>

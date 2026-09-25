@@ -5,7 +5,7 @@ import { Home, Users, Building2, BookUser, ClipboardCheck, FileText, Sparkles, H
 // mobile bottom bar (kept in the desktop sidebar only).
 export const NAV_ITEMS = [
   { to: '/dashboard', label: 'Accueil', icon: Home },
-  { to: '/dirigeants', label: 'Dirigeants', icon: Users, mobile: false },
+  { to: '/dirigeants', label: 'Leaders', icon: Users, mobile: false },
   { to: '/departements', label: 'Départements', icon: Building2, mobile: false },
   { to: '/annuaire', label: 'Annuaire', icon: BookUser },
   { to: '/nouveaux-venus', label: 'Nouveaux venus', icon: Sparkles, roles: ['pasteur', 'pr', 'leader', 'encadreur'], mobile: false },

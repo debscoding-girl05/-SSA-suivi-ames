@@ -10,7 +10,7 @@ const FIELD =
 // Quick registration of a nouveau venu (CDC: < 2 min).
 export default function NouveauVenuForm({ onSaved, onCancel }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', sexe: '', dateNaissance: '', zoneResidence: '', firstSeenAt: today, isVisiteur: false });
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', sexe: '', zoneResidence: '', firstSeenAt: today, isVisiteur: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [duplicate, setDuplicate] = useState(null); // existing contact on a 409
@@ -63,15 +63,9 @@ export default function NouveauVenuForm({ onSaved, onCancel }) {
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="dn" className={LABEL}>Date de naissance</label>
-          <Input id="dn" type="date" value={form.dateNaissance} onChange={setField('dateNaissance')} />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="zr" className={LABEL}>Zone de résidence</label>
-          <Input id="zr" value={form.zoneResidence} onChange={setField('zoneResidence')} />
-        </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="zr" className={LABEL}>Zone de résidence</label>
+        <Input id="zr" value={form.zoneResidence} onChange={setField('zoneResidence')} />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">

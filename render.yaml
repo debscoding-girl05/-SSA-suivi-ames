@@ -67,12 +67,17 @@ services:
     rootDir: client
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
-    envVars:
-      # URL publique de l'API (ci-dessus). Ex : https://ssa-api.onrender.com
-      - key: VITE_API_URL
-        sync: false
+    # PAS de VITE_API_URL en production : l'appli appelle « /api/… » sur son
+    # propre domaine et la règle ci-dessous relaie vers l'API. Un seul domaine
+    # pour le téléphone = pas de requête CORS préalable ni de filtrage séparé
+    # du domaine de l'API — ce qui bloquait l'appli sur données mobiles.
     routes:
-      # SPA : toute route inconnue → index.html
+      # 1) API relayée (doit précéder la règle SPA). Adapter l'URL si l'API
+      #    ne s'appelle pas ssa-api.
+      - type: rewrite
+        source: /api/*
+        destination: https://ssa-api.onrender.com/api/*
+      # 2) SPA : toute autre route → index.html
       - type: rewrite
         source: /*
         destination: /index.html

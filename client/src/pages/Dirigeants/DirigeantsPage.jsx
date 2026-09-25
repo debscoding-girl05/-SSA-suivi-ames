@@ -12,6 +12,7 @@ import RelanceActions from '../../components/RelanceActions';
 import EmptyState from '../../components/EmptyState';
 import Modal from '../../components/Modal';
 import DirigeantForm from './DirigeantForm';
+import CreateAccountForm from './CreateAccountForm';
 import { Avatar } from '@/components/ui/avatar';
 import { roleLabel, isAdminRole } from '@/lib/roles';
 import { useAuth } from '../../hooks/useAuth';
@@ -35,6 +36,7 @@ export default function DirigeantsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState(searchParams.get('departmentId') || '');
   const [modalOpen, setModalOpen] = useState(false);
+  const [addMode, setAddMode] = useState('create'); // 'create' | 'invite'
   const [invites, setInvites] = useState([]);
 
   const loadInvites = useCallback(() => {
@@ -124,7 +126,7 @@ export default function DirigeantsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dirigeants</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Leaders</h1>
           <p className="text-sm text-muted-foreground">Leaders &amp; encadreurs, par département</p>
         </div>
         {!loading && data.length > 0 && (
@@ -135,7 +137,7 @@ export default function DirigeantsPage() {
         )}
         {canCreate && (
           <Button onClick={() => setModalOpen(true)}>
-            <Plus className="size-4" /> Inviter un dirigeant
+            <Plus className="size-4" /> Ajouter un compte
           </Button>
         )}
       </div>
@@ -179,7 +181,7 @@ export default function DirigeantsPage() {
       {loading ? (
         <div className="h-72 animate-pulse rounded-2xl border border-border bg-card" />
       ) : filtered.length === 0 ? (
-        <EmptyState icon={Users} title="Aucun dirigeant trouvé" description="Ajustez votre recherche ou vos filtres." />
+        <EmptyState icon={Users} title="Aucun leader trouvé" description="Ajustez votre recherche ou vos filtres." />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
           {groups.map((g) => (
@@ -203,7 +205,7 @@ export default function DirigeantsPage() {
                     <Avatar name={d.fullName} size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{d.fullName}</p>
-                      <p className="truncate text-xs text-muted-foreground">{roleLabel(d.role)}</p>
+                      <p className="truncate text-xs text-muted-foreground">{roleLabel(d.role)}{d.leaderName ? ` · leader : ${d.leaderName}` : ''}</p>
                     </div>
                     {d.isActive === false && (
                       <span className="hidden shrink-0 rounded-md bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground sm:inline-block">Désactivé</span>
@@ -217,7 +219,7 @@ export default function DirigeantsPage() {
                     <RelanceActions
                       phone={d.phone}
                       name={d.fullName}
-                      message={`Bonjour ${(d.fullName || '').split(' ').slice(-1)[0]}, un petit rappel pour soumettre votre fiche de cette semaine sur Suivi des Âmes 🙏`}
+                      message={`Bonjour ${(d.fullName || '').split(' ').slice(-1)[0]}, un petit rappel pour soumettre votre fiche de cette semaine sur CSP-SSA 🙏`}
                     />
                   )}
                   <button type="button" onClick={() => navigate(`/dirigeants/${d.id}`)} aria-label="Voir la fiche">
@@ -230,8 +232,20 @@ export default function DirigeantsPage() {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Inviter un dirigeant">
-        <DirigeantForm onSaved={() => { setModalOpen(false); load(); loadInvites(); }} onCancel={() => setModalOpen(false)} />
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Ajouter un compte">
+        <div className="flex gap-1" role="tablist">
+          {[['create', 'Créer le compte'], ['invite', 'Inviter par lien']].map(([k, label]) => (
+            <button key={k} type="button" role="tab" aria-selected={addMode === k} onClick={() => setAddMode(k)}
+              className={`min-h-[40px] flex-1 rounded-lg border px-3 text-sm font-medium ${addMode === k ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-muted'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {addMode === 'create' ? (
+          <CreateAccountForm onSaved={() => { setModalOpen(false); load(); }} onCancel={() => setModalOpen(false)} />
+        ) : (
+          <DirigeantForm onSaved={() => { setModalOpen(false); load(); loadInvites(); }} onCancel={() => setModalOpen(false)} />
+        )}
       </Modal>
     </div>
   );

@@ -8,15 +8,24 @@ import RapportAttachments from './RapportAttachments';
 import { fetchOwnAssignes } from './carryForward';
 import { useAuth } from '../../hooks/useAuth';
 
+// Colonnes, ordre et libellés de la fiche papier officielle.
 const DAYS = [
-  ['lundi', 'Lun'], ['mardi', 'Mar'], ['mercredi', 'Mer'], ['jeudi', 'Jeu'],
-  ['vendredi', 'Ven'], ['samedi', 'Sam'], ['dimanche', 'Dim'],
+  ['lundi', 'Lundi'], ['mardi', 'Mardi'], ['mercredi', 'Mercredi'], ['jeudi', 'Jeudi'],
+  ['vendredi', 'Vendredi'], ['samedi', 'Samedi'], ['dimanche', 'Dimanche'],
 ];
 const PRES = [
-  ['mardi', 'Mardi'], ['jeudi', 'Jeudi'], ['dimanche', 'Dim.'], ['vendredi', 'Ven. (nuit)'],
+  ['mardi', 'Mardi'], ['jeudi', 'Jeudi'],
+  ['vendredi', 'Vendredi (nuit de solutions ou nuit de prière des ouvriers)'], ['dimanche', 'Dimanche'],
 ];
-const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
-const dayBg = (i) => ({ backgroundColor: i % 2 === 0 ? '#efedfb' : '#d7d1f4' });
+// Chiffres, espaces et « + » initial, plus une précision entre parenthèses —
+// ex. « +237 690 60 77 13 (parent) ».
+const phoneHasInvalid = (v) => /[^0-9\s]/.test(String(v || '').replace(/\([^)]*\)/g, '').replace(/^\s*\+/, ''));
+// En-têtes gris / noir alternés comme sur la fiche imprimée.
+const GREY = '#595959';
+const BLACK = '#161616';
+const headBg = (i) => ({ backgroundColor: i % 2 === 0 ? GREY : BLACK, color: '#fff' });
+const HEAD = { backgroundColor: GREY, color: '#fff' };
+const BAND = { backgroundColor: '#3f3f3f', color: '#fff' };
 
 const emptyRow = () => ({
   membre: '', telephone: '',
@@ -47,7 +56,7 @@ export default function ChoristesForm({ initial, onSaved }) {
   const { user } = useAuth();
   const [id, setId] = useState(initial?.id || null);
   const [entete, setEntete] = useState({
-    encadreur: initial?.entete?.encadreur || '',
+    encadreur: initial?.entete?.encadreur || (initial ? '' : user?.fullName || ''),
     groupe: initial?.entete?.groupe || '',
     date: initial?.entete?.date || '',
   });
@@ -111,7 +120,7 @@ export default function ChoristesForm({ initial, onSaved }) {
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Encadreur <span className="text-destructive-dark">*</span>
+          <span>Encadreur <span className="text-destructive-dark">*</span></span>
           <Input value={entete.encadreur} onChange={(e) => setEntete({ ...entete, encadreur: e.target.value })}
             className={showErrors && encadreurInvalid ? 'border-destructive-dark focus-visible:ring-destructive-dark' : ''} />
         </label>
@@ -131,29 +140,30 @@ export default function ChoristesForm({ initial, onSaved }) {
 
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="text-sm">
-          <thead className="bg-muted/40 text-xs text-muted-foreground">
+          <thead className="text-xs">
             <tr>
-              <th rowSpan={3} className="px-2 py-1.5 sticky left-0 bg-muted/40">N°</th>
-              <th rowSpan={3} className="px-2 py-1.5 min-w-[130px] text-left">Membres</th>
-              <th rowSpan={3} className="px-2 py-1.5 min-w-[110px] text-left">Téléphone</th>
-              <th colSpan={DAYS.length * 2} className="px-2 py-1 text-center uppercase tracking-wide">Croissance spirituelle</th>
-              <th colSpan={PRES.length} className="px-2 py-1 text-center uppercase tracking-wide">Présence à l'église</th>
-              <th rowSpan={3} className="px-2 py-1.5 min-w-[120px] text-left">Remarques</th>
+              <th rowSpan={3} style={HEAD} className="px-2 py-1.5 sticky left-0 border border-black">N°</th>
+              <th rowSpan={3} style={HEAD} className="px-2 py-1.5 min-w-[140px] border border-black">Membres</th>
+              <th rowSpan={3} style={HEAD} className="px-2 py-1.5 min-w-[120px] border border-black">Téléphone</th>
+              <th colSpan={DAYS.length * 2} style={BAND} className="px-2 py-1 text-center font-bold uppercase tracking-wide border border-black">Croissance spirituelle</th>
+              <th rowSpan={3} aria-hidden className="w-2 bg-black p-0" />
+              <th colSpan={PRES.length} style={BAND} className="px-2 py-1 text-center font-bold uppercase tracking-wide border border-black">Présence à l'église</th>
+              <th rowSpan={3} style={HEAD} className="px-2 py-1.5 min-w-[130px] border border-black">Remarques</th>
               <th rowSpan={3} className="px-2 py-1.5"></th>
             </tr>
             <tr>
               {DAYS.map(([d, lbl], i) => (
-                <th key={d} colSpan={2} style={dayBg(i)} className="px-1 py-1 text-center border-l border-border font-semibold text-foreground">{lbl}</th>
+                <th key={d} colSpan={2} style={headBg(i)} className="px-1 py-1 text-center font-bold border border-black">{lbl}</th>
               ))}
-              {PRES.map(([d, lbl]) => (
-                <th key={d} rowSpan={2} className="px-1 py-1 text-center border-l border-border">{lbl}</th>
+              {PRES.map(([d, lbl], i) => (
+                <th key={d} rowSpan={2} style={headBg(i)} className={`px-1 py-1 text-center font-semibold border border-black ${d === 'vendredi' ? 'min-w-[120px] text-[10px] leading-tight' : ''}`}>{lbl}</th>
               ))}
             </tr>
             <tr>
               {DAYS.map(([d], i) => (
                 <Fragment key={d}>
-                  <th style={dayBg(i)} className="px-1 py-0.5 text-center border-l border-border">Bible</th>
-                  <th style={dayBg(i)} className="px-1 py-0.5 text-center">Livret</th>
+                  <th style={headBg(i)} className="px-1 py-0.5 text-center text-[10px] border border-black">Bible</th>
+                  <th style={headBg(i)} className="px-1 py-0.5 text-center text-[10px] border border-black">Livret</th>
                 </Fragment>
               ))}
             </tr>
@@ -171,14 +181,15 @@ export default function ChoristesForm({ initial, onSaved }) {
                   </td>
                   {DAYS.map(([d], di) => (
                     <Fragment key={d}>
-                      <td style={dayBg(di)} className="px-0.5 py-1.5 border-l border-border text-center">
-                        <Toggle on={!!r.croissance[d]?.bible} onClick={() => toggleCroissance(i, d, 'bible')} title="Bible" />
+                      <td className="px-0.5 py-1.5 border-l border-border text-center">
+                        <Toggle on={!!r.croissance[d]?.bible} onClick={() => toggleCroissance(i, d, 'bible')} title={`Bible — ${DAYS[di][1]}`} />
                       </td>
-                      <td style={dayBg(di)} className="px-0.5 py-1.5 text-center">
+                      <td className="px-0.5 py-1.5 text-center">
                         <Toggle on={!!r.croissance[d]?.livret} onClick={() => toggleCroissance(i, d, 'livret')} title="Livret" />
                       </td>
                     </Fragment>
                   ))}
+                  <td aria-hidden className="bg-black p-0" />
                   {PRES.map(([d]) => (
                     <td key={d} className="px-1 py-1.5 border-l border-border text-center">
                       <Toggle on={!!r.presence?.[d]} onClick={() => togglePresence(i, d)} title="Présent" />
