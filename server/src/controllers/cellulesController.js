@@ -9,7 +9,7 @@ const str = (v) => (typeof v === "string" ? v.trim() : "");
 function scopeFor(user) {
   if (isAdmin(user.role)) return undefined;
   if (user.role === "leader_cellule") return { leaderId: user.sub };
-  return { leaderId: "__none__" }; // autres rôles : aucune cellule
+  return null; // autres rôles : aucune cellule
 }
 
 function canManage(user, cellule) {
@@ -25,7 +25,11 @@ async function loadCellule(id) {
 // GET /api/cellules
 async function list(req, res) {
   const { year, week } = currentWeek();
-  const data = await db.cellules.list({ year, week, scope: scopeFor(req.user) });
+  const scope = scopeFor(req.user);
+  // Pas de cellule pour ce rôle : on répond vide sans interroger la base (un
+  // faux identifiant « __none__ » faisait planter Postgres, colonne UUID).
+  if (scope === null) return res.json({ data: [] });
+  const data = await db.cellules.list({ year, week, scope });
   res.json({ data });
 }
 
