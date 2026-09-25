@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ClipboardList, Plus, Download, Trash2, Pencil, ChevronRight, Check } from 'lucide-react';
+import { ClipboardList, Plus, Download, Trash2, Pencil, ChevronRight, Check, Camera, ImageUp, PenLine, ArrowLeft } from 'lucide-react';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import { listRapportsHebdo, getRapportHebdo, deleteRapportHebdo, downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
 import { useAuth } from '../../hooks/useAuth';
-import { RH_TYPES, rhLabel } from './types';
+import { rhTypesFor, rhLabel } from './types';
+import { readsAllRole } from '@/lib/roles';
 import HuissierForm from './HuissierForm';
 import FaiseurDisciplesForm from './FaiseurDisciplesForm';
 import SuperviseurForm from './SuperviseurForm';
 import CellulePriereForm from './CellulePriereForm';
 import ChoristesForm from './ChoristesForm';
 import AudiovisuelForm from './AudiovisuelForm';
+import LeaderMensuelForm from './LeaderMensuelForm';
+import PhotoFicheForm from './PhotoFicheForm';
 
 // Registre des formulaires par type.
 const FORMS = {
@@ -21,16 +24,19 @@ const FORMS = {
   cellule_priere: CellulePriereForm,
   choristes: ChoristesForm,
   audiovisuel: AudiovisuelForm,
+  leader_mensuel: LeaderMensuelForm,
 };
 
 export default function RapportsHebdoPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'pasteur' || user?.role === 'pr';
+  const isAdmin = readsAllRole(user?.role);
+  const types = rhTypesFor(user?.role);
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [picker, setPicker] = useState(false);       // choix du type (création)
+  const [pickedType, setPickedType] = useState(null); // 2e étape : photo / import / saisie
   const [modal, setModal] = useState(null);           // { type, report? }
   const [toast, setToast] = useState('');             // message de succès éphémère
 
@@ -52,14 +58,26 @@ export default function RapportsHebdoPage() {
 
   function handleSaved(saved, status) {
     load();
+    if (!saved) { setModal(null); return; } // fiche photo gardée en brouillon
     if (status === 'soumis') {
       setModal(null);
-      setToast('Fiche soumise avec succès');
-      setTimeout(() => setToast(''), 2500);
+      const a = saved.annuaire;
+      const extra = a && (a.added || a.existing)
+        ? ` · ${a.added} personne${a.added > 1 ? 's' : ''} ajoutée${a.added > 1 ? 's' : ''} à l'annuaire${a.existing ? `, ${a.existing} déjà présente${a.existing > 1 ? 's' : ''}` : ''}`
+        : '';
+      setToast(`Fiche soumise avec succès${extra}`);
+      setTimeout(() => setToast(''), 4000);
     }
   }
 
-  function startCreate(type) { setPicker(false); setModal({ type }); }
+  function openPicker() { setPickedType(null); setPicker(true); }
+  function startManual(type) { setPicker(false); setModal({ type }); }
+  function startPhoto(type, fileList) {
+    const files = [...(fileList || [])];
+    if (!files.length) return;
+    setPicker(false);
+    setModal({ type, photoFiles: files });
+  }
 
   async function openEdit(row) {
     try {
@@ -93,9 +111,9 @@ export default function RapportsHebdoPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Rapports hebdomadaires</h1>
-          <p className="text-sm text-muted-foreground">Fiches structurées par département, exportables en PDF.</p>
+          <p className="text-sm text-muted-foreground">Fiches hebdomadaires par département et rapports mensuels des leaders, exportables en PDF.</p>
         </div>
-        <Button onClick={() => setPicker(true)}>
+        <Button onClick={openPicker}>
           <Plus className="size-4" /> Nouveau rapport
         </Button>
       </div>
@@ -106,7 +124,7 @@ export default function RapportsHebdoPage() {
         <div className="h-40 animate-pulse rounded-2xl border border-border bg-card" />
       ) : data.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Aucun rapport" description="Créez votre premier rapport hebdomadaire."
-          action={<Button size="sm" onClick={() => setPicker(true)}><Plus className="size-4" /> Nouveau rapport</Button>} />
+          action={<Button size="sm" onClick={openPicker}><Plus className="size-4" /> Nouveau rapport</Button>} />
       ) : (
         <ul className="flex flex-col gap-2">
           {data.map((r) => (
@@ -134,11 +152,35 @@ export default function RapportsHebdoPage() {
       )}
 
       {/* Choix du type de fiche */}
-      <Modal open={picker} onClose={() => setPicker(false)} title="Quel type de rapport ?">
+      <Modal open={picker} onClose={() => setPicker(false)} title={pickedType ? rhLabel(pickedType) : 'Quel type de rapport ?'}>
+        {pickedType ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-muted-foreground">Comment voulez-vous remplir cette fiche ?</p>
+            {[
+              { key: 'camera', icon: Camera, label: 'Prendre une photo de la fiche', hint: "Ouvre l'appareil photo", capture: true },
+              { key: 'import', icon: ImageUp, label: 'Importer une image', hint: 'Depuis la galerie ou les fichiers', capture: false },
+            ].map((o) => (
+              <label key={o.key} className="lift flex min-h-[56px] cursor-pointer items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-card">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-primary-transparent text-primary"><o.icon className="size-5" /></span>
+                <span className="flex flex-col"><span className="font-medium">{o.label}</span><span className="text-xs text-muted-foreground">{o.hint}</span></span>
+                <input type="file" accept="image/*" className="hidden" {...(o.capture ? { capture: 'environment' } : { multiple: true })}
+                  onChange={(e) => startPhoto(pickedType, e.target.files)} />
+              </label>
+            ))}
+            <button type="button" onClick={() => startManual(pickedType)}
+              className="lift flex min-h-[56px] items-center gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-card">
+              <span className="flex size-9 items-center justify-center rounded-lg bg-primary-transparent text-primary"><PenLine className="size-5" /></span>
+              <span className="flex flex-col"><span className="font-medium">Remplir manuellement</span><span className="text-xs text-muted-foreground">Saisir la fiche à l'écran</span></span>
+            </button>
+            <Button type="button" variant="ghost" size="sm" className="self-start" onClick={() => setPickedType(null)}>
+              <ArrowLeft className="size-4" /> Changer de type
+            </Button>
+          </div>
+        ) : (
         <ul className="flex flex-col gap-2">
-          {RH_TYPES.map((t) => (
+          {types.map((t) => (
             <li key={t.key}>
-              <button type="button" onClick={() => startCreate(t.key)}
+              <button type="button" onClick={() => setPickedType(t.key)}
                 className="lift flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-card">
                 <span className="flex items-center gap-3">
                   <span className="flex size-9 items-center justify-center rounded-lg bg-primary-transparent text-primary"><ClipboardList className="size-5" /></span>
@@ -149,11 +191,14 @@ export default function RapportsHebdoPage() {
             </li>
           ))}
         </ul>
+        )}
       </Modal>
 
       {/* Formulaire du type choisi */}
-      <Modal size={modal?.type === 'choristes' || modal?.type === 'audiovisuel' ? 'full' : 'xl'} open={!!modal} onClose={closeModal} title={modal ? rhLabel(modal.type) : ''}>
-        {modal && FormComponent && (
+      <Modal size={modal?.photoFiles ? 'md' : modal?.type === 'choristes' || modal?.type === 'audiovisuel' ? 'full' : 'xl'} open={!!modal} onClose={closeModal} title={modal ? rhLabel(modal.type) : ''}>
+        {modal?.photoFiles ? (
+          <PhotoFicheForm type={modal.type} files={modal.photoFiles} onSaved={handleSaved} />
+        ) : modal && FormComponent && (
           <FormComponent initial={modal.report} onSaved={handleSaved} />
         )}
       </Modal>

@@ -65,7 +65,7 @@ function validateAssigne(body = {}, { partial = false } = {}) {
 // Roles creatable via the API. "pasteur" is intentionally excluded — the
 // super-admin account is provisioned once via the seed, never through the UI,
 // to avoid privilege-escalation risk.
-const CREATABLE_ROLES = ["pr", "leader", "encadreur", "leader_cellule"];
+const CREATABLE_ROLES = ["pr", "secretaire", "leader", "encadreur", "leader_cellule"];
 // Roles that must belong to a department.
 const DEPARTMENT_REQUIRED_ROLES = ["leader", "encadreur"];
 
@@ -92,7 +92,10 @@ function validateNewDirigeant(body = {}) {
     throw ApiError.badRequest("Un département est requis pour ce rôle");
   }
 
-  return { fullName, email, phone: str(body.phone) || null, role, departmentId };
+  // Encadreur : leader dont il dépend (optionnel, vérifié dans le contrôleur).
+  const leaderId = role === "encadreur" ? str(body.leaderId) || null : null;
+
+  return { fullName, email, phone: str(body.phone) || null, role, departmentId, leaderId };
 }
 
 // Invitation creation payload — just email + role + department. The invited
@@ -159,6 +162,8 @@ function validateDirigeant(body = {}) {
       out.departmentId = departmentId;
     }
   }
+  // "" ou null = détacher l'encadreur de son leader.
+  if (body.leaderId !== undefined) out.leaderId = str(body.leaderId) || null;
   return out;
 }
 

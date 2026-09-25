@@ -46,7 +46,7 @@ async function register(req, res) {
     throw ApiError.forbidden("Vous ne pouvez enregistrer que pour vous-même");
   }
   const dirigeant = await db.dirigeants.findById(targetId);
-  if (!dirigeant) throw ApiError.badRequest("Dirigeant invalide");
+  if (!dirigeant) throw ApiError.badRequest("Responsable invalide");
   if (!(await isFdDept(dirigeant.departmentId))) {
     throw ApiError.forbidden("Réservé au département Suivi / Faiseurs de Disciples");
   }

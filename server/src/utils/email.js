@@ -43,7 +43,7 @@ function passwordResetEmailHtml(link) {
   return `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
       <h2>Réinitialisation de votre mot de passe</h2>
-      <p>Vous avez demandé à réinitialiser votre mot de passe sur l'application Suivi des Âmes.</p>
+      <p>Vous avez demandé à réinitialiser votre mot de passe sur l'application CSP-SSA (Suivi des Âmes).</p>
       <p>
         <a href="${link}" style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;
            text-decoration:none;border-radius:8px;">Réinitialiser mon mot de passe</a>
@@ -64,8 +64,8 @@ function invitationEmailHtml({ link, role, departmentName }) {
   const roleText = roleLabels[role] || role;
   return `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-      <h2>Invitation — Suivi des Âmes</h2>
-      <p>Vous avez été invité(e) à rejoindre l'application Suivi des Âmes en tant que
+      <h2>Invitation — CSP-SSA</h2>
+      <p>Vous avez été invité(e) à rejoindre l'application CSP-SSA (Suivi des Âmes) en tant que
         <strong>${roleText}</strong>${departmentName ? ` — ${departmentName}` : ""}.</p>
       <p>
         <a href="${link}" style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;

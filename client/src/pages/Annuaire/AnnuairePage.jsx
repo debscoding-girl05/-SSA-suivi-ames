@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Select } from '@/components/ui/select';
 import { SearchInput } from '@/components/ui/search-input';
 import { Button } from '@/components/ui/button';
-import { Phone, Mail, BookUser, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Phone, BookUser, ChevronLeft, ChevronRight } from 'lucide-react';
 import { listAnnuaire } from '../../api/annuaire';
 import { listDepartments } from '../../api/departments';
 import EmptyState from '../../components/EmptyState';
@@ -86,11 +86,6 @@ export default function AnnuairePage() {
                     {m.departmentName || 'Sans département'} · {m.dirigeantName || '—'}
                   </p>
                 </div>
-                {m.email && !m.phone && (
-                  <a href={`mailto:${m.email}`} aria-label="Envoyer un email" className="flex size-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted">
-                    <Mail className="size-4" />
-                  </a>
-                )}
                 {tel ? (
                   <a
                     href={`tel:${tel}`}

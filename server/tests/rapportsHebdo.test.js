@@ -59,13 +59,17 @@ const MINIMAL_PAYLOAD = {
   cellule_priere: { entete: { nomCellule: "Cellule Test", leader: "Jean Mballa" }, lignes: [] },
   choristes: { entete: { encadreur: "Jean Mballa" }, lignes: [] },
   audiovisuel: { entete: { encadreur: "Jean Mballa" }, lignes: [] },
+  leader_mensuel: { entete: { mois: "2026-09", nomLeader: "Jean Mballa" }, lignes: [{ encadreur: "Paul", nbMembres: 6 }] },
 };
+// Types réservés à un rôle précis (sinon : l'encadreur de démo).
+const TYPE_ACCOUNT = { leader_mensuel: ["leader@ssa.app", "leader1234"] };
 
 // --- 1. Create + PDF for every report type -----------------------------
 test("1. Every rapport-hebdo type: create (201) -> GET /pdf returns a real PDF", async () => {
-  const jeanTok = await login("encadreur@ssa.app", "encadreur1234");
+  const encTok = await login("encadreur@ssa.app", "encadreur1234");
 
   for (const type of Object.keys(RENDERERS)) {
+    const jeanTok = TYPE_ACCOUNT[type] ? await login(...TYPE_ACCOUNT[type]) : encTok;
     const payload = MINIMAL_PAYLOAD[type];
     assert.ok(payload, `no fixture payload for type ${type}`);
 

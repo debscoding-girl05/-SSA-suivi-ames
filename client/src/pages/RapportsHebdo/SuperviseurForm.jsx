@@ -10,7 +10,8 @@ const emptyRow = () => ({ faiseur: '', telephone: '', nomsAme: '', commentaires:
 const resetRow = (r) => ({ faiseur: r.faiseur || '', telephone: r.telephone || '', nomsAme: r.nomsAme || '', commentaires: '' });
 const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
 
-// Fiche des Superviseurs (Département du Suivi).
+// Fiche des Encadreurs (Département du Suivi) — anciennement « Superviseurs »,
+// le type reste `superviseur` en base pour ne pas casser les fiches existantes.
 export default function SuperviseurForm({ initial, onSaved }) {
   const [id, setId] = useState(initial?.id || null);
   const [entete, setEntete] = useState({
@@ -33,7 +34,7 @@ export default function SuperviseurForm({ initial, onSaved }) {
   function removeRow(i) { setLignes((rows) => rows.filter((_, idx) => idx !== i)); }
 
   async function save(status) {
-    if (nomInvalid) { setShowErrors(true); setError('Le nom du superviseur est obligatoire.'); return null; }
+    if (nomInvalid) { setShowErrors(true); setError("Le nom de l'encadreur est obligatoire."); return null; }
     setBusy(true); setError('');
     try {
       const payload = {
@@ -56,7 +57,7 @@ export default function SuperviseurForm({ initial, onSaved }) {
   async function downloadCurrent() {
     const s = await save(initial?.status || 'brouillon');
     if (!s) return;
-    try { await downloadRapportHebdoPdf(s.id, 'fiche-superviseurs'); }
+    try { await downloadRapportHebdoPdf(s.id, 'fiche-encadreurs'); }
     catch (e) { setError(e?.message || 'Téléchargement impossible.'); }
   }
 
@@ -64,7 +65,7 @@ export default function SuperviseurForm({ initial, onSaved }) {
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">
-          Noms &amp; prénoms du superviseur <span className="text-destructive-dark">*</span>
+          Noms &amp; prénoms de l'encadreur <span className="text-destructive-dark">*</span>
           <Input value={entete.nomSuperviseur} onChange={(e) => setEntete({ ...entete, nomSuperviseur: e.target.value })}
             className={showErrors && nomInvalid ? 'border-destructive-dark focus-visible:ring-destructive-dark' : ''} />
           {showErrors && nomInvalid && <span className="text-xs text-destructive-dark">Ce champ est obligatoire.</span>}

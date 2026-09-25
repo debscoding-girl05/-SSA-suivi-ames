@@ -11,6 +11,11 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  // Relais « /api » local : reproduit la règle de réécriture de Render, pour
+  // tester le mode « même domaine » (build sans VITE_API_URL) avec vite preview.
+  preview: {
+    proxy: { '/api': { target: process.env.SSA_API_TARGET || 'http://localhost:3000', changeOrigin: true } },
+  },
   build: {
     // Vite 8 cible par défaut `safari16.4 / ios16.4` : tout iPhone resté sous
     // iOS 16.4 (iPhone 7, 6s, SE 1re gén. — bloqués sur iOS 15) recevait un

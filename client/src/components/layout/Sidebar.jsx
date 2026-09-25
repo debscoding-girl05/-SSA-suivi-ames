@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
-import { HeartHandshake, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
+import BrandLogo from '../BrandLogo';
 import { cn } from '@/lib/utils';
 import { useAuth } from '../../hooks/useAuth';
 import { visibleNavItems } from './navItems';
@@ -15,12 +16,10 @@ export default function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-border bg-card/80 backdrop-blur-sm md:flex">
       <div className="flex items-center gap-2.5 px-4 py-5">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary-gradient text-primary-foreground shadow-primary">
-          <HeartHandshake className="size-5" />
-        </div>
+        <BrandLogo className="size-11" />
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-sm font-semibold">Suivi des Âmes</p>
-          <p className="truncate text-xs text-muted-foreground">Cathédrale SP</p>
+          <p className="truncate text-sm font-semibold">CSP-SSA</p>
+          <p className="truncate text-xs text-muted-foreground">Suivi des Âmes</p>
         </div>
         <NotificationBell />
       </div>

@@ -82,7 +82,7 @@ export default function RapportsPage() {
         <>
           <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
             <div className="grid flex-1 grid-cols-2 gap-3 text-center sm:grid-cols-4 sm:text-left">
-              <Stat value={s.total} label="Dirigeants" />
+              <Stat value={s.total} label="Leaders" />
               <Stat value={s.soumis} label="À valider" tone="text-primary" />
               <Stat value={s.valide} label="Validés" tone="text-success-foreground-light" />
               <Stat value={s.manquant} label="Manquants" tone="text-destructive-dark" />

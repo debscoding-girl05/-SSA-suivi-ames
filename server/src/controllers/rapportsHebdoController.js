@@ -3,23 +3,81 @@ const ApiError = require("../utils/ApiError");
 const { parseWeek, currentWeek } = require("../utils/week");
 const { streamRapportHebdoPdf, RENDERERS } = require("../utils/rapportHebdoPdf");
 const storage = require("../utils/storage");
+const { hasFicheContent } = require("../utils/ficheContent");
+const { sendPushToUser } = require("../utils/push");
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 Mo — largement suffisant pour une photo de registre
 
 const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
+const readsAll = (role) => db.READ_ALL_ROLES.includes(role);
 
 // Types de fiches pris en charge (un modèle par département/rôle).
 const TYPES = new Set(Object.keys(RENDERERS));
+// Fiche mensuelle remise au Pasteur : réservée aux leaders.
+const LEADER_ONLY_TYPES = new Set(["leader_mensuel"]);
 
 function scopeFor(user) {
-  if (isAdmin(user.role)) return undefined; // Pasteur/PR voient tout
+  if (readsAll(user.role)) return undefined; // Pasteur/PR/Secrétaire voient tout
   return { authorId: user.sub };
 }
 
 function canRead(user, rapport) {
-  if (isAdmin(user.role)) return true;
+  if (readsAll(user.role)) return true;
   return rapport.authorId === user.sub;
+}
+
+const EMPTY_FICHE_MESSAGE =
+  "La fiche est vide : remplissez au moins une ligne ou ajoutez une photo de la fiche papier avant de la soumettre.";
+
+// Push immédiat au Pasteur / à la PR quand une fiche est soumise (en plus du
+// récapitulatif planifié). Best-effort : n'échoue jamais la requête.
+function notifySubmitted(rapport, user) {
+  (async () => {
+    const admins = (await db.users.listAllActive()).filter((u) => db.ADMIN_ROLES.includes(u.role) && u.id !== user.sub);
+    const mensuel = rapport.type === "leader_mensuel";
+    await Promise.all(admins.map((a) => sendPushToUser(a.id, {
+      title: mensuel ? "Rapport mensuel reçu" : "Nouvelle fiche soumise",
+      body: `${rapport.authorName || "Un responsable"}${rapport.departmentName ? " · " + rapport.departmentName : ""}`,
+      url: "/rapports-hebdo",
+    })));
+  })().catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("[push] notification de soumission échouée :", err.message);
+  });
+}
+
+// « NOM Prénom(s) » tel qu'écrit sur les fiches papier → { lastName, firstName }.
+function splitName(full) {
+  const parts = String(full || "").trim().split(/\s+/).filter(Boolean);
+  return { lastName: parts[0] || "", firstName: parts.slice(1).join(" ") };
+}
+
+// Fiche des encadreurs : chaque âme saisie dans le tableau entre directement
+// dans l'annuaire (rattachée à l'auteur de la fiche), sauf si elle y est déjà
+// — même numéro de téléphone ou, à défaut de numéro, même nom.
+async function syncEncadreursToAnnuaire(rapport) {
+  const result = { added: 0, existing: 0 };
+  if (rapport.type !== "superviseur" || !rapport.authorId) return result;
+  for (const row of rapport.lignes || []) {
+    const nom = String(row.nomsAme || "").trim();
+    const phone = String(row.telephone || "").trim();
+    if (!nom) continue;
+    const found = (phone && (await db.assignes.findByPhone(phone))) || (await db.assignes.findByFullName(nom));
+    if (found) { result.existing += 1; continue; }
+    const { lastName, firstName } = splitName(nom);
+    await db.assignes.create({
+      firstName,
+      lastName,
+      phone: phone || null,
+      dirigeantId: rapport.authorId,
+      statut: "nouveau",
+      firstSeenAt: new Date().toISOString().slice(0, 10),
+      notes: row.faiseur ? `Ajouté depuis la fiche des encadreurs — faiseur de disciples : ${row.faiseur}` : "Ajouté depuis la fiche des encadreurs",
+    });
+    result.added += 1;
+  }
+  return result;
 }
 
 // GET /api/rapports-hebdo?type&year&week
@@ -46,11 +104,17 @@ async function getOne(req, res) {
 async function create(req, res) {
   const type = String(req.body.type || "");
   if (!TYPES.has(type)) throw ApiError.badRequest("Type de rapport inconnu");
+  if (LEADER_ONLY_TYPES.has(type) && req.user.role !== "leader") {
+    throw ApiError.forbidden("La fiche mensuelle est réservée aux leaders");
+  }
 
   const { year, week } = req.body.year && req.body.week ? parseWeek(req.body) : currentWeek();
   const entete = req.body.entete && typeof req.body.entete === "object" ? req.body.entete : {};
   const lignes = Array.isArray(req.body.lignes) ? req.body.lignes : [];
   const status = req.body.status === "soumis" ? "soumis" : "brouillon";
+  if (status === "soumis" && !hasFicheContent({ type, entete, lignes })) {
+    throw ApiError.badRequest(EMPTY_FICHE_MESSAGE);
+  }
 
   const rapport = await db.rapportsHebdo.create({
     type,
@@ -58,7 +122,9 @@ async function create(req, res) {
     departmentId: req.body.departmentId ?? req.user.departmentId ?? null,
     year, week, entete, lignes, status,
   });
-  res.status(201).json(rapport);
+  const annuaire = status === "soumis" ? await syncEncadreursToAnnuaire(rapport) : undefined;
+  if (status === "soumis") notifySubmitted(rapport, req.user);
+  res.status(201).json(annuaire ? { ...rapport, annuaire } : rapport);
 }
 
 async function loadOwnEditable(req) {
@@ -82,8 +148,20 @@ async function update(req, res) {
     }
     fields.status = req.body.status;
   }
+  if (fields.status === "soumis") {
+    const attachments = await db.rapportAttachments.listByRapport(rapport.id);
+    const ok = hasFicheContent({
+      type: rapport.type,
+      entete: fields.entete ?? rapport.entete,
+      lignes: fields.lignes ?? rapport.lignes,
+      attachmentCount: attachments.length,
+    });
+    if (!ok) throw ApiError.badRequest(EMPTY_FICHE_MESSAGE);
+  }
   const updated = await db.rapportsHebdo.update(req.params.id, fields);
-  res.json(updated);
+  const annuaire = updated.status === "soumis" ? await syncEncadreursToAnnuaire(updated) : undefined;
+  if (fields.status === "soumis" && rapport.status !== "soumis") notifySubmitted(updated, req.user);
+  res.json(annuaire ? { ...updated, annuaire } : updated);
 }
 
 // DELETE /api/rapports-hebdo/:id

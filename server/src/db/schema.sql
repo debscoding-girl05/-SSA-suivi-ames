@@ -39,6 +39,11 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 CREATE INDEX IF NOT EXISTS idx_users_role_id ON users (role_id);
 CREATE INDEX IF NOT EXISTS idx_users_department ON users (department_id);
 
+-- Un encadreur est rattaché au leader dont il dépend (un département peut
+-- avoir plusieurs leaders, chacun avec ses propres encadreurs).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS leader_id UUID REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_users_leader ON users (leader_id);
+
 -- Assignés (âmes suivies) rattachés à un dirigeant.
 CREATE TABLE IF NOT EXISTS assignes (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -208,7 +213,8 @@ INSERT INTO roles (name, description) VALUES
   ('pr',             'Première Responsable — admin secondaire, multi-départements'),
   ('leader',         'Leader principal — responsable d''un département'),
   ('encadreur',      'Encadreur / Sous-leader — groupe de 6 à 10 membres'),
-  ('leader_cellule', 'Leader de cellule — anime une cellule de prière')
+  ('leader_cellule', 'Leader de cellule — anime une cellule de prière'),
+  ('secretaire',     'Secrétaire du pasteur — lecture de tout, sans administration')
 ON CONFLICT (name) DO NOTHING;
 
 -- 13 départements officiels (CDC v1.1 Tableau 5, idempotent).

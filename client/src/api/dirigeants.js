@@ -55,3 +55,7 @@ export function updateAssigne(dirigeantId, assigneId, payload) {
 export function deleteAssigne(dirigeantId, assigneId) {
   return request(`/api/dirigeants/${dirigeantId}/assignes/${assigneId}`, { method: 'DELETE' });
 }
+// Équipe du leader connecté : ses encadreurs + tous les membres suivis.
+export function getEquipe(params) {
+  return request(`/api/dirigeants/equipe${toQuery(params)}`);
+}

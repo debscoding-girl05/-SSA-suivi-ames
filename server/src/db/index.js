@@ -25,6 +25,7 @@ const memory = {
     { id: 3, name: "leader", description: "Leader principal" },
     { id: 4, name: "encadreur", description: "Encadreur / Sous-leader" },
     { id: 5, name: "leader_cellule", description: "Leader de cellule" },
+    { id: 6, name: "secretaire", description: "Secrétaire du pasteur" },
   ],
   departments: [
     { id: 1, name: "Faiseurs de Disciples", description: "Intégration des nouveaux venus (7 leçons)" },
@@ -62,6 +63,9 @@ const memory = {
 
 // Rôles ayant une vue "administrative" globale (CDC : Pasteur + PR).
 const ADMIN_ROLES = ["pasteur", "pr"];
+// Rôles qui LISENT tout (annuaire complet, toutes les fiches) sans forcément
+// administrer : la secrétaire du pasteur consulte mais ne gère pas les comptes.
+const READ_ALL_ROLES = [...ADMIN_ROLES, "secretaire"];
 
 // --- Postgres helpers ------------------------------------------------------
 function getPool() {
@@ -163,6 +167,8 @@ function mapUserRow(row) {
     role: row.role ?? null,
     departmentId: row.department_id ?? null,
     departmentName: row.department_name ?? null,
+    leaderId: row.leader_id ?? null,
+    leaderName: row.leader_name ?? null,
     isActive: row.is_active,
     createdAt: row.created_at ?? null,
   };
@@ -181,6 +187,8 @@ function memUserToRow(u) {
     role: role?.name,
     department_id: u.departmentId,
     department_name: dept?.name,
+    leader_id: u.leaderId ?? null,
+    leader_name: memory.users.find((x) => x.id === u.leaderId)?.fullName ?? null,
     is_active: u.isActive,
     created_at: u.createdAt,
   };
@@ -335,7 +343,7 @@ const departments = {
         .map((dep) => {
           const dirs = memory.users.filter((u) => {
             const role = memory.roles.find((r) => r.id === u.roleId);
-            return role && !ADMIN_ROLES.includes(role.name) && u.departmentId === dep.id;
+            return role && !READ_ALL_ROLES.includes(role.name) && u.departmentId === dep.id;
           });
           const dirIds = new Set(dirs.map((d) => d.id));
           const assigneCount = memory.assignes.filter((a) => dirIds.has(a.dirigeantId)).length;
@@ -359,12 +367,12 @@ const departments = {
     const { rows } = await query(
       `SELECT d.id, d.name, d.description,
               (SELECT COUNT(*) FROM users u JOIN roles r ON r.id = u.role_id
-                 WHERE u.department_id = d.id AND r.name NOT IN ('pasteur','pr'))::int AS dirigeant_count,
+                 WHERE u.department_id = d.id AND r.name NOT IN ('pasteur','pr','secretaire'))::int AS dirigeant_count,
               (SELECT COUNT(*) FROM assignes a JOIN users u ON u.id = a.dirigeant_id
                  WHERE u.department_id = d.id)::int AS assigne_count,
               (SELECT COUNT(*) FROM users u JOIN roles r ON r.id = u.role_id
                  JOIN rapports rep ON rep.dirigeant_id = u.id AND rep.year = $1 AND rep.week = $2 AND rep.status = 'soumis'
-                 WHERE u.department_id = d.id AND r.name NOT IN ('pasteur','pr'))::int AS soumis
+                 WHERE u.department_id = d.id AND r.name NOT IN ('pasteur','pr','secretaire'))::int AS soumis
          FROM departments d
         ORDER BY d.name ASC`,
       [year, week]
@@ -438,9 +446,10 @@ const users = {
       return u ? mapUserRow(memUserToRow(u)) : null;
     }
     const { rows } = await query(
-      `SELECT u.*, r.name AS role, d.name AS department_name
+      `SELECT u.*, r.name AS role, d.name AS department_name, l.full_name AS leader_name
          FROM users u JOIN roles r ON r.id = u.role_id
          LEFT JOIN departments d ON d.id = u.department_id
+         LEFT JOIN users l ON l.id = u.leader_id
         WHERE u.id = $1`,
       [id]
     );
@@ -461,7 +470,7 @@ const users = {
     return rowCount > 0;
   },
 
-  async create({ email, passwordHash, fullName, phone, roleId, departmentId }) {
+  async create({ email, passwordHash, fullName, phone, roleId, departmentId, leaderId }) {
     const normalized = String(email).trim().toLowerCase();
     if (!isPostgres) {
       const u = {
@@ -472,6 +481,7 @@ const users = {
         phone: phone ?? null,
         roleId,
         departmentId: departmentId ?? null,
+        leaderId: leaderId ?? null,
         isActive: true,
         createdAt: new Date().toISOString(),
       };
@@ -479,9 +489,9 @@ const users = {
       return this.findById(u.id);
     }
     const { rows } = await query(
-      `INSERT INTO users (email, password_hash, full_name, phone, role_id, department_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [normalized, passwordHash, fullName ?? null, phone ?? null, roleId, departmentId ?? null]
+      `INSERT INTO users (email, password_hash, full_name, phone, role_id, department_id, leader_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [normalized, passwordHash, fullName ?? null, phone ?? null, roleId, departmentId ?? null, leaderId ?? null]
     );
     return this.findById(rows[0].id);
   },
@@ -520,11 +530,19 @@ const dirigeants = {
   // List dirigeants (leaders/encadreurs/cell leaders — never Pasteur/PR) with
   // department, assigné count, and report status for { year, week }.
   // `scope` enforces RBAC visibility: { departmentId } (leader) or { selfId }.
-  async list({ search, departmentId, year, week, scope } = {}) {
+  // `team: { leaderId, departmentId }` = les encadreurs dont ce leader est
+  // responsable — rattachés explicitement (leader_id) ou, à défaut de
+  // rattachement, ceux de son département.
+  async list({ search, departmentId, year, week, scope, team } = {}) {
     if (!isPostgres) {
       let rows = memory.users.filter((u) => {
         const role = memory.roles.find((r) => r.id === u.roleId);
-        return role && (role.name === "leader" || role.name === "encadreur");
+        if (!role || !(role.name === "leader" || role.name === "encadreur")) return false;
+        if (team) {
+          return role.name === "encadreur" && (u.leaderId === team.leaderId ||
+            (!u.leaderId && team.departmentId != null && u.departmentId === team.departmentId));
+        }
+        return true;
       });
       if (scope?.selfId) rows = rows.filter((u) => u.id === scope.selfId);
       if (scope?.departmentId) rows = rows.filter((u) => u.departmentId === scope.departmentId);
@@ -549,6 +567,8 @@ const dirigeants = {
           role: base.role,
           departmentId: base.departmentId,
           departmentName: base.departmentName,
+          leaderId: base.leaderId,
+          leaderName: base.leaderName,
           assigneCount,
           reportStatus: rep ? rep.status : null,
           isActive: base.isActive,
@@ -560,6 +580,12 @@ const dirigeants = {
 
     const params = [year, week];
     const where = ["r.name IN ('leader','encadreur')"];
+    if (team) {
+      params.push(team.leaderId);
+      const li = params.length;
+      params.push(team.departmentId ?? -1);
+      where.push(`r.name = 'encadreur' AND (u.leader_id = $${li} OR (u.leader_id IS NULL AND u.department_id = $${params.length}))`);
+    }
     if (scope?.selfId) {
       params.push(scope.selfId);
       where.push(`u.id = $${params.length}`);
@@ -577,13 +603,14 @@ const dirigeants = {
       where.push(`(LOWER(COALESCE(u.full_name,'')) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length})`);
     }
     const { rows } = await query(
-      `SELECT u.id, u.full_name, u.email, u.phone, u.department_id, u.is_active,
-              r.name AS role, d.name AS department_name,
+      `SELECT u.id, u.full_name, u.email, u.phone, u.department_id, u.is_active, u.leader_id,
+              r.name AS role, d.name AS department_name, l.full_name AS leader_name,
               (SELECT COUNT(*) FROM assignes a WHERE a.dirigeant_id = u.id)::int AS assigne_count,
               rep.status AS report_status
          FROM users u
          JOIN roles r ON r.id = u.role_id
          LEFT JOIN departments d ON d.id = u.department_id
+         LEFT JOIN users l ON l.id = u.leader_id
          LEFT JOIN rapports rep ON rep.dirigeant_id = u.id AND rep.year = $1 AND rep.week = $2
         WHERE ${where.join(" AND ")}
         ORDER BY u.full_name ASC`,
@@ -597,6 +624,8 @@ const dirigeants = {
       role: row.role,
       departmentId: row.department_id,
       departmentName: row.department_name,
+      leaderId: row.leader_id ?? null,
+      leaderName: row.leader_name ?? null,
       assigneCount: row.assigne_count,
       reportStatus: row.report_status ?? null,
       isActive: row.is_active,
@@ -613,6 +642,7 @@ const dirigeants = {
       fullName: "full_name",
       phone: "phone",
       departmentId: "department_id",
+      leaderId: "leader_id",
     };
     if (!isPostgres) {
       const u = memory.users.find((x) => x.id === id);
@@ -673,6 +703,7 @@ const assignes = {
         };
       });
       if (scope?.dirigeantId) rows = rows.filter((r) => r.dirigeantId === scope.dirigeantId);
+      if (scope?.dirigeantIds) rows = rows.filter((r) => scope.dirigeantIds.includes(r.dirigeantId));
       if (scope?.departmentId) rows = rows.filter((r) => r.departmentId === scope.departmentId);
       if (departmentId) rows = rows.filter((r) => r.departmentId === Number(departmentId));
       if (search) {
@@ -693,6 +724,10 @@ const assignes = {
     if (scope?.dirigeantId) {
       params.push(scope.dirigeantId);
       where.push(`a.dirigeant_id = $${params.length}`);
+    }
+    if (scope?.dirigeantIds) {
+      params.push(scope.dirigeantIds);
+      where.push(`a.dirigeant_id = ANY($${params.length}::uuid[])`);
     }
     if (scope?.departmentId) {
       params.push(scope.departmentId);
@@ -802,11 +837,67 @@ const assignes = {
     return { ...mapAssigneRow(rows[0]), dirigeantName: rows[0].dirigeant_name ?? null, departmentName: rows[0].department_name ?? null };
   },
 
-  // Total number of souls tracked (for the church growth objective).
-  async countAll() {
-    if (!isPostgres) return memory.assignes.length;
-    const { rows } = await query("SELECT COUNT(*)::int AS n FROM assignes");
+  // Même personne déjà saisie sans numéro ? Comparaison insensible à la
+  // casse et aux espaces sur « prénom nom » (dans les deux ordres, les fiches
+  // papier n'étant pas constantes sur ce point).
+  async findByFullName(fullName) {
+    const norm = String(fullName || "").trim().toLowerCase().replace(/\s+/g, " ");
+    if (!norm) return null;
+    if (!isPostgres) {
+      const a = memory.assignes.find((x) => {
+        const fl = `${x.firstName} ${x.lastName}`.trim().toLowerCase().replace(/\s+/g, " ");
+        const lf = `${x.lastName} ${x.firstName}`.trim().toLowerCase().replace(/\s+/g, " ");
+        return fl === norm || lf === norm;
+      });
+      return a ? memAssigneRow(a) : null;
+    }
+    const { rows } = await query(
+      `SELECT * FROM assignes
+        WHERE regexp_replace(LOWER(TRIM(first_name || ' ' || last_name)), '\\s+', ' ', 'g') = $1
+           OR regexp_replace(LOWER(TRIM(last_name || ' ' || first_name)), '\\s+', ' ', 'g') = $1
+        LIMIT 1`,
+      [norm]
+    );
+    return mapAssigneRow(rows[0]);
+  },
+
+  // Personnes ajoutées à l'annuaire sur une période (objectif
+  // d'évangélisation). Bornes incluses, au format AAAA-MM-JJ ; sans borne,
+  // la période est ouverte de ce côté.
+  async countCreatedBetween(from, to) {
+    const start = from ? new Date(`${from}T00:00:00`) : null;
+    const end = to ? new Date(`${to}T23:59:59.999`) : null;
+    if (!isPostgres) {
+      return memory.assignes.filter((a) => {
+        const t = new Date(a.createdAt);
+        return (!start || t >= start) && (!end || t <= end);
+      }).length;
+    }
+    const { rows } = await query(
+      `SELECT COUNT(*)::int AS n FROM assignes
+        WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+          AND ($2::timestamptz IS NULL OR created_at <= $2)`,
+      [start ? start.toISOString() : null, end ? end.toISOString() : null]
+    );
     return rows[0].n;
+  },
+
+  // Ajouts à l'annuaire par semaine ISO sur la période — frise de l'objectif.
+  async createdDates(from, to) {
+    const start = from ? new Date(`${from}T00:00:00`) : null;
+    const end = to ? new Date(`${to}T23:59:59.999`) : null;
+    if (!isPostgres) {
+      return memory.assignes
+        .map((a) => a.createdAt)
+        .filter((c) => { const t = new Date(c); return (!start || t >= start) && (!end || t <= end); });
+    }
+    const { rows } = await query(
+      `SELECT created_at FROM assignes
+        WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+          AND ($2::timestamptz IS NULL OR created_at <= $2)`,
+      [start ? start.toISOString() : null, end ? end.toISOString() : null]
+    );
+    return rows.map((r) => r.created_at);
   },
 
   async update(id, fields) {
@@ -1401,7 +1492,9 @@ const notifications = {
       return memory.notifications
         .filter((n) => n.recipientId === recipientId)
         .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
-        .map(mapNotificationRow);
+        // Objets mémoire en camelCase → colonnes attendues par le mapper
+        // (sans cela isRead/createdAt sortaient undefined : tout semblait non lu).
+        .map((n) => mapNotificationRow({ ...n, is_read: n.isRead, created_at: n.createdAt }));
     }
     const { rows } = await query(
       `SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY created_at DESC`,
@@ -2232,6 +2325,7 @@ module.exports = {
   pushSubscriptions,
   settings,
   ADMIN_ROLES,
+  READ_ALL_ROLES,
   FD_DEPT_NAMES,
   _memory: memory,
 };

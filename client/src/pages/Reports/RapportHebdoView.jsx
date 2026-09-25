@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
 import { RH_VIEW } from '../RapportsHebdo/types';
+import RapportAttachments from '../RapportsHebdo/RapportAttachments';
 
 // Vue lecture (Pasteur/PR) d'une fiche hebdomadaire soumise, + téléchargement
 // PDF. Le rendu (en-tête + colonnes) est piloté par RH_VIEW selon le type.
@@ -31,6 +32,8 @@ export default function RapportHebdoView({ rapport }) {
         {' · '}{rapport.status === 'valide' ? 'Validé' : 'Soumis'}
       </p>
 
+      <RapportAttachments rapportId={rapport.id} disabled title="Photo(s) de la fiche papier" />
+
       <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-xl border border-border bg-muted/30 p-4 sm:grid-cols-2">
         {header.map(([label, val]) => (
           <div key={label} className="flex justify-between gap-3 text-sm sm:block">
@@ -40,7 +43,7 @@ export default function RapportHebdoView({ rapport }) {
         ))}
       </dl>
 
-      {sections ? (
+      {sections && (
         <div className="flex flex-col gap-4">
           {sections.map((sec) => (
             <div key={sec.title} className="flex flex-col gap-2">
@@ -56,7 +59,9 @@ export default function RapportHebdoView({ rapport }) {
             </div>
           ))}
         </div>
-      ) : (
+      )}
+      {/* Tableau : fiches à lignes, ou fiche à sections qui a aussi des lignes (rapport mensuel). */}
+      {(!sections || (columns && lignes.length > 0)) && (
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full min-w-[600px] text-sm">
             <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">

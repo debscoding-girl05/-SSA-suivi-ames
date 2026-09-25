@@ -7,6 +7,7 @@ import DashboardPage from '../pages/Dashboard/DashboardPage';
 import DirigeantsPage from '../pages/Dirigeants/DirigeantsPage';
 import DirigeantDetailPage from '../pages/Dirigeants/DirigeantDetailPage';
 import DepartementsPage from '../pages/Departements/DepartementsPage';
+import DepartementDetailPage from '../pages/Departements/DepartementDetailPage';
 import AnnuairePage from '../pages/Annuaire/AnnuairePage';
 import RapportsPage from '../pages/Rapports/RapportsPage';
 import CellulesPage from '../pages/Cellules/CellulesPage';
@@ -43,6 +44,7 @@ export default function AppRouter() {
         <Route path="/dirigeants" element={<DirigeantsPage />} />
         <Route path="/dirigeants/:id" element={<DirigeantDetailPage />} />
         <Route path="/departements" element={<DepartementsPage />} />
+        <Route path="/departements/:id" element={<DepartementDetailPage />} />
         <Route path="/annuaire" element={<AnnuairePage />} />
         <Route path="/nouveaux-venus" element={<NouveauxVenusPage />} />
         <Route path="/fiches" element={<RapportsPage />} />

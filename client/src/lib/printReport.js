@@ -16,6 +16,8 @@ function buildHtml(report) {
     <style>
       * { box-sizing: border-box; }
       body { font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; color: #1a1530; margin: 0; padding: 40px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .head { display: flex; align-items: center; gap: 12px; }
+      .head img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: #000; }
       .brand { color: #534ab7; font-weight: 700; letter-spacing: .02em; font-size: 13px; text-transform: uppercase; }
       h1 { font-size: 22px; margin: 6px 0 2px; }
       .meta { color: #6b6679; font-size: 13px; margin-bottom: 20px; }
@@ -24,7 +26,7 @@ function buildHtml(report) {
       .footer { margin-top: 40px; color: #9a96a8; font-size: 11px; }
       @page { margin: 16mm; }
     </style></head><body>
-    <div class="brand">Cathédrale des Signes et Prodiges · Suivi des Âmes</div>
+    <div class="head"><img src="${window.location.origin}/logo-csp.jpg" alt="" /><div class="brand">Cathédrale des Signes et Prodiges · CSP-SSA</div></div>
     <h1>${esc(report.title)}</h1>
     <div class="meta">
       ${report.departmentName ? esc(report.departmentName) + ' · ' : ''}Semaine ${esc(report.week)} / ${esc(report.year)}
@@ -33,7 +35,7 @@ function buildHtml(report) {
     </div>
     <hr />
     <div class="content">${esc(report.content) || '<em>(vide)</em>'}</div>
-    <div class="footer">Document généré depuis SSA — ${new Date().toLocaleDateString('fr-FR')}</div>
+    <div class="footer">Document généré depuis CSP-SSA — ${new Date().toLocaleDateString('fr-FR')}</div>
   </body></html>`;
 }
 

@@ -13,17 +13,59 @@ export function formatDateFr(v) {
 export const RH_TYPES = [
   { key: 'huissier', label: "Rapport d'assiduité (Huissier)", shortLabel: "Rapport d'assiduité" },
   { key: 'faiseur_disciples', label: 'Rapport du Faiseur de Disciples', shortLabel: 'Faiseur de Disciples' },
-  { key: 'superviseur', label: 'Fiche des Superviseurs', shortLabel: 'Superviseurs' },
+  { key: 'superviseur', label: 'Fiche des Encadreurs', shortLabel: 'Encadreurs' },
   { key: 'cellule_priere', label: 'Rapport de cellule de prière', shortLabel: 'Cellule de prière' },
   { key: 'choristes', label: 'Fiche de suivi hebdomadaire des choristes', shortLabel: 'Suivi des choristes' },
   { key: 'audiovisuel', label: "Rapport d'assiduité des ouvriers (Audiovisuel)", shortLabel: 'Assiduité ouvriers (AV)' },
+  // Remis chaque mois au Pasteur — réservé aux leaders (contrôlé côté serveur).
+  { key: 'leader_mensuel', label: 'Rapport mensuel du leader (au Pasteur)', shortLabel: 'Rapport mensuel', roles: ['leader'] },
 ];
+
+// Types proposés à la création selon le rôle.
+export const rhTypesFor = (role) => RH_TYPES.filter((t) => !t.roles || t.roles.includes(role));
+
+export function formatMonthFr(v) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(v || '').trim());
+  if (!m) return v || '—';
+  return new Date(Number(m[1]), Number(m[2]) - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+}
 
 export const rhLabel = (t) => (RH_TYPES.find((x) => x.key === t) || {}).label || t;
 export const rhShortLabel = (t) => (RH_TYPES.find((x) => x.key === t) || {}).shortLabel || t;
 
 // Configuration de la vue lecture par type : champs d'en-tête + colonnes.
 export const RH_VIEW = {
+  leader_mensuel: {
+    header: (e, r) => [
+      ['Mois', formatMonthFr(e.mois)],
+      ['Département', e.departement || r.departmentName || '—'],
+      ['Nom du leader', e.nomLeader || '—'],
+      ['Téléphone', e.telephone || '—'],
+    ],
+    sections: (e) => {
+      const val = (v) => (v != null && v !== '' ? String(v) : '—');
+      return [
+        { title: 'I — Effectifs du mois', rows: [
+          ['Membres suivis', val(e.effectifMembres)],
+          ["Nombre d'encadreurs", val(e.effectifEncadreurs)],
+          ['Présence moyenne aux cultes', val(e.presenceMoyenne)],
+          ['Nouveaux venus / nouvelles âmes', val(e.nouveauxVenus)],
+        ] },
+        { title: 'II — Bilan du mois', rows: [
+          ['Activités réalisées', val(e.activites)],
+          ['Difficultés rencontrées', val(e.difficultes)],
+          ['Besoins / sujets de prière', val(e.besoins)],
+          ['Projets pour le mois prochain', val(e.projets)],
+        ] },
+      ];
+    },
+    columns: [
+      { key: 'encadreur', label: 'Encadreur' },
+      { key: 'nbMembres', label: 'Membres' },
+      { key: 'fichesRemises', label: 'Fiches remises' },
+      { key: 'observations', label: 'Observations' },
+    ],
+  },
   huissier: {
     header: (e, r) => [
       ['Département', e.departement || r.departmentName || '—'],
@@ -56,8 +98,8 @@ export const RH_VIEW = {
   },
   superviseur: {
     header: (e) => [
-      ['Département', 'Suivi (Superviseurs)'],
-      ['Noms & prénoms du superviseur', e.nomSuperviseur || '—'],
+      ['Département', 'Suivi (Encadreurs)'],
+      ["Noms & prénoms de l'encadreur", e.nomSuperviseur || '—'],
       ['Téléphone', e.telephone || '—'],
       ['Rapport de la semaine du', formatDateFr(e.date)],
     ],

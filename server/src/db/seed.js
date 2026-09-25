@@ -21,6 +21,10 @@ const DIRIGEANTS = [
     fullName: "Sœur Bernadette", role: "pr", department: null, assignes: [], report: null,
   },
   {
+    email: "secretaire@ssa.app", phone: "+237 6 00 00 00 03", password: "secretaire1234",
+    fullName: "Sœur Mireille", role: "secretaire", department: null, assignes: [], report: null,
+  },
+  {
     email: "leader@ssa.app", phone: "+237 6 99 11 22 33", password: "leader1234",
     fullName: "Marie Nkolo", role: "leader", department: "Chorale",
     assignes: [
@@ -32,7 +36,7 @@ const DIRIGEANTS = [
   },
   {
     email: "encadreur@ssa.app", phone: "+237 6 77 44 55 66", password: "encadreur1234",
-    fullName: "Jean Mballa", role: "encadreur", department: "Chorale",
+    fullName: "Jean Mballa", role: "encadreur", department: "Chorale", leaderEmail: "leader@ssa.app",
     assignes: [
       { firstName: "Pierre", lastName: "Kamga", phone: "+237 6 77 44 55 66" },
       { firstName: "Sandrine", lastName: "Abena", email: "sandrine.abena@example.com" },
@@ -69,7 +73,7 @@ const DIRIGEANTS = [
   },
   {
     email: "paul@ssa.app", phone: "+237 6 80 90 10 20", password: "dirigeant1234",
-    fullName: "Paul Atangana", role: "encadreur", department: "Chorale",
+    fullName: "Paul Atangana", role: "encadreur", department: "Chorale", leaderEmail: "leader@ssa.app",
     assignes: [
       { firstName: "Sylvie", lastName: "Ze", phone: "+237 6 80 90 10 21" },
     ],
@@ -129,6 +133,7 @@ async function seed({ silent = false } = {}) {
         continue;
       }
       const passwordHash = await bcrypt.hash(d.password, 12);
+      const leader = d.leaderEmail ? await db.users.findByEmail(d.leaderEmail) : null;
       user = await db.users.create({
         email: d.email,
         passwordHash,
@@ -136,6 +141,7 @@ async function seed({ silent = false } = {}) {
         phone: d.phone ?? null,
         roleId: role.id,
         departmentId: d.department ? deptByName.get(d.department) ?? null : null,
+        leaderId: leader?.id ?? null,
       });
       createdUsers += 1;
       log(`  + dirigeant: ${d.fullName} (${d.role}${d.department ? ` · ${d.department}` : ""})`);

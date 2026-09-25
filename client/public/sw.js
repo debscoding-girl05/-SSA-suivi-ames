@@ -3,7 +3,7 @@
 // (voir server/src/utils/push.js).
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'Suivi des Âmes', body: 'Nouvelle notification.', url: '/notifications' };
+  let data = { title: 'CSP-SSA', body: 'Nouvelle notification.', url: '/notifications' };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch {
@@ -13,8 +13,9 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: '/favicon.svg',
-      badge: '/favicon.svg',
+      // PNG : Android/Chrome n'affiche pas les icônes SVG dans les notifications.
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
       data: { url: data.url },
     })
   );

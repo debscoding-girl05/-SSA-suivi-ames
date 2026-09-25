@@ -2,6 +2,10 @@
 // notification digest job running safely with push wired in (even when
 // VAPID isn't configured, which is the default in this test environment).
 delete process.env.DATABASE_URL;
+// Force « non configuré » même si le .env local contient des clés VAPID
+// (dotenv ne remplace pas une variable déjà définie, même vide).
+process.env.VAPID_PUBLIC_KEY = "";
+process.env.VAPID_PRIVATE_KEY = "";
 process.env.NODE_ENV = process.env.NODE_ENV || "test";
 
 const { test, before, after } = require("node:test");

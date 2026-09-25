@@ -66,7 +66,7 @@ export default function DepartementsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Départements</h1>
-          <p className="text-sm text-muted-foreground">{data.length} départements · {totalDir} dirigeants</p>
+          <p className="text-sm text-muted-foreground">{data.length} départements · {totalDir} leaders</p>
         </div>
         {canManage && <Button onClick={openCreate}><Plus className="size-4" /> Nouveau département</Button>}
       </div>
@@ -92,27 +92,26 @@ export default function DepartementsPage() {
               <div key={d.id} className="relative">
                 <button
                   type="button"
-                  disabled={empty}
-                  onClick={() => navigate(`/dirigeants?departmentId=${d.id}`)}
+                  onClick={() => navigate(`/departements/${d.id}`)}
                   className="lift flex h-full w-full flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-card disabled:cursor-default disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-card"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex size-10 items-center justify-center rounded-xl bg-primary-transparent text-primary">
                       <Building2 className="size-5" />
                     </div>
-                    {!empty && <ChevronRight className="size-4 text-muted-foreground" />}
+                    <ChevronRight className="size-4 text-muted-foreground" />
                   </div>
 
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{d.name}</p>
                     <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><UserCheck className="size-3.5" />{d.dirigeantCount} dirigeant{d.dirigeantCount > 1 ? 's' : ''}</span>
+                      <span className="flex items-center gap-1"><UserCheck className="size-3.5" />{d.dirigeantCount} leader{d.dirigeantCount > 1 ? 's' : ''}</span>
                       <span className="flex items-center gap-1"><UsersRound className="size-3.5" />{d.assigneCount} assigné{d.assigneCount > 1 ? 's' : ''}</span>
                     </div>
                   </div>
 
                   {empty ? (
-                    <p className="text-xs text-muted-foreground/70">Aucun dirigeant assigné</p>
+                    <p className="text-xs text-muted-foreground/70">Aucun leader assigné</p>
                   ) : (
                     <div>
                       <div className="flex items-center justify-between text-xs">

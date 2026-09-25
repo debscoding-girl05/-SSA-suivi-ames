@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Plus, Pencil, Trash2, Phone, Mail, Users, FileText, ClipboardCheck, ChevronRight, Ban, RotateCcw } from 'lucide-react';
-import { getDirigeant, deleteAssigne, deactivateDirigeant, reactivateDirigeant } from '../../api/dirigeants';
+import { getDirigeant, deleteAssigne, deactivateDirigeant, reactivateDirigeant, listDirigeants, updateDirigeant } from '../../api/dirigeants';
+import { Select } from '@/components/ui/select';
 import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
@@ -25,6 +26,23 @@ export default function DirigeantDetailPage() {
   const [editing, setEditing] = useState(null);
   const [viewReport, setViewReport] = useState(null);
   const [viewFiche, setViewFiche] = useState(null);
+  const [leaders, setLeaders] = useState([]);
+  const isEncadreur = data?.dirigeant?.role === 'encadreur';
+  const canSetLeader = isAdminRole(user?.role) && isEncadreur;
+
+  useEffect(() => {
+    if (!canSetLeader) return;
+    listDirigeants().then((res) => setLeaders(res.data.filter((d) => d.role === 'leader'))).catch(() => setLeaders([]));
+  }, [canSetLeader]);
+
+  async function changeLeader(leaderId) {
+    try {
+      await updateDirigeant(id, { leaderId: leaderId || null });
+      load();
+    } catch (err) {
+      setError(err?.message || 'Rattachement impossible.');
+    }
+  }
 
   // Mirrors backend: Pasteur/PR, the dirigeant himself, or a leader of the
   // same department may edit assignés.
@@ -80,7 +98,7 @@ export default function DirigeantDetailPage() {
   return (
     <div className="flex flex-col gap-5">
       <button type="button" onClick={() => navigate('/dirigeants')} className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" /> Dirigeants
+        <ArrowLeft className="size-4" /> Leaders
       </button>
 
       {loading ? (
@@ -131,6 +149,23 @@ export default function DirigeantDetailPage() {
                   </span>
                 )}
               </div>
+              {isEncadreur && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Leader responsable :</span>
+                  {canSetLeader ? (
+                    <Select
+                      value={data.dirigeant.leaderId || ''}
+                      onChange={changeLeader}
+                      options={[{ value: '', label: '— Aucun —' }, ...leaders.map((l) => ({ value: l.id, label: `${l.fullName}${l.departmentName ? ` · ${l.departmentName}` : ''}` }))]}
+                      searchable
+                      size="sm"
+                      className="w-64"
+                    />
+                  ) : (
+                    <span className="font-medium">{data.dirigeant.leaderName || '—'}</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -149,7 +184,7 @@ export default function DirigeantDetailPage() {
               <EmptyState
                 icon={Users}
                 title="Aucun assigné"
-                description="Ce dirigeant n'a pas encore d'âme suivie."
+                description="Ce leader n'a pas encore d'âme suivie."
                 action={canManage ? <Button size="sm" onClick={openCreate}><Plus className="size-4" /> Ajouter un assigné</Button> : null}
               />
             ) : (
@@ -159,7 +194,7 @@ export default function DirigeantDetailPage() {
                     <Avatar name={`${a.firstName} ${a.lastName}`} size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{a.firstName} {a.lastName}</p>
-                      <p className="truncate text-xs text-muted-foreground">{a.phone || a.email || '—'}</p>
+                      <p className="truncate text-xs text-muted-foreground">{a.phone || 'Sans numéro'}</p>
                     </div>
                     {canManage && (
                       <div className="flex gap-1">

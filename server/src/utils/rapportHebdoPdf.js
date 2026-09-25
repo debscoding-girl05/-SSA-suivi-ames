@@ -1,4 +1,18 @@
+const fs = require("fs");
+const path = require("path");
 const PDFDocument = require("pdfkit");
+
+// Logo officiel de la Cathédrale (en-tête de tous les PDF).
+const LOGO_PATH = path.join(__dirname, "..", "assets", "logo-csp.jpg");
+
+// L'emblème est rond sur fond noir : on le découpe en cercle.
+function drawLogo(doc, x, y, size) {
+  if (!fs.existsSync(LOGO_PATH)) return;
+  doc.save();
+  doc.circle(x + size / 2, y + size / 2, size / 2 - 0.5).clip();
+  doc.image(LOGO_PATH, x, y, { width: size, height: size });
+  doc.restore();
+}
 
 const INDIGO = "#534ab7";
 const INK = "#1a1530";
@@ -52,15 +66,19 @@ function churchHeader(doc, sousTitre) {
   const right = doc.page.width - doc.page.margins.right;
   const width = right - left;
 
-  // Pastille ronde en guise de logo (initiales CSP).
-  const logoR = 20;
+  // Logo officiel (repli : pastille « CSP » si le fichier manque).
+  const logoR = 24;
   const logoCx = left + logoR;
   const logoCy = doc.y + logoR;
-  doc.save();
-  doc.circle(logoCx, logoCy, logoR).lineWidth(1.5).strokeColor(INDIGO).stroke();
-  doc.fillColor(INDIGO).font("Helvetica-Bold").fontSize(13)
-    .text("CSP", logoCx - logoR, logoCy - 6, { width: logoR * 2, align: "center" });
-  doc.restore();
+  if (fs.existsSync(LOGO_PATH)) {
+    drawLogo(doc, left, doc.y, logoR * 2);
+  } else {
+    doc.save();
+    doc.circle(logoCx, logoCy, logoR).lineWidth(1.5).strokeColor(INDIGO).stroke();
+    doc.fillColor(INDIGO).font("Helvetica-Bold").fontSize(13)
+      .text("CSP", logoCx - logoR, logoCy - 6, { width: logoR * 2, align: "center" });
+    doc.restore();
+  }
 
   // Bloc texte à droite du logo.
   const tx = left + logoR * 2 + 14;
@@ -90,7 +108,7 @@ function churchHeader(doc, sousTitre) {
 }
 
 // Dessine une ligne de tableau ; renvoie la nouvelle position Y.
-function drawRow(doc, x, y, widths, cells, { header = false, minHeight = 18, aligns = [], fills = null } = {}) {
+function drawRow(doc, x, y, widths, cells, { header = false, minHeight = 18, aligns = [], fills = null, border = LINE } = {}) {
   const padX = 4;
   doc.font(header ? "Helvetica-Bold" : "Helvetica").fontSize(header ? 8.5 : 9);
   // hauteur nécessaire (multi-lignes éventuelles)
@@ -107,11 +125,14 @@ function drawRow(doc, x, y, widths, cells, { header = false, minHeight = 18, ali
   let cx = x;
   cells.forEach((c, i) => {
     if (!header && fills && fills[i]) doc.rect(cx, y, widths[i], h).fill(fills[i]);
-    doc.rect(cx, y, widths[i], h).strokeColor(LINE).lineWidth(0.7).stroke();
+    doc.rect(cx, y, widths[i], h).strokeColor(border).lineWidth(0.7).stroke();
     doc.fillColor(header ? INDIGO : INK)
       .text(String(c ?? ""), cx + padX, y + 4, { width: widths[i] - padX * 2, align: aligns[i] || "left" });
     cx += widths[i];
   });
+  // Le curseur texte suit le tableau : ce qui vient après (pied de page,
+  // sections) ne chevauche plus la dernière ligne.
+  doc.y = y + h + 4;
   return y + h;
 }
 
@@ -139,7 +160,7 @@ function infoBox(doc, pairs) {
 function pdfFooter(doc) {
   doc.moveDown(1.5);
   doc.font("Helvetica").fontSize(9).fillColor(MUTED)
-    .text(`Généré depuis SSA — ${new Date().toLocaleDateString("fr-FR")}`, doc.page.margins.left, doc.y);
+    .text(`Généré depuis CSP-SSA — ${new Date().toLocaleDateString("fr-FR")}`, doc.page.margins.left, doc.y);
 }
 
 // ---- Fiche HUISSIER (rapport d'assiduité) ---------------------------------
@@ -218,14 +239,16 @@ function renderFaiseurDisciples(doc, r) {
   pdfFooter(doc);
 }
 
-// ---- Fiche des SUPERVISEURS (DÉPARTEMENT DU SUIVI) ------------------------
+// ---- Fiche des ENCADREURS (DÉPARTEMENT DU SUIVI) --------------------------
+// Anciennement « Fiche des Superviseurs » : le type reste `superviseur` en
+// base (compatibilité des fiches existantes), seul le libellé change.
 function renderSuperviseur(doc, r) {
   const e = r.entete || {};
-  churchHeader(doc, "Fiche des Superviseurs");
+  churchHeader(doc, "Fiche des Encadreurs");
 
   infoBox(doc, [
-    ["Département", "Suivi (Superviseurs)"],
-    ["Noms & prénoms du superviseur", e.nomSuperviseur || "—"],
+    ["Département", "Suivi (Encadreurs)"],
+    ["Noms & prénoms de l'encadreur", e.nomSuperviseur || "—"],
     ["Téléphone", e.telephone || "—"],
     ["Rapport de la semaine du", formatDateFr(e.date) || "—"],
   ]);
@@ -348,93 +371,115 @@ function renderCellulePriere(doc, r) {
 
 // ---- Fiche de SUIVI DES CHORISTES (Chorale) — format paysage --------------
 const CH_DAYS = [
-  ["lundi", "Lun"], ["mardi", "Mar"], ["mercredi", "Mer"], ["jeudi", "Jeu"],
-  ["vendredi", "Ven"], ["samedi", "Sam"], ["dimanche", "Dim"],
+  ["lundi", "Lundi"], ["mardi", "Mardi"], ["mercredi", "Mercredi"], ["jeudi", "Jeudi"],
+  ["vendredi", "Vendredi"], ["samedi", "Samedi"], ["dimanche", "Dimanche"],
 ];
+// Même ordre et mêmes libellés que la fiche papier officielle.
 const CH_PRES = [
-  ["mardi", "Mardi"], ["jeudi", "Jeudi"], ["dimanche", "Dimanche"], ["vendredi", "Vendredi\n(nuit de prière)"],
+  ["mardi", "Mardi"], ["jeudi", "Jeudi"],
+  ["vendredi", "Vendredi (nuit de solutions ou nuit de prière des ouvriers)"], ["dimanche", "Dimanche"],
 ];
 
+// ---- Fiche de suivi hebdomadaire des CHORISTES ------------------------------
+// Reproduit la fiche papier : logo à gauche, bandeau titre gris foncé, ligne
+// « Encadreur / Groupe de croissance / Semaine du », puis le tableau en
+// en-têtes gris / noir alternés et une colonne noire entre les deux blocs.
 function renderChoristes(doc, r) {
   const e = r.entete || {};
-  churchHeader(doc, "Fiche de suivi hebdomadaire des choristes");
+  const GREY = "#595959";
+  const BLACK = "#111111";
+  const BAND = "#3f3f3f";
+  const BORDER = "#000000";
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const totalW = right - left;
 
-  infoBox(doc, [
-    ["Département", "Chorale"],
-    ["Encadreur", e.encadreur || "—"],
-    ["Groupe de croissance", e.groupe || "—"],
-    ["Semaine du", formatDateFr(e.date) || "—"],
-  ]);
+  // En-tête : logo + bandeau titre + ligne d'informations.
+  const top = doc.y;
+  const logoSize = 62;
+  drawLogo(doc, left + 20, top, logoSize);
+  const bandX = left + 170;
+  const bandW = right - bandX;
+  doc.rect(bandX, top + 4, bandW, 30).fill(BAND);
+  doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(15)
+    .text("FICHE DE SUIVI HEBDOMADAIRE DES CHORISTES", bandX, top + 12, { width: bandW, align: "center" });
+  const infoY = top + 44;
+  const field = (label, value, x, w) => {
+    doc.fillColor(INK).font("Helvetica-Bold").fontSize(9).text(label, x, infoY, { continued: false });
+    const lw = doc.widthOfString(label) + 4;
+    doc.moveTo(x + lw, infoY + 10).lineTo(x + w - 10, infoY + 10).dash(1, { space: 1.5 }).strokeColor(MUTED).lineWidth(0.6).stroke().undash();
+    doc.fillColor(INK).font("Helvetica-Oblique").fontSize(10).text(value || "", x + lw + 4, infoY - 1, { width: w - lw - 16, lineBreak: false });
+  };
+  const third = bandW / 3;
+  field("Encadreur :", e.encadreur, bandX, third);
+  field("Groupe de croissance :", e.groupe, bandX + third, third);
+  field("Semaine du :", e.date ? formatDateFr(e.date).replace(/^\w+ /, "") : "", bandX + 2 * third, third);
 
-  // Couleurs alternées par jour (pour ne pas s'emmêler au remplissage).
-  const DAY_LIGHT = "#efedfb";
-  const DAY_DARK = "#d7d1f4";
-  const dayTint = (i) => (i % 2 === 0 ? DAY_LIGHT : DAY_DARK);
+  // Géométrie du tableau (A4 paysage, marges 30).
+  const wNum = 22, wMembres = 96, wTel = 70, cCell = 24, wSep = 8;
+  const presW = [36, 34, 70, 50];
+  const xN = left, xMembres = xN + wNum, xTel = xMembres + wMembres, xDays = xTel + wTel;
+  const xSep = xDays + CH_DAYS.length * 2 * cCell;
+  const xPres = xSep + wSep;
+  const xRem = xPres + presW.reduce((a, b) => a + b, 0);
+  const wRem = right - xRem;
 
-  const x0 = doc.page.margins.left;
-  const cCell = 29, pCell = 42;
-  const wNum = 18, wMembres = 75, wTel = 56, wRem = 51;
-  const xN = x0, xMembres = xN + wNum, xTel = xMembres + wMembres;
-  const xCroissance = xTel + wTel;
-  const xPresence = xCroissance + CH_DAYS.length * 2 * cCell;
-  const xRemarques = xPresence + CH_PRES.length * pCell;
-
-  const hA = 16, hB = 14, hC = 14;
-  const y0 = doc.y;
-
-  // fillArg : true -> HEADFILL ; chaîne -> couleur ; false -> aucun
-  const cell = (cx, cy, w, h, label, { size = 7, fill = true, color = INDIGO } = {}) => {
-    const fillColor = fill === true ? HEADFILL : fill || null;
-    if (fillColor) doc.rect(cx, cy, w, h).fill(fillColor);
-    doc.rect(cx, cy, w, h).strokeColor(LINE).lineWidth(0.6).stroke();
-    doc.fillColor(color).font("Helvetica-Bold").fontSize(size)
-      .text(label, cx + 1, cy + Math.max(2, (h - size) / 2 - 1), { width: w - 2, align: "center", lineGap: -1 });
+  const hBand = 14, hDay = 13, hHead = 34;
+  const y0 = infoY + 26;
+  const tint = (i) => (i % 2 === 0 ? GREY : BLACK);
+  const cell = (cx, cy, w, h, label, fill, size = 7) => {
+    if (fill) doc.rect(cx, cy, w, h).fill(fill);
+    doc.rect(cx, cy, w, h).strokeColor(BORDER).lineWidth(0.6).stroke();
+    if (label) {
+      doc.fillColor(fill ? "#ffffff" : INK).font("Helvetica-Bold").fontSize(size);
+      const th = doc.heightOfString(label, { width: w - 3 });
+      doc.text(label, cx + 1.5, cy + Math.max(1.5, (h - th) / 2), { width: w - 3, align: "center", lineGap: -1 });
+    }
   };
 
-  // Tier A
-  cell(xN, y0, wNum, hA + hB + hC, "N°");
-  cell(xMembres, y0, wMembres, hA + hB + hC, "Membres", { size: 8 });
-  cell(xTel, y0, wTel, hA + hB + hC, "Téléphone", { size: 7 });
-  cell(xCroissance, y0, CH_DAYS.length * 2 * cCell, hA, "CROISSANCE SPIRITUELLE", { size: 8 });
-  cell(xPresence, y0, CH_PRES.length * pCell, hA, "PRÉSENCE À L'ÉGLISE", { size: 8 });
-  cell(xRemarques, y0, wRem, hA + hB + hC, "Remarques", { size: 7.5 });
-
-  // Tier B (jour) + Tier C (Bible / Livret), couleur alternée par jour
-  CH_DAYS.forEach(([, abbr], i) => {
-    const dx = xCroissance + i * 2 * cCell;
-    const tint = dayTint(i);
-    cell(dx, y0 + hA, 2 * cCell, hB, abbr, { size: 8, fill: tint });
-    cell(dx, y0 + hA + hB, cCell, hC, "Bible", { size: 5.8, fill: tint });
-    cell(dx + cCell, y0 + hA + hB, cCell, hC, "Livret", { size: 5.8, fill: tint });
+  // Bandeaux de section.
+  cell(xDays, y0, CH_DAYS.length * 2 * cCell, hBand, "CROISSANCE SPIRITUELLE", BAND, 9);
+  cell(xPres, y0, xRem + wRem - xPres, hBand, "PRÉSENCE À L'ÉGLISE", BAND, 9);
+  // Ligne des jours (croissance).
+  CH_DAYS.forEach(([, label], i) => cell(xDays + i * 2 * cCell, y0 + hBand, 2 * cCell, hDay, label, tint(i), 8));
+  // En-têtes de colonnes.
+  const yH = y0 + hBand + hDay;
+  cell(xN, yH, wNum, hHead, "N°", GREY, 8);
+  cell(xMembres, yH, wMembres, hHead, "Membres", GREY, 9);
+  cell(xTel, yH, wTel, hHead, "Téléphone", GREY, 8.5);
+  CH_DAYS.forEach((_, i) => {
+    cell(xDays + i * 2 * cCell, yH, cCell, hHead, "Bible", tint(i), 5.8);
+    cell(xDays + i * 2 * cCell + cCell, yH, cCell, hHead, "Livret", tint(i), 5.8);
   });
-  CH_PRES.forEach(([, label], i) => {
-    cell(xPresence + i * pCell, y0 + hA, pCell, hB + hC, label, { size: 6.5 });
-  });
+  let px = xPres;
+  CH_PRES.forEach(([, label], i) => { cell(px, yH, presW[i], hHead, label, tint(i), i === 2 ? 5.8 : 7); px += presW[i]; });
+  cell(xRem, yH, wRem, hHead, "Remarques", GREY, 9);
 
-  // Lignes de données
-  const widths = [wNum, wMembres, wTel, ...Array(CH_DAYS.length * 2).fill(cCell), ...Array(CH_PRES.length).fill(pCell), wRem];
-  // Teintes de fond par colonne (jours alternés), pour guider l'oeil.
-  const dayFills = [];
-  CH_DAYS.forEach((_, i) => { const t = dayTint(i); dayFills.push(t, t); });
-  const fills = [null, null, null, ...dayFills, ...Array(CH_PRES.length).fill(null), null];
-
-  let y = y0 + hA + hB + hC;
-  const rows = Array.isArray(r.lignes) ? r.lignes : [];
-  rows.forEach((row, idx) => {
+  // Lignes de données.
+  const widths = [wNum, wMembres, wTel, ...Array(CH_DAYS.length * 2).fill(cCell), wSep, ...presW, wRem];
+  const aligns = ["center", "center", "center", ...Array(CH_DAYS.length * 2).fill("center"), "center", ...Array(CH_PRES.length).fill("center"), "left"];
+  const fills = [null, null, null, ...Array(CH_DAYS.length * 2).fill(null), BLACK, ...Array(CH_PRES.length).fill(null), null];
+  let y = yH + hHead;
+  const sepTop = y0 + hBand;
+  const rows = Array.isArray(r.lignes) && r.lignes.length ? r.lignes : [];
+  // Toujours au moins 10 lignes, comme la fiche imprimée (lignes vides à la main).
+  const padded = rows.concat(Array(Math.max(0, 10 - rows.length)).fill(null));
+  padded.forEach((row, idx) => {
     if (y > doc.page.height - 50) { doc.addPage(); y = doc.page.margins.top; }
-    const cr = row.croissance || {};
-    const pr = row.presence || {};
-    const cells = [String(idx + 1), row.membre || "", row.telephone || ""];
-    CH_DAYS.forEach(([key]) => {
-      cells.push(cr[key]?.bible ? "X" : "");
-      cells.push(cr[key]?.livret ? "X" : "");
-    });
-    CH_PRES.forEach(([key]) => { cells.push(pr[key] ? "X" : ""); });
-    cells.push(row.remarques || "");
-    const aligns = ["center", "left", "left", ...Array(CH_DAYS.length * 2 + CH_PRES.length).fill("center"), "left"];
-    y = drawRow(doc, x0, y, widths, cells, { aligns, minHeight: 16, fills });
+    const cr = row?.croissance || {};
+    const pr = row?.presence || {};
+    const cells = [String(idx + 1), row?.membre || "", row?.telephone || ""];
+    CH_DAYS.forEach(([key]) => { cells.push(cr[key]?.bible ? "X" : ""); cells.push(cr[key]?.livret ? "X" : ""); });
+    cells.push("");
+    CH_PRES.forEach(([key]) => cells.push(pr[key] ? "X" : ""));
+    cells.push(row?.remarques || "");
+    y = drawRow(doc, left, y, widths, cells, { aligns, minHeight: 20, fills, border: BORDER });
   });
+  // Colonne noire de séparation sur toute la hauteur (bandeau → dernière ligne).
+  doc.rect(xSep, sepTop, wSep, yH + hHead - sepTop).fill(BLACK);
+  void totalW;
 
+  doc.y = y + 6;
   pdfFooter(doc);
 }
 
@@ -503,13 +548,77 @@ function renderAudiovisuel(doc, r) {
   pdfFooter(doc);
 }
 
+// ---- Fiche MENSUELLE du LEADER (remise au Pasteur) ------------------------
+function formatMonthFr(v) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(v || "").trim());
+  if (!m) return v ? String(v) : "";
+  return new Date(Number(m[1]), Number(m[2]) - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+}
+
+function renderLeaderMensuel(doc, r) {
+  const e = r.entete || {};
+  churchHeader(doc, "Rapport mensuel du leader");
+  const val = (v) => (v != null && v !== "" ? String(v) : "—");
+
+  infoBox(doc, [
+    ["Mois", formatMonthFr(e.mois) || "—"],
+    ["Département", e.departement || r.departmentName || "—"],
+    ["Nom du leader", e.nomLeader || "—"],
+    ["Téléphone", e.telephone || "—"],
+  ]);
+
+  sectionTitle(doc, "I — EFFECTIFS DU MOIS");
+  qLine(doc, 1, "Nombre de membres suivis", null, val(e.effectifMembres));
+  qLine(doc, 2, "Nombre d'encadreurs", null, val(e.effectifEncadreurs));
+  qLine(doc, 3, "Présence moyenne aux cultes", null, val(e.presenceMoyenne));
+  qLine(doc, 4, "Nouveaux venus / nouvelles âmes du mois", null, val(e.nouveauxVenus));
+
+  const rows = Array.isArray(r.lignes) ? r.lignes : [];
+  if (rows.length) {
+    sectionTitle(doc, "II — SUIVI DES ENCADREURS");
+    const x = doc.page.margins.left;
+    const totalW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const widths = [26, 150, 70, 80, totalW - 26 - 150 - 70 - 80];
+    const aligns = ["center", "left", "center", "center", "left"];
+    let y = drawRow(doc, x, doc.y, widths, ["N°", "Encadreur", "Membres", "Fiches remises", "Observations"], { header: true, aligns });
+    rows.forEach((row, i) => {
+      if (y > doc.page.height - 60) { doc.addPage(); y = doc.page.margins.top; }
+      y = drawRow(doc, x, y, widths, [
+        String(i + 1), row.encadreur || "", val(row.nbMembres), val(row.fichesRemises), row.observations || "",
+      ], { aligns });
+    });
+    doc.y = y + 10;
+  }
+
+  sectionTitle(doc, rows.length ? "III — BILAN DU MOIS" : "II — BILAN DU MOIS");
+  const left = doc.page.margins.left;
+  const width = doc.page.width - left - doc.page.margins.right;
+  for (const [label, v] of [
+    ["Activités réalisées", e.activites],
+    ["Difficultés rencontrées", e.difficultes],
+    ["Besoins / sujets de prière", e.besoins],
+    ["Projets pour le mois prochain", e.projets],
+  ]) {
+    if (doc.y > doc.page.height - 90) doc.addPage();
+    doc.fillColor(INDIGO).font("Helvetica-Bold").fontSize(10).text(label, left, doc.y);
+    doc.moveDown(0.2);
+    doc.fillColor(INK).font("Helvetica").fontSize(10).text(val(v), left, doc.y, { width, lineGap: 2 });
+    doc.moveDown(0.6);
+  }
+
+  doc.moveDown(0.6);
+  doc.fillColor(MUTED).font("Helvetica").fontSize(9).text("Visa du Pasteur : ______________________", left, doc.y);
+  pdfFooter(doc);
+}
+
 const RENDERERS = {
   huissier: { title: "rapport_assiduite", render: renderHuissier },
   faiseur_disciples: { title: "rapport_faiseur_disciples", render: renderFaiseurDisciples },
-  superviseur: { title: "fiche_superviseurs", render: renderSuperviseur },
+  superviseur: { title: "fiche_encadreurs", render: renderSuperviseur },
   cellule_priere: { title: "rapport_cellule_priere", render: renderCellulePriere },
   choristes: { title: "fiche_choristes", render: renderChoristes, layout: "landscape", margin: 30 },
   audiovisuel: { title: "rapport_assiduite_ouvriers", render: renderAudiovisuel },
+  leader_mensuel: { title: "rapport_mensuel_leader", render: renderLeaderMensuel },
 };
 
 async function streamRapportHebdoPdf(rapport, res) {

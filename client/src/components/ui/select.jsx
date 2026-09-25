@@ -9,8 +9,10 @@ import { cn } from '@/lib/utils';
  *  - value: selected value (or '' for none)
  *  - onChange: (value) => void
  *  - placeholder, searchable, className, size ('default' | 'sm')
+ *  - id: posé sur le bouton déclencheur, pour qu'un <label htmlFor> s'y rattache
  */
 export function Select({
+  id,
   options = [],
   value = '',
   onChange,
@@ -71,6 +73,7 @@ export function Select({
   return (
     <div ref={rootRef} className={cn('relative', className)}>
       <button
+        id={id}
         type="button"
         onClick={() => (open ? close() : setOpen(true))}
         aria-haspopup="listbox"
