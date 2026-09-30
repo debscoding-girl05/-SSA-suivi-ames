@@ -44,7 +44,8 @@ export default function RapportForm({ dirigeantId, mode = 'edit', onSaved, onCan
         setAssignes(list);
         setName(dir.dirigeant?.fullName || '');
         const byId = Object.fromEntries((fiche.presences || []).map((p) => [p.assigneId, p.statut]));
-        setPresence(Object.fromEntries(list.map((a) => [a.id, byId[a.id] || 'present'])));
+        // Personne n'est pointé d'office : l'encadreur indique chaque présence.
+        setPresence(Object.fromEntries(list.map((a) => [a.id, byId[a.id] || null])));
         setRemarques(fiche.rapport?.remarques || '');
         setStatus(fiche.rapport?.status || null);
         setReviewComment(fiche.rapport?.reviewComment || null);
@@ -61,14 +62,20 @@ export default function RapportForm({ dirigeantId, mode = 'edit', onSaved, onCan
   // Author can edit only a draft, a returned fiche, or a brand-new one.
   const editable = !isReview && (status === null || status === 'brouillon' || status === 'a_corriger');
   const presentCount = useMemo(() => Object.values(presence).filter((s) => s === 'present').length, [presence]);
+  const unmarked = assignes.filter((a) => !presence[a.id]).length;
 
   async function save(nextStatus) {
-    setError(''); setBusy(true);
+    setError('');
+    if (nextStatus === 'soumis') {
+      if (!assignes.length) { setError("Aucun membre à pointer : ajoutez d'abord vos membres avant de soumettre la fiche."); return; }
+      if (unmarked) { setError(`Fiche incomplète : ${unmarked} membre${unmarked > 1 ? 's' : ''} non pointé${unmarked > 1 ? 's' : ''}. Indiquez Présent, Absent ou Justifié pour chacun.`); return; }
+    }
+    setBusy(true);
     try {
       await submitRapport({
         status: nextStatus,
         remarques,
-        presences: assignes.map((a) => ({ assigneId: a.id, statut: presence[a.id] || 'present' })),
+        presences: assignes.filter((a) => presence[a.id]).map((a) => ({ assigneId: a.id, statut: presence[a.id] })),
       });
       onSaved?.();
     } catch (err) {
@@ -113,7 +120,10 @@ export default function RapportForm({ dirigeantId, mode = 'edit', onSaved, onCan
         <>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Présence ({assignes.length})</span>
-            <span className="font-medium tabular-nums text-success-foreground-light">{presentCount} présent{presentCount > 1 ? 's' : ''}</span>
+            <span className="flex gap-3 tabular-nums">
+              <span className="font-medium text-success-foreground-light">{presentCount} présent{presentCount > 1 ? 's' : ''}</span>
+              {editable && unmarked > 0 && <span className="font-medium text-warning-foreground">{unmarked} non pointé{unmarked > 1 ? 's' : ''}</span>}
+            </span>
           </div>
           <div className="max-h-[40vh] overflow-y-auto rounded-xl border border-border">
             {assignes.map((a) => (

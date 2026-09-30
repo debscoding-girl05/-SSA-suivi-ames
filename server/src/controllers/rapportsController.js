@@ -110,11 +110,27 @@ async function submit(req, res) {
       if (!PRESENCE_STATUS.includes(p.statut)) throw ApiError.badRequest("Statut de présence invalide");
       return { assigneId: p.assigneId, statut: p.statut };
     });
+    // Une fiche soumise doit pointer chaque membre : ni fiche vide (aucun
+    // membre), ni fiche partielle. Le brouillon, lui, peut rester incomplet.
+    if (status === "soumis") {
+      if (!own.length) {
+        throw ApiError.badRequest("Aucun membre à pointer : ajoutez d'abord vos membres avant de soumettre la fiche.");
+      }
+      const pointed = new Set(presences.map((p) => p.assigneId));
+      const missing = own.filter((a) => !pointed.has(a.id)).length;
+      if (missing) {
+        throw ApiError.badRequest(`Fiche incomplète : ${missing} membre${missing > 1 ? "s" : ""} non pointé${missing > 1 ? "s" : ""}. Indiquez Présent, Absent ou Justifié pour chacun.`);
+      }
+    }
     const rapport = await db.rapports.submit({ dirigeantId: targetId, year, week, status, remarques, presences });
     return res.status(201).json(rapport);
   }
 
   const payload = validateRapport(req.body);
+  // Ancien format (nombre de présents saisi) : refuser une soumission vide.
+  if (status === "soumis" && !(payload.presentCount > 0) && !payload.absents && !payload.remarques) {
+    throw ApiError.badRequest("La fiche est vide : indiquez au moins les présents ou une remarque avant de la soumettre.");
+  }
   const rapport = await db.rapports.submit({ dirigeantId: targetId, year, week, status, ...payload });
   res.status(201).json(rapport);
 }

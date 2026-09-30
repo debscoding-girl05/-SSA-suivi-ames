@@ -17,7 +17,8 @@ const anyTrue = (obj) =>
 const ROW_CONTENT = {
   huissier: (r) => filled(r.present) || filled(r.numeroCulte),
   faiseur_disciples: (r) => filled(r.present) || filled(r.lecon) || filled(r.observations),
-  superviseur: (r) => filled(r.faiseur) || filled(r.nomsAme) || filled(r.telephone) || filled(r.commentaires),
+  // Le nom du faiseur seul ne suffit pas : il faut une âme (ou un commentaire).
+  superviseur: (r) => filled(r.nomsAme) || filled(r.assigneId) || filled(r.telephone) || filled(r.commentaires),
   choristes: (r) => anyTrue(r.croissance) || anyTrue(r.presence) || filled(r.remarques),
   audiovisuel: (r) => ["m", "j", "nuitsPrieres", "progSpecial", "dim", "cpSamedi", "devo", "service", "xtere"].some((k) => filled(r[k])),
   leader_mensuel: (r) => filled(r.fichesRemises) || filled(r.observations),
