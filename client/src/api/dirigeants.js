@@ -59,3 +59,9 @@ export function deleteAssigne(dirigeantId, assigneId) {
 export function getEquipe(params) {
   return request(`/api/dirigeants/equipe${toQuery(params)}`);
 }
+
+// Faiseurs de Disciples (comptes des départements Faiseurs de Disciples / Suivi)
+// proposés dans la fiche des encadreurs.
+export function listFaiseurs() {
+  return request('/api/dirigeants/faiseurs');
+}

@@ -132,6 +132,14 @@ async function submitFiche(req, res) {
     if (!PRESENCE.includes(p.statut)) throw ApiError.badRequest("Statut de présence invalide");
     return { membreId: p.membreId, statut: p.statut };
   });
+  if (status === "soumis") {
+    if (!membres.length) throw ApiError.badRequest("Aucun membre dans la cellule : ajoutez les membres avant de soumettre la fiche.");
+    const pointed = new Set(presences.map((p) => p.membreId));
+    const missing = membres.filter((m) => !pointed.has(m.id)).length;
+    if (missing) {
+      throw ApiError.badRequest(`Fiche incomplète : ${missing} membre${missing > 1 ? "s" : ""} non pointé${missing > 1 ? "s" : ""}.`);
+    }
+  }
 
   const fiche = await db.cellules.submitFiche({
     celluleId: cellule.id, year, week, status,

@@ -454,8 +454,11 @@ test("Validation: leader valide / demande correction, RBAC + self-validation int
   assert.equal(jm.body.rapport.reviewComment, "À revoir");
 
   // Jean corrige et re-soumet
-  const aid = (await api("GET", `/api/dirigeants/${jeanId}/assignes`, jeanTok)).body.data[0].id;
-  const resub = await api("POST", "/api/rapports", jeanTok, { status: "soumis", presences: [{ assigneId: aid, statut: "present" }] });
+  // Une fiche soumise pointe chaque membre (fiche partielle refusée).
+  const jeanAss = (await api("GET", `/api/dirigeants/${jeanId}/assignes`, jeanTok)).body.data;
+  const partial = await api("POST", "/api/rapports", jeanTok, { status: "soumis", presences: [{ assigneId: jeanAss[0].id, statut: "present" }] });
+  assert.equal(jeanAss.length > 1 ? partial.status : 400, 400);
+  const resub = await api("POST", "/api/rapports", jeanTok, { status: "soumis", presences: jeanAss.map((a) => ({ assigneId: a.id, statut: "present" })) });
   assert.equal(resub.status, 201);
   assert.equal(resub.body.status, "soumis");
 

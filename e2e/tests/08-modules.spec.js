@@ -16,8 +16,15 @@ test.describe('Cellules, nouveaux venus, rapports, notifications, journal, profi
 
     await page.getByRole('button', { name: 'Fiche de présence' }).click();
     const d = page.getByRole('dialog');
+    // Soumission incomplète refusée : chaque membre doit être pointé.
     await d.getByRole('button', { name: 'Présent' }).first().click();
     await d.getByRole('button', { name: 'Soumettre' }).click();
+    await expect(d.getByRole('alert')).toContainText('Fiche incomplète');
+    const presents = d.getByRole('button', { name: 'Présent' });
+    for (let i = 0; i < await presents.count(); i += 1) await presents.nth(i).click();
+    await expect(d.getByText(/^\d+ non pointés?$/)).toHaveCount(0);
+    await d.getByRole('button', { name: 'Soumettre' }).click();
+    await expect(d).toHaveCount(0);
     await logout(page);
 
     await login(page, 'pasteur');

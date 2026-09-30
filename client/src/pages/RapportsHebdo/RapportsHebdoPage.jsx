@@ -62,9 +62,12 @@ export default function RapportsHebdoPage() {
     if (status === 'soumis') {
       setModal(null);
       const a = saved.annuaire;
-      const extra = a && (a.added || a.existing)
-        ? ` · ${a.added} personne${a.added > 1 ? 's' : ''} ajoutée${a.added > 1 ? 's' : ''} à l'annuaire${a.existing ? `, ${a.existing} déjà présente${a.existing > 1 ? 's' : ''}` : ''}`
-        : '';
+      const parts = [];
+      const pl = (n) => (n > 1 ? 's' : '');
+      if (a?.added) parts.push(`${a.added} âme${pl(a.added)} ajoutée${pl(a.added)} à l'annuaire`);
+      if (a?.assigned) parts.push(`${a.assigned} rattachée${pl(a.assigned)} à son faiseur`);
+      if (a?.existing) parts.push(`${a.existing} déjà suivie${pl(a.existing)}`);
+      const extra = parts.length ? ` · ${parts.join(', ')}` : '';
       setToast(`Fiche soumise avec succès${extra}`);
       setTimeout(() => setToast(''), 4000);
     }

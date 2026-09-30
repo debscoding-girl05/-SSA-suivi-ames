@@ -62,3 +62,32 @@ test.describe('Fiche de présence hebdomadaire (Fiches)', () => {
     await expect(dialog.getByRole('button', { name: 'Soumettre' })).toHaveCount(0);
   });
 });
+
+test.describe('Fiche de présence : vide ou incomplète refusée', () => {
+  test('encadreur sans membre : impossible de soumettre', async ({ page, request }) => {
+    const { API } = require('./helpers');
+    const tok = (await (await request.post(`${API}/api/auth/login`, { data: { identifier: 'pr@ssa.app', password: 'pr1234' } })).json()).token;
+    const deps = (await (await request.get(`${API}/api/departments`, { headers: { Authorization: `Bearer ${tok}` } })).json()).data;
+    const email = `vide${Date.now()}@ssa.app`;
+    const created = await (await request.post(`${API}/api/dirigeants`, { headers: { Authorization: `Bearer ${tok}` }, data: { fullName: 'Encadreur Vide', email, role: 'encadreur', departmentId: deps.find((x) => x.name === 'Jeunes').id } })).json();
+    await login(page, [email, created.tempPassword]);
+    await page.goto('/fiches');
+    await page.getByRole('button', { name: 'Soumettre ma fiche' }).click();
+    const d = page.getByRole('dialog');
+    await expect(d.getByText('Aucun assigné à pointer.')).toBeVisible();
+    await d.getByRole('button', { name: 'Soumettre' }).click();
+    await expect(d.getByRole('alert')).toContainText('Aucun membre à pointer');
+  });
+
+  test('membres non pointés : soumission refusée avec le nombre manquant', async ({ page }) => {
+    await login(page, 'grace');
+    await page.goto('/fiches');
+    await page.getByRole('button', { name: 'Soumettre ma fiche' }).click();
+    const d = page.getByRole('dialog');
+    await expect(d.getByText(/\d+ non pointés?/)).toBeVisible();
+    await d.getByRole('button', { name: 'Soumettre' }).click();
+    await expect(d.getByRole('alert')).toContainText('Fiche incomplète');
+    await d.getByRole('button', { name: 'Brouillon' }).click();
+    await expect(d).toHaveCount(0); // un brouillon partiel reste possible
+  });
+});

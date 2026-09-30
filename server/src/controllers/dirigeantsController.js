@@ -132,6 +132,24 @@ async function equipe(req, res) {
   res.json({ encadreurs, membres, membresTotal: total, week: { year, week } });
 }
 
+// Comptes actifs (leaders / encadreurs) des départements Faiseurs de
+// Disciples et Suivi — liste proposée dans la colonne « Faiseur de
+// Disciples » de la fiche des encadreurs. Nom et département seulement.
+async function listFaiseurs() {
+  const { year, week } = parseWeek({});
+  const deps = (await db.departments.list()).filter((d) => db.FD_DEPT_NAMES.includes(d.name));
+  const lists = await Promise.all(deps.map((d) => db.dirigeants.list({ departmentId: d.id, year, week })));
+  return lists.flat().filter((u) => u.isActive !== false);
+}
+
+// GET /api/dirigeants/faiseurs
+async function faiseurs(_req, res) {
+  const data = (await listFaiseurs())
+    .map((u) => ({ id: u.id, fullName: u.fullName, departmentName: u.departmentName }))
+    .sort((a, b) => String(a.fullName).localeCompare(String(b.fullName), "fr"));
+  res.json({ data });
+}
+
 // POST /api/dirigeants — Pasteur/PR create a new account (leader, encadreur,
 // leader_cellule, or pr). "pasteur" is never creatable here (seed-only).
 // A temporary password is generated and returned ONCE in the response — there
@@ -223,4 +241,4 @@ async function update(req, res) {
   res.json(toPublic(u));
 }
 
-module.exports = { list, equipe, getOne, create, update, deactivate, reactivate, canView, isAdmin };
+module.exports = { list, equipe, faiseurs, listFaiseurs, getOne, create, update, deactivate, reactivate, canView, isAdmin };

@@ -160,11 +160,11 @@ test("Fiche des encadreurs : les âmes entrent dans l'annuaire sans doublon", as
   ];
   const first = await api("POST", "/api/rapports-hebdo", ruth, { type: "superviseur", entete: { nomSuperviseur: "Ruth" }, lignes, status: "soumis" });
   assert.equal(first.status, 201);
-  assert.deepEqual(first.body.annuaire, { added: 2, existing: 1 });
+  assert.deepEqual(first.body.annuaire, { added: 2, assigned: 0, existing: 1 });
 
   const again = await api("PUT", `/api/rapports-hebdo/${first.body.id}`, ruth, { lignes, status: "soumis" });
   assert.equal(again.status, 200);
-  assert.deepEqual(again.body.annuaire, { added: 0, existing: 3 });
+  assert.deepEqual(again.body.annuaire, { added: 0, assigned: 0, existing: 3 });
 
   const found = await api("GET", "/api/annuaire?search=mvondo", ruth);
   assert.equal(found.body.total, 1);
@@ -183,4 +183,76 @@ test("Rapport mensuel : réservé aux leaders", async () => {
 
   const seen = await api("GET", "/api/rapports-hebdo?type=leader_mensuel", pasteur);
   assert.ok(seen.body.data.some((r) => r.id === ok.body.id));
+});
+
+test("Fiche des encadreurs : l'âme choisie est rattachée au Faiseur de Disciples de la ligne", async () => {
+  const ruth = await login("suivi@ssa.app", "dirigeant1234"); // Faiseur de Disciples (Suivi)
+  const esther = await login("esther@ssa.app", "dirigeant1234"); // encadreur hors Suivi
+  const pasteur = await login("pasteur@ssa.app", "pasteur1234");
+
+  const fds = await api("GET", "/api/dirigeants/faiseurs", esther);
+  assert.equal(fds.status, 200);
+  const ruthFd = fds.body.data.find((u) => u.fullName === "Ruth Onana");
+  assert.ok(ruthFd, "Ruth figure dans la liste des faiseurs");
+  assert.ok(fds.body.data.every((u) => u.email === undefined), "pas d'email exposé");
+
+  // Âme existante (Samuel Eboa, suivi par Marie) choisie dans l'annuaire.
+  const samuel = (await api("GET", "/api/annuaire?search=Eboa", pasteur)).body.data[0];
+  const lignes = [{ faiseur: "Ruth Onana", faiseurId: ruthFd.id, assigneId: samuel.id, nomsAme: "Samuel Eboa", telephone: samuel.phone, commentaires: "" }];
+
+  // Un encadreur hors Suivi ne peut pas déplacer l'âme de quelqu'un d'autre.
+  const byEsther = await api("POST", "/api/rapports-hebdo", esther, { type: "superviseur", entete: { nomSuperviseur: "Esther" }, lignes, status: "soumis" });
+  assert.equal(byEsther.status, 201);
+  assert.deepEqual(byEsther.body.annuaire, { added: 0, assigned: 0, existing: 1 });
+
+  // Un Faiseur de Disciples peut : l'âme passe chez le faiseur choisi.
+  const byRuth = await api("POST", "/api/rapports-hebdo", ruth, { type: "superviseur", entete: { nomSuperviseur: "Ruth" }, lignes, status: "soumis" });
+  assert.deepEqual(byRuth.body.annuaire, { added: 0, assigned: 1, existing: 0 });
+  const after = (await api("GET", "/api/annuaire?search=Eboa", pasteur)).body.data[0];
+  assert.equal(after.dirigeantId, ruthFd.id);
+
+  // Nouvelle âme + faiseur choisi : créée directement chez ce faiseur.
+  const nouvelle = await api("POST", "/api/rapports-hebdo", esther, { type: "superviseur", entete: {}, status: "soumis",
+    lignes: [{ faiseur: "Ruth Onana", faiseurId: ruthFd.id, nomsAme: "BIYONG Rose", telephone: "699 45 45 45", commentaires: "" }] });
+  assert.deepEqual(nouvelle.body.annuaire, { added: 1, assigned: 0, existing: 0 });
+  const rose = (await api("GET", "/api/annuaire?search=biyong", pasteur)).body.data[0];
+  assert.equal(rose.dirigeantId, ruthFd.id);
+
+  // Une ligne avec seulement le faiseur ne suffit pas : fiche vide.
+  const vide = await api("POST", "/api/rapports-hebdo", ruth, { type: "superviseur", entete: { nomSuperviseur: "Ruth" }, status: "soumis",
+    lignes: [{ faiseur: "Ruth Onana", faiseurId: ruthFd.id, nomsAme: "", telephone: "", commentaires: "" }] });
+  assert.equal(vide.status, 400);
+});
+
+test("Fiche de présence : ni vide, ni partielle ; brouillon partiel accepté", async () => {
+  const pr = await login("pr@ssa.app", "pr1234");
+  const deps = (await api("GET", "/api/departments", pr)).body.data;
+  const created = await api("POST", "/api/dirigeants", pr, { fullName: "Sans Membre", email: "sans.membre@ssa.app", role: "encadreur", departmentId: deps.find((d) => d.name === "Jeunes").id });
+  const vide = await login("sans.membre@ssa.app", created.body.tempPassword);
+  const r0 = await api("POST", "/api/rapports", vide, { status: "soumis", presences: [] });
+  assert.equal(r0.status, 400);
+  assert.match(r0.body.message, /Aucun membre à pointer/);
+  assert.equal((await api("POST", "/api/rapports", vide, { status: "soumis", presentCount: 0 })).status, 400);
+
+  const grace = await login("grace@ssa.app", "dirigeant1234"); // leader sans fiche cette semaine
+  const me = (await api("GET", "/api/auth/me", grace)).body.user;
+  const ids = (await api("GET", `/api/dirigeants/${me.id}/assignes`, grace)).body.data.map((a) => a.id);
+  assert.ok(ids.length >= 2);
+  const partial = await api("POST", "/api/rapports", grace, { status: "soumis", presences: [{ assigneId: ids[0], statut: "present" }] });
+  assert.equal(partial.status, 400);
+  assert.match(partial.body.message, /non pointé/);
+  assert.equal((await api("POST", "/api/rapports", grace, { status: "brouillon", presences: [{ assigneId: ids[0], statut: "present" }] })).status, 201);
+  const full = await api("POST", "/api/rapports", grace, { status: "soumis", presences: ids.map((id, i) => ({ assigneId: id, statut: i ? "absent" : "present" })) });
+  assert.equal(full.status, 201);
+});
+
+test("Fiche de cellule : soumission partielle refusée", async () => {
+  const pierre = await login("cellule@ssa.app", "dirigeant1234");
+  const mine = (await api("GET", "/api/cellules", pierre)).body.data[0];
+  const membres = (await api("GET", `/api/cellules/${mine.id}`, pierre)).body.membres;
+  assert.ok(membres.length >= 2);
+  const partial = await api("POST", `/api/cellules/${mine.id}/fiche`, pierre, { status: "soumis", presences: [{ membreId: membres[0].id, statut: "present" }] });
+  assert.equal(partial.status, 400);
+  const full = await api("POST", `/api/cellules/${mine.id}/fiche`, pierre, { status: "soumis", presences: membres.map((m) => ({ membreId: m.id, statut: "present" })) });
+  assert.equal(full.status, 201);
 });

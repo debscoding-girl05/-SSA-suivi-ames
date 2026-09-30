@@ -79,20 +79,47 @@ test.describe('Fiches hebdo & rapport mensuel', () => {
     const d = page.getByRole('dialog');
     await d.getByLabel(/Noms & prénoms de l'encadreur/).fill('Ruth Onana');
     const rows = d.locator('tbody tr');
+    // Ligne 1 : nouvelle âme, faiseur choisi dans la liste.
+    await rows.nth(0).locator('select').selectOption({ label: 'Ruth Onana' });
     let cells = rows.nth(0).locator('input');
-    await cells.nth(0).fill('Ruth');
-    await cells.nth(1).fill('690 11 22 99');
-    await cells.nth(2).fill(`${nom} Claire`);
+    await cells.nth(0).fill('690 11 22 99');
+    await cells.nth(1).fill(`${nom} Claire`);
+    // Ligne 2 : Samuel Eboa, déjà connu, sans faiseur → reste où il est.
     cells = rows.nth(1).locator('input');
-    await cells.nth(0).fill('Ruth');
-    await cells.nth(1).fill('+237 6 55 66 77 88'); // Samuel Eboa, déjà dans l'annuaire
-    await cells.nth(2).fill('Samuel Eboa');
+    await cells.nth(0).fill('+237 6 55 66 77 88');
+    await cells.nth(1).fill('Samuel Eboa');
     await d.getByRole('button', { name: 'Soumettre le rapport' }).click();
-    await expect(page.getByText(/1 personne ajoutée à l'annuaire, 1 déjà présente/)).toBeVisible();
+    await expect(page.getByText(/1 âme ajoutée à l'annuaire, 1 déjà suivie/)).toBeVisible();
 
     await page.goto('/annuaire');
     await page.getByPlaceholder('Rechercher un nom, un numéro…').fill(nom);
     await expect(page.locator('li', { hasText: nom })).toHaveCount(1);
+  });
+
+  test('fiche des encadreurs : choisir une âme de l’annuaire et l’assigner à un Faiseur de Disciples', async ({ page }) => {
+    await login(page, 'suivi');
+    await newFiche(page, 'Fiche des Encadreurs');
+    await page.getByText('Remplir manuellement').click();
+    const d = page.getByRole('dialog', { name: 'Fiche des Encadreurs' });
+    await d.getByLabel(/Noms & prénoms de l'encadreur/).fill('Ruth Onana');
+    const row = d.locator('tbody tr').first();
+    // Une ligne avec seulement le faiseur = fiche vide.
+    await row.locator('select').selectOption({ label: 'Ruth Onana' });
+    await d.getByRole('button', { name: 'Soumettre le rapport' }).click();
+    await expect(d.getByRole('alert')).toContainText('La fiche est vide');
+    // Choisir l'âme dans l'annuaire.
+    await row.getByRole('button', { name: /Choisir l'âme de la ligne 1/ }).click();
+    const picker = page.getByRole('dialog', { name: "Choisir dans l'annuaire" });
+    await picker.getByPlaceholder(/Nom ou numéro/).fill('Kamga');
+    await picker.locator('li', { hasText: 'Pierre Kamga' }).getByRole('button', { name: 'Choisir' }).click();
+    await expect(row.getByText("Déjà dans l'annuaire")).toBeVisible();
+    await expect(row.locator('input').nth(1)).toHaveValue('Pierre Kamga');
+    await d.getByRole('button', { name: 'Soumettre le rapport' }).click();
+    await expect(page.getByText(/1 rattachée à son faiseur/)).toBeVisible();
+    // Pierre Kamga est désormais suivi par Ruth Onana.
+    await page.goto('/annuaire');
+    await page.getByPlaceholder('Rechercher un nom, un numéro…').fill('Kamga');
+    await expect(page.locator('li', { hasText: 'Pierre Kamga' })).toContainText('Ruth Onana');
   });
 
   test('rapport mensuel du leader : pré-rempli, vide refusé, remis au Pasteur', async ({ page }) => {

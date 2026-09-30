@@ -13,18 +13,25 @@ const TEXTAREA =
 
 export default function CelluleFicheForm({ celluleId, membres, fiche, onSaved, onCancel }) {
   const byId = Object.fromEntries((fiche?.presences || []).map((p) => [p.membreId, p.statut]));
-  const [presence, setPresence] = useState(Object.fromEntries(membres.map((m) => [m.id, byId[m.id] || 'present'])));
+  // Personne n'est pointé d'office : le leader indique chaque présence.
+  const [presence, setPresence] = useState(Object.fromEntries(membres.map((m) => [m.id, byId[m.id] || null])));
   const [remarques, setRemarques] = useState(fiche?.remarques || '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const presentCount = useMemo(() => Object.values(presence).filter((s) => s === 'present').length, [presence]);
+  const unmarked = membres.filter((m) => !presence[m.id]).length;
 
   async function save(status) {
-    setError(''); setBusy(true);
+    setError('');
+    if (status === 'soumis' && unmarked) {
+      setError(`Fiche incomplète : ${unmarked} membre${unmarked > 1 ? 's' : ''} non pointé${unmarked > 1 ? 's' : ''}.`);
+      return;
+    }
+    setBusy(true);
     try {
       await submitFicheCellule(celluleId, {
         status, remarques,
-        presences: membres.map((m) => ({ membreId: m.id, statut: presence[m.id] || 'present' })),
+        presences: membres.filter((m) => presence[m.id]).map((m) => ({ membreId: m.id, statut: presence[m.id] })),
       });
       onSaved?.();
     } catch (e) { setError(e?.message || 'Enregistrement impossible.'); } finally { setBusy(false); }
@@ -38,7 +45,10 @@ export default function CelluleFicheForm({ celluleId, membres, fiche, onSaved, o
         <>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Présence ({membres.length})</span>
-            <span className="font-medium tabular-nums text-success-foreground-light">{presentCount} présent{presentCount > 1 ? 's' : ''}</span>
+            <span className="flex gap-3 tabular-nums">
+              <span className="font-medium text-success-foreground-light">{presentCount} présent{presentCount > 1 ? 's' : ''}</span>
+              {unmarked > 0 && <span className="font-medium text-warning-foreground">{unmarked} non pointé{unmarked > 1 ? 's' : ''}</span>}
+            </span>
           </div>
           <div className="max-h-[40vh] overflow-y-auto rounded-xl border border-border">
             {membres.map((m) => (

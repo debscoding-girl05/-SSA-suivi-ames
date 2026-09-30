@@ -5,6 +5,8 @@ const { streamRapportHebdoPdf, RENDERERS } = require("../utils/rapportHebdoPdf")
 const storage = require("../utils/storage");
 const { hasFicheContent } = require("../utils/ficheContent");
 const { sendPushToUser } = require("../utils/push");
+const { listFaiseurs } = require("./dirigeantsController");
+const { seesWholeAnnuaire } = require("./annuaireController");
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 Mo — largement suffisant pour une photo de registre
@@ -53,24 +55,48 @@ function splitName(full) {
   return { lastName: parts[0] || "", firstName: parts.slice(1).join(" ") };
 }
 
-// Fiche des encadreurs : chaque âme saisie dans le tableau entre directement
-// dans l'annuaire (rattachée à l'auteur de la fiche), sauf si elle y est déjà
-// — même numéro de téléphone ou, à défaut de numéro, même nom.
-async function syncEncadreursToAnnuaire(rapport) {
-  const result = { added: 0, existing: 0 };
+// Fiche des encadreurs : chaque âme du tableau entre dans l'annuaire et est
+// rattachée au Faiseur de Disciples choisi sur la ligne (à défaut : à
+// l'auteur de la fiche). Pas de doublon : l'âme choisie dans l'annuaire
+// (assigneId), sinon même numéro, sinon même nom.
+// Rattacher une âme DÉJÀ suivie par quelqu'un d'autre n'est permis qu'aux
+// profils qui voient tout l'annuaire (Faiseurs de Disciples, Pasteur, PR…)
+// ou si l'âme est actuellement suivie par l'auteur lui-même.
+async function syncEncadreursToAnnuaire(rapport, user) {
+  const result = { added: 0, assigned: 0, existing: 0 };
   if (rapport.type !== "superviseur" || !rapport.authorId) return result;
+  const faiseurIds = new Set((await listFaiseurs()).map((u) => u.id));
+  const canReassignAny = user ? await seesWholeAnnuaire(user) : false;
+
   for (const row of rapport.lignes || []) {
     const nom = String(row.nomsAme || "").trim();
     const phone = String(row.telephone || "").trim();
-    if (!nom) continue;
-    const found = (phone && (await db.assignes.findByPhone(phone))) || (await db.assignes.findByFullName(nom));
-    if (found) { result.existing += 1; continue; }
+    if (!nom && !row.assigneId) continue;
+    // Faiseur choisi dans la liste = rattachement demandé ; sinon l'âme reste
+    // où elle est (ou, si nouvelle, va à l'auteur de la fiche).
+    const chosen = row.faiseurId && faiseurIds.has(row.faiseurId) ? row.faiseurId : null;
+    const target = chosen || rapport.authorId;
+
+    const found = (row.assigneId && (await db.assignes.findById(String(row.assigneId))))
+      || (phone && (await db.assignes.findByPhone(phone)))
+      || (nom && (await db.assignes.findByFullName(nom)));
+
+    if (found) {
+      const mayMove = canReassignAny || found.dirigeantId === rapport.authorId;
+      if (chosen && found.dirigeantId !== chosen && mayMove) {
+        await db.assignes.update(found.id, { dirigeantId: target });
+        result.assigned += 1;
+      } else {
+        result.existing += 1;
+      }
+      continue;
+    }
     const { lastName, firstName } = splitName(nom);
     await db.assignes.create({
       firstName,
       lastName,
       phone: phone || null,
-      dirigeantId: rapport.authorId,
+      dirigeantId: target,
       statut: "nouveau",
       firstSeenAt: new Date().toISOString().slice(0, 10),
       notes: row.faiseur ? `Ajouté depuis la fiche des encadreurs — faiseur de disciples : ${row.faiseur}` : "Ajouté depuis la fiche des encadreurs",
@@ -122,7 +148,7 @@ async function create(req, res) {
     departmentId: req.body.departmentId ?? req.user.departmentId ?? null,
     year, week, entete, lignes, status,
   });
-  const annuaire = status === "soumis" ? await syncEncadreursToAnnuaire(rapport) : undefined;
+  const annuaire = status === "soumis" ? await syncEncadreursToAnnuaire(rapport, req.user) : undefined;
   if (status === "soumis") notifySubmitted(rapport, req.user);
   res.status(201).json(annuaire ? { ...rapport, annuaire } : rapport);
 }
@@ -159,7 +185,7 @@ async function update(req, res) {
     if (!ok) throw ApiError.badRequest(EMPTY_FICHE_MESSAGE);
   }
   const updated = await db.rapportsHebdo.update(req.params.id, fields);
-  const annuaire = updated.status === "soumis" ? await syncEncadreursToAnnuaire(updated) : undefined;
+  const annuaire = updated.status === "soumis" ? await syncEncadreursToAnnuaire(updated, req.user) : undefined;
   if (fields.status === "soumis" && rapport.status !== "soumis") notifySubmitted(updated, req.user);
   res.json(annuaire ? { ...updated, annuaire } : updated);
 }

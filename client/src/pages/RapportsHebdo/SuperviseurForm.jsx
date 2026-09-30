@@ -1,14 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Download, Send } from 'lucide-react';
+import { Plus, Trash2, Download, Send, BookUser, Check } from 'lucide-react';
 import { createRapportHebdo, updateRapportHebdo, downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
+import { listFaiseurs } from '../../api/dirigeants';
 import ReprendreDerniereFiche from './ReprendreDerniereFiche';
 import RapportAttachments from './RapportAttachments';
+import AmePicker from './AmePicker';
 
-const emptyRow = () => ({ faiseur: '', telephone: '', nomsAme: '', commentaires: '' });
-const resetRow = (r) => ({ faiseur: r.faiseur || '', telephone: r.telephone || '', nomsAme: r.nomsAme || '', commentaires: '' });
-const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
+// faiseurId : compte du Faiseur de Disciples choisi dans la liste (l'âme lui
+// sera rattachée) ; faiseurLibre : nom saisi à la main (personne sans compte).
+// assigneId : âme choisie dans l'annuaire (évite tout doublon).
+const emptyRow = () => ({ faiseur: '', faiseurId: '', faiseurLibre: false, telephone: '', nomsAme: '', assigneId: '', commentaires: '' });
+const resetRow = (r) => ({
+  faiseur: r.faiseur || '', faiseurId: r.faiseurId || '', faiseurLibre: Boolean(r.faiseurLibre),
+  telephone: r.telephone || '', nomsAme: r.nomsAme || '', assigneId: r.assigneId || '', commentaires: '',
+});
+const phoneHasInvalid = (v) => /[^0-9\s]/.test(String(v || '').replace(/^\s*\+/, ''));
+const SELECT = 'border-input bg-background text-foreground h-10 w-full rounded-md border px-2 text-sm';
+const OTHER = '__autre';
 
 // Fiche des Encadreurs (Département du Suivi) — anciennement « Superviseurs »,
 // le type reste `superviseur` en base pour ne pas casser les fiches existantes.
@@ -25,6 +35,22 @@ export default function SuperviseurForm({ initial, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [showErrors, setShowErrors] = useState(false);
+  const [faiseurs, setFaiseurs] = useState([]);
+  const [picking, setPicking] = useState(null); // index de la ligne qui choisit une âme
+
+  useEffect(() => {
+    listFaiseurs().then((res) => setFaiseurs(res.data)).catch(() => setFaiseurs([]));
+  }, []);
+
+  function chooseFaiseur(i, value) {
+    if (value === OTHER) return setRow(i, { faiseurId: '', faiseurLibre: true, faiseur: '' });
+    const f = faiseurs.find((x) => x.id === value);
+    setRow(i, { faiseurId: f?.id || '', faiseurLibre: false, faiseur: f?.fullName || '' });
+  }
+  function pickAme(m) {
+    setRow(picking, { assigneId: m.id, nomsAme: `${m.firstName} ${m.lastName}`.trim(), telephone: m.phone || '' });
+    setPicking(null);
+  }
 
   const nomInvalid = !entete.nomSuperviseur.trim();
   const enteteTelBad = phoneHasInvalid(entete.telephone);
@@ -40,7 +66,7 @@ export default function SuperviseurForm({ initial, onSaved }) {
       const payload = {
         type: 'superviseur',
         entete: { ...entete },
-        lignes: lignes.filter((r) => (r.faiseur || '').trim() !== '' || (r.nomsAme || '').trim() !== ''),
+        lignes: lignes.filter((r) => (r.faiseur || '').trim() !== '' || (r.nomsAme || '').trim() !== '' || r.assigneId),
         status,
       };
       let saved;
@@ -82,14 +108,19 @@ export default function SuperviseurForm({ initial, onSaved }) {
         </label>
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        Pour chaque âme, choisissez son <strong>Faiseur de Disciples</strong> et, si elle est déjà connue, <strong>choisissez-la dans l'annuaire</strong>.
+        À la soumission, chaque âme est ajoutée à l'annuaire (sans doublon) et rattachée au faiseur choisi.
+      </p>
+
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full min-w-[760px] text-sm">
           <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-3 py-2.5 w-10">N°</th>
-              <th className="px-3 py-2.5 min-w-[160px]">Faiseur de Disciples</th>
+              <th className="px-3 py-2.5 min-w-[190px]">Faiseur de Disciples</th>
               <th className="px-3 py-2.5 min-w-[130px]">Téléphone (âme)</th>
-              <th className="px-3 py-2.5 min-w-[150px]">Noms de l'âme</th>
+              <th className="px-3 py-2.5 min-w-[220px]">Noms de l'âme</th>
               <th className="px-3 py-2.5 min-w-[180px]">Commentaires / Observations</th>
               <th className="px-3 py-2.5 w-10"></th>
             </tr>
@@ -100,13 +131,35 @@ export default function SuperviseurForm({ initial, onSaved }) {
               return (
                 <tr key={i}>
                   <td className="px-3 py-2 text-center text-muted-foreground">{i + 1}</td>
-                  <td className="px-2 py-2"><Input className="h-10" value={r.faiseur} onChange={(e) => setRow(i, { faiseur: e.target.value })} /></td>
+                  <td className="px-2 py-2">
+                    <div className="flex flex-col gap-1">
+                      <select aria-label={`Faiseur de Disciples, ligne ${i + 1}`} className={SELECT}
+                        value={r.faiseurId || (r.faiseurLibre || (r.faiseur && !r.faiseurId) ? OTHER : '')}
+                        onChange={(e) => chooseFaiseur(i, e.target.value)}>
+                        <option value="">— Choisir —</option>
+                        {faiseurs.map((f) => <option key={f.id} value={f.id}>{f.fullName}</option>)}
+                        <option value={OTHER}>Autre (saisir le nom)</option>
+                      </select>
+                      {(r.faiseurLibre || (r.faiseur && !r.faiseurId)) && (
+                        <Input className="h-9" placeholder="Nom du faiseur" value={r.faiseur} onChange={(e) => setRow(i, { faiseur: e.target.value })} />
+                      )}
+                    </div>
+                  </td>
                   <td className="px-2 py-2">
                     <Input className={`h-10 ${badPhone ? 'border-destructive-dark text-destructive-dark focus-visible:ring-destructive-dark' : ''}`}
-                      inputMode="numeric" value={r.telephone} onChange={(e) => setRow(i, { telephone: e.target.value })} aria-invalid={badPhone} />
+                      inputMode="tel" value={r.telephone} onChange={(e) => setRow(i, { telephone: e.target.value, assigneId: '' })} aria-invalid={badPhone} />
                     {badPhone && <span className="mt-0.5 block text-xs text-destructive-dark">Chiffres uniquement</span>}
                   </td>
-                  <td className="px-2 py-2"><Input className="h-10" value={r.nomsAme} onChange={(e) => setRow(i, { nomsAme: e.target.value })} /></td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center gap-1">
+                      <Input className="h-10" value={r.nomsAme} onChange={(e) => setRow(i, { nomsAme: e.target.value, assigneId: '' })} />
+                      <Button type="button" variant="outline" size="icon" className="size-10 shrink-0" onClick={() => setPicking(i)}
+                        aria-label={`Choisir l'âme de la ligne ${i + 1} dans l'annuaire`} title="Choisir dans l'annuaire">
+                        <BookUser className="size-4" />
+                      </Button>
+                    </div>
+                    {r.assigneId && <span className="mt-0.5 flex items-center gap-1 text-xs text-success-foreground-light"><Check className="size-3" /> Déjà dans l'annuaire</span>}
+                  </td>
                   <td className="px-2 py-2"><Input className="h-10" value={r.commentaires} onChange={(e) => setRow(i, { commentaires: e.target.value })} /></td>
                   <td className="px-2 py-2 text-center">
                     <button type="button" onClick={() => removeRow(i)} aria-label="Supprimer la ligne" className="text-muted-foreground hover:text-destructive-dark">
@@ -126,6 +179,7 @@ export default function SuperviseurForm({ initial, onSaved }) {
       </div>
 
       <RapportAttachments rapportId={id} ensureId={ensureSavedId} disabled={initial?.status === 'valide'} />
+      <AmePicker open={picking !== null} onClose={() => setPicking(null)} onPick={pickAme} />
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
 
