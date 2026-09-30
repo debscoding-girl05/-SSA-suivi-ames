@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Guide d'utilisateur — CSP-SSA</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm 15mm; }
+  @page :first { margin: 0; }
+  :root {
+    --navy: #0b1130; --gold: #c9a043; --gold-soft: #f6efdc;
+    --violet: #534ab7; --violet-dark: #3c3489; --violet-soft: #efedfb;
+    --ink: #1a1530; --ink-2: #4a4660; --muted: #6f6a85; --line: #dedbea;
+    --ok: #0e7a55; --ok-soft: #e1f5ee; --warn: #7a4a06; --warn-soft: #fbf0da;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--ink); font-size: 11.2pt; line-height: 1.5; margin: 0; }
+  h1, h2, h3 { line-height: 1.2; }
+  p { margin: 0 0 7px; }
+  strong { color: var(--ink); }
+  .ui { font-weight: 600; color: var(--violet-dark); white-space: nowrap; }
+  code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9.5pt; background: var(--violet-soft); border-radius: 4px; padding: 1px 5px; color: var(--violet-dark); }
+
+  /* ---- Couverture ---- */
+  .cover { height: 297mm; background: var(--navy); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30mm 22mm; page-break-after: always; position: relative; }
+  .cover img { width: 58mm; height: 58mm; border-radius: 50%; border: 1.5px solid rgba(201,160,67,.55); padding: 2mm; }
+  .cover .church { margin-top: 12mm; font-family: Georgia, "Times New Roman", serif; font-size: 17pt; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); line-height: 1.35; }
+  .cover .rule { width: 46mm; height: 1px; background: rgba(201,160,67,.6); margin: 9mm auto; }
+  .cover h1 { font-size: 30pt; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+  .cover .app { margin-top: 4mm; font-size: 13pt; color: rgba(255,255,255,.78); }
+  .cover .for { margin-top: 12mm; font-size: 10.5pt; color: rgba(255,255,255,.75); max-width: 120mm; }
+  .cover .meta { position: absolute; bottom: 16mm; left: 0; right: 0; font-size: 9pt; color: rgba(255,255,255,.5); }
+
+  /* ---- Structure ---- */
+  .part { page-break-before: always; }
+  .part-head { border-bottom: 2px solid var(--violet); padding-bottom: 3mm; margin-bottom: 5mm; }
+  .part-head .kicker { font-size: 8.5pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+  .part-head h1 { font-size: 21pt; margin: 1mm 0 1mm; color: var(--navy); }
+  .part-head p { color: var(--ink-2); margin: 0; }
+  h2 { font-size: 13.5pt; color: var(--violet-dark); margin: 7mm 0 2.5mm; page-break-after: avoid; }
+  h2 .n { display: inline-block; min-width: 7mm; color: var(--gold); font-weight: 700; }
+  h3 { font-size: 11.2pt; margin: 4mm 0 1.5mm; page-break-after: avoid; }
+  ol.steps { margin: 2mm 0 3mm; padding-left: 5.5mm; }
+  ol.steps li { margin-bottom: 1.6mm; }
+  ul { margin: 1mm 0 3mm; padding-left: 5mm; }
+  ul li { margin-bottom: 1mm; }
+
+  /* Flottant plutôt que flex : Chrome n'applique pas « break-inside: avoid »
+     aux conteneurs flex, et coupait les cadres de téléphone entre deux pages. */
+  .row { display: flow-root; break-inside: avoid; page-break-inside: avoid; margin-bottom: 3mm; }
+  .row > figure { float: right; margin: 0 0 3mm 7mm; }
+  .row .text { overflow: hidden; }
+  /* Le cadre est porté par l'image (élément remplacé, jamais coupé entre deux pages). */
+  .phone { width: 56mm; }
+  .phone img { display: block; width: 100%; border: 2.2mm solid #15172a; border-radius: 6mm; box-sizing: border-box; }
+  .phone.small { width: 48mm; }
+  .phone { break-inside: avoid; page-break-inside: avoid; }
+
+  figure { margin: 0; }
+  figcaption { font-size: 8.5pt; color: var(--muted); text-align: center; margin-top: 1.5mm; }
+  .shot { border: .3mm solid var(--line); border-radius: 2.5mm; overflow: hidden; page-break-inside: avoid; margin: 2mm 0 1mm; }
+  .shot img { display: block; width: 100%; }
+  /* Bloc (pas flex) : Chrome ignore « break-inside: avoid » sur un conteneur flex. */
+  .pair { display: block; text-align: center; break-inside: avoid; page-break-inside: avoid; margin: 2mm 0; }
+  .pair > figure { display: inline-block; vertical-align: top; margin: 0 3mm; text-align: left; }
+
+  .tip, .warn, .rule-box { border-radius: 2.5mm; padding: 2.8mm 3.5mm; margin: 2.5mm 0 3.5mm; font-size: 10.2pt; page-break-inside: avoid; }
+  .tip { background: var(--ok-soft); color: #0b4a35; }
+  .warn { background: var(--warn-soft); color: var(--warn); }
+  .rule-box { background: var(--violet-soft); color: var(--violet-dark); }
+  .tip b, .warn b, .rule-box b { color: inherit; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 9.6pt; margin: 2mm 0 4mm; page-break-inside: avoid; }
+  th, td { text-align: left; vertical-align: top; padding: 1.8mm 2.2mm; border-bottom: .3mm solid var(--line); }
+  th { font-size: 8.2pt; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border-bottom: .5mm solid var(--violet); }
+  td.y { color: var(--ok); font-weight: 700; text-align: center; }
+  td.n { color: #b9b5c9; text-align: center; }
+  th.c { text-align: center; }
+
+  .toc { columns: 2; column-gap: 10mm; font-size: 10.3pt; margin-top: 4mm; }
+  .toc div { break-inside: avoid; margin-bottom: 4mm; }
+  .toc b { display: block; color: var(--navy); margin-bottom: 1mm; }
+  .toc span { display: block; color: var(--ink-2); padding-left: 3mm; }
+
+  .faq dt { font-weight: 700; margin-top: 3.5mm; page-break-after: avoid; }
+  .faq dd { margin: 1mm 0 0 0; color: var(--ink-2); }
+  .footer-note { margin-top: 8mm; font-size: 9pt; color: var(--muted); border-top: .3mm solid var(--line); padding-top: 3mm; }
+</style>
+</head>
+<body>
+
+<!-- ===================== COUVERTURE ===================== -->
+<section class="cover">
+  <img src="guide-utilisateur/logo.jpg" alt="Logo de la Cathédrale des Signes et Prodiges" />
+  <div class="church">Cathédrale des Signes<br />et Prodiges</div>
+  <div class="rule"></div>
+  <h1>Guide d'utilisateur</h1>
+  <div class="app">CSP-SSA · Suivi des Âmes</div>
+  <p class="for">Pour tous les utilisateurs de l'application : Pasteur, PR, Secrétaire du pasteur, leaders, encadreurs, Faiseurs de Disciples et leaders de cellule.</p>
+  <div class="meta">Version de septembre 2026 · Yaoundé</div>
+</section>
+
+<!-- ===================== SOMMAIRE ===================== -->
+<section>
+  <div class="part-head">
+    <div class="kicker">Sommaire</div>
+    <h1>Ce que contient ce guide</h1>
+    <p>Lisez d'abord la partie 1, qui concerne tout le monde. Ensuite, allez directement à la partie de votre rôle.</p>
+  </div>
+  <div class="toc">
+    <div><b>1. Premiers pas — tout le monde</b>
+      <span>Ouvrir l'application et se connecter</span><span>L'installer sur son téléphone</span><span>Se repérer dans les menus</span><span>Profil, mot de passe et notifications</span><span>L'annuaire</span><span>Quand le réseau est faible</span></div>
+    <div><b>2. Encadreur</b>
+      <span>Ajouter et suivre ses membres</span><span>La fiche de présence de la semaine</span><span>Les fiches hebdo : photo, image ou saisie</span></div>
+    <div><b>3. Faiseur de Disciples (Suivi)</b>
+      <span>Nouveaux venus et 7 leçons</span><span>La Fiche des Encadreurs</span></div>
+    <div><b>4. Leader</b>
+      <span>Votre accueil : membres et encadreurs</span><span>Valider les fiches, demander une correction</span><span>Relancer en un geste</span><span>Le rapport mensuel au Pasteur</span></div>
+    <div><b>5. Leader de cellule</b>
+      <span>Membres et fiche de la cellule</span></div>
+    <div><b>6. Pasteur, PR et Secrétaire</b>
+      <span>Tableau de bord et objectif d'évangélisation</span><span>Créer et gérer les comptes</span><span>Départements, rapports, journal</span></div>
+    <div><b>7. En cas de problème</b>
+      <span>Questions fréquentes</span></div>
+  </div>
+
+  <h2>Qui voit quoi ?</h2>
+  <p>Chacun ne voit que ce qui le concerne. Le serveur vérifie les droits à chaque action : taper une adresse à la main ne donne pas accès à plus.</p>
+  <table>
+    <thead><tr><th></th><th class="c">Pasteur · PR</th><th class="c">Secrétaire</th><th class="c">Leader</th><th class="c">Encadreur</th><th class="c">Leader de cellule</th></tr></thead>
+    <tbody>
+      <tr><td>Annuaire</td><td class="y">Toute l'église</td><td class="y">Toute l'église</td><td class="y">Son département</td><td class="y">Ses membres*</td><td class="y">Ses membres</td></tr>
+      <tr><td>Remplir sa fiche de présence</td><td class="n">—</td><td class="n">—</td><td class="y">Oui</td><td class="y">Oui</td><td class="y">Fiche de cellule</td></tr>
+      <tr><td>Valider les fiches</td><td class="y">Oui</td><td class="n">—</td><td class="y">Son équipe</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><td>Rapport mensuel au Pasteur</td><td class="n">Reçoit</td><td class="n">Lit</td><td class="y">Rédige</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><td>Créer des comptes</td><td class="y">Oui**</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><td>Objectif d'évangélisation</td><td class="y">Pasteur</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:9pt;color:var(--muted)">* Les Faiseurs de Disciples (départements Faiseurs de Disciples et Suivi) voient toute l'église, pour vérifier qu'une personne n'est pas déjà suivie ailleurs. ** Seul le Pasteur peut créer un compte PR ou Secrétaire.</p>
+</section>
+
+<!-- ===================== PARTIE 1 ===================== -->
+<section class="part">
+  <div class="part-head">
+    <div class="kicker">Partie 1 · Tout le monde</div>
+    <h1>Premiers pas</h1>
+    <p>Se connecter, installer l'application sur son téléphone et trouver son chemin.</p>
+  </div>
+
+  <h2><span class="n">1.1</span>Ouvrir l'application et se connecter</h2>
+  <div class="row">
+    <figure class="phone"><img src="guide-utilisateur/m-login.jpg" alt="Écran de connexion" /></figure>
+    <div class="text">
+      <ol class="steps">
+        <li>Ouvrez l'adresse <code>https://ssa-suivi-ames-frontend.onrender.com</code> dans le navigateur de votre téléphone (Chrome sur Android, Safari sur iPhone).</li>
+        <li>Dans <span class="ui">Email ou téléphone</span>, tapez votre email <b>ou</b> votre numéro de téléphone. Les espaces ne comptent pas : <code>+237 6 99 11 22 33</code> et <code>+237699112233</code> marchent tous les deux.</li>
+        <li>Tapez votre mot de passe. L'œil à droite permet de voir ce que vous tapez.</li>
+        <li>Touchez <span class="ui">Se connecter</span>. Vous arrivez sur votre page d'accueil.</li>
+      </ol>
+      <div class="rule-box"><b>Pas encore de compte ?</b> Ce n'est pas vous qui le créez. Demandez-le à la PR ou au Pasteur. Vous recevrez soit un mot de passe provisoire (à changer ensuite, voir 1.4), soit un lien d'invitation valable 7 jours où vous choisirez vous-même votre mot de passe.</div>
+      <div class="tip"><b>Mot de passe oublié ?</b> Touchez <span class="ui">Mot de passe oublié ?</span> et saisissez votre email : vous recevez un lien pour en choisir un nouveau.</div>
+      <div class="warn"><b>Attention :</b> après 5 mauvais mots de passe d'affilée, le compte est bloqué pendant 15 minutes. C'est une protection : attendez, puis réessayez.</div>
+    </div>
+  </div>
+
+  <h2><span class="n">1.2</span>Installer l'application sur son téléphone</h2>
+  <p>Une fois installée, l'application a sa propre icône sur l'écran d'accueil, s'ouvre en plein écran et peut recevoir des notifications. Pas besoin de passer par un magasin d'applications.</p>
+  <table>
+    <thead><tr><th style="width:50%">Android (Chrome)</th><th>iPhone (Safari)</th></tr></thead>
+    <tbody><tr>
+      <td><ol class="steps" style="margin:0"><li>Ouvrez l'adresse de l'application dans <b>Chrome</b>.</li><li>Touchez le menu <b>⋮</b> en haut à droite.</li><li>Choisissez <b>Installer l'application</b> (ou <b>Ajouter à l'écran d'accueil</b>).</li><li>Confirmez : l'icône CSP-SSA apparaît.</li></ol></td>
+      <td><ol class="steps" style="margin:0"><li>Ouvrez l'adresse dans <b>Safari</b> (pas un autre navigateur).</li><li>Touchez le bouton <b>Partager</b> (carré avec une flèche).</li><li>Choisissez <b>Sur l'écran d'accueil</b>, puis <b>Ajouter</b>.</li><li>Ouvrez désormais l'application depuis cette icône.</li></ol></td>
+    </tr></tbody>
+  </table>
+
+  <h2><span class="n">1.3</span>Se repérer</h2>
+  <div class="row">
+    <figure class="phone small"><img src="guide-utilisateur/m-profil-menu.jpg" alt="Menu dans l'onglet Profil" /><figcaption>Profil → Menu, sur téléphone</figcaption></figure>
+    <div class="text">
+      <ul>
+        <li><b>Sur téléphone</b> : les onglets principaux sont en bas de l'écran (<span class="ui">Accueil</span>, <span class="ui">Annuaire</span>, <span class="ui">Fiches</span>, <span class="ui">Rapports</span>, <span class="ui">Profil</span>, selon votre rôle).</li>
+        <li><b>Sur téléphone, les autres pages</b> (<span class="ui">Fiches hebdo</span>, <span class="ui">Leaders</span>, <span class="ui">Départements</span>, <span class="ui">Nouveaux venus</span>, <span class="ui">Cellules</span>…) sont dans l'onglet <span class="ui">Profil</span>, section <b>Menu</b>.</li>
+        <li><b>Sur ordinateur</b> : tous les menus sont dans la colonne de gauche.</li>
+        <li><b>La cloche</b>, en haut, affiche le nombre de notifications non lues : fiche à rendre, fiche à corriger, fiche à valider…</li>
+        <li><b>Votre avatar</b>, en haut à droite, mène à votre profil.</li>
+      </ul>
+      <p>Les éléments visibles dépendent de votre rôle : c'est normal si un collègue voit un menu que vous n'avez pas.</p>
+    </div>
+  </div>
+
+  <h2><span class="n">1.4</span>Profil : mot de passe et notifications</h2>
+  <div class="row">
+    <figure class="phone small"><img src="guide-utilisateur/m-profil.jpg" alt="Page Profil" /></figure>
+    <div class="text">
+      <h3>Changer son mot de passe</h3>
+      <ol class="steps">
+        <li>Ouvrez <span class="ui">Profil</span>, puis <span class="ui">Changer le mot de passe</span>.</li>
+        <li>Saisissez l'ancien mot de passe, puis deux fois le nouveau.</li>
+        <li>Le nouveau doit contenir <b>au moins 8 caractères, dont une majuscule, un chiffre et un caractère spécial</b> (par exemple <code>Grace#2026</code>).</li>
+      </ol>
+      <div class="tip">Si vous avez reçu un <b>mot de passe provisoire</b>, changez-le dès votre première connexion.</div>
+      <h3>Recevoir les notifications sur le téléphone</h3>
+      <ol class="steps">
+        <li>Dans <span class="ui">Profil</span>, section <span class="ui">Notifications sur cet appareil</span>, activez les notifications.</li>
+        <li>Acceptez quand le téléphone demande l'autorisation.</li>
+        <li>Vous serez prévenu même application fermée (fiche à rendre, fiche soumise…).</li>
+      </ol>
+      <div class="warn"><b>iPhone :</b> les notifications ne marchent que depuis l'application <b>installée</b> sur l'écran d'accueil (voir 1.2), pas depuis Safari.</div>
+    </div>
+  </div>
+
+  <h2><span class="n">1.5</span>L'annuaire</h2>
+  <div class="row">
+    <figure class="phone small"><img src="guide-utilisateur/m-annuaire.jpg" alt="Annuaire" /></figure>
+    <div class="text">
+      <p>L'annuaire rassemble toutes les personnes suivies. Chacun y voit les personnes qu'il a le droit de voir (tableau « Qui voit quoi ? »).</p>
+      <ul>
+        <li><b>Rechercher</b> : tapez un nom ou un morceau de numéro dans la barre de recherche.</li>
+        <li><b>Filtrer</b> par département avec la liste à droite de la recherche.</li>
+        <li><b>Appeler</b> : touchez le bouton vert <span class="ui">Appeler</span>, le téléphone compose le numéro.</li>
+        <li>Sous chaque nom : le département et la personne qui la suit.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="n">1.6</span>Quand le réseau est faible ou coupé</h2>
+  <ul>
+    <li>Si vous êtes déjà connecté, l'application <b>s'ouvre quand même</b>, même en mode avion. Vous n'êtes pas déconnecté : les données se chargent dès que le réseau revient.</li>
+    <li>Si l'écran <b>« Serveur injoignable »</b> apparaît, vérifiez vos données mobiles ou le Wi-Fi, puis touchez <span class="ui">Réessayer</span>.</li>
+    <li>Un enregistrement qui échoue affiche un message en rouge. Rien n'est perdu à l'écran : réessayez quand le réseau revient.</li>
+    <li>Pour une fiche longue, touchez <span class="ui">Enregistrer le brouillon</span> de temps en temps.</li>
+  </ul>
+</section>
+
+<!-- ===================== PARTIE 2 ===================== -->
+<section class="part">
+  <div class="part-head">
+    <div class="kicker">Partie 2</div>
+    <h1>Encadreur</h1>
+    <p>Vous suivez un groupe de membres. Chaque semaine, vous remplissez votre fiche de présence et, selon votre département, une fiche hebdo.</p>
+  </div>
+
+  <h2><span class="n">2.1</span>Ajouter et suivre ses membres</h2>
+  <div class="row">
+    <figure class="phone"><img src="guide-utilisateur/m-ajout-membre.jpg" alt="Formulaire d'ajout d'un membre" /></figure>
+    <div class="text">
+      <ol class="steps">
+        <li>Sur l'<span class="ui">Accueil</span> ou sur votre fiche (menu <span class="ui">Leaders</span>, votre nom), touchez <span class="ui">Ajouter</span>.</li>
+        <li><b>La personne est peut-être déjà connue.</b> Cherchez-la d'abord dans <span class="ui">Déjà dans l'annuaire ?</span>. Si elle apparaît, touchez <span class="ui">Rattacher à moi</span> : pas de doublon, son historique est gardé.</li>
+        <li>Sinon, remplissez <b>Prénom</b>, <b>Nom</b>, <b>Téléphone</b>, <b>Sexe</b> et <b>Zone de résidence</b>, puis <span class="ui">Ajouter</span>.</li>
+      </ol>
+      <div class="rule-box"><b>Doublon détecté ?</b> Si le numéro existe déjà, l'application affiche « Doublon possible » avec le nom et la personne qui la suit. Choisissez <span class="ui">Rattacher cette personne à moi</span> plutôt que de créer un doublon.</div>
+      <p>Pour modifier ou retirer un membre, utilisez le crayon ou la corbeille à côté de son nom.</p>
+    </div>
+  </div>
+
+  <h2><span class="n">2.2</span>La fiche de présence de la semaine</h2>
+  <div class="row">
+    <figure class="phone"><img src="guide-utilisateur/m-fiche-presence.jpg" alt="Fiche de présence avec compteur de membres non pointés" /><figcaption>Ici, 1 membre reste à pointer.</figcaption></figure>
+    <div class="text">
+      <ol class="steps">
+        <li>Ouvrez l'onglet <span class="ui">Fiches</span>, puis touchez <span class="ui">Soumettre ma fiche</span>.</li>
+        <li>Pour <b>chaque</b> membre, touchez <span class="ui">Présent</span>, <span class="ui">Absent</span> ou <span class="ui">Justifié</span>. En haut, le compteur indique combien sont <b>non pointés</b>.</li>
+        <li>Ajoutez une remarque si besoin.</li>
+        <li>Touchez <span class="ui">Soumettre</span>. Le bouton devient <span class="ui">Ma fiche</span> et la fiche attend la validation de votre leader.</li>
+      </ol>
+      <div class="warn"><b>Une fiche doit être complète.</b> Elle est refusée si vous n'avez aucun membre (« Aucun membre à pointer ») ou si un membre n'est pas pointé (« Fiche incomplète : 1 membre non pointé »). Pas le temps de finir ? Touchez <span class="ui">Brouillon</span> et reprenez plus tard.</div>
+      <h3>Après la soumission</h3>
+      <ul>
+        <li><b>Validée</b> : la fiche affiche « Fiche validée ✅ » et ne se modifie plus.</li>
+        <li><b>À corriger</b> : vous recevez une notification « Fiche à corriger ». Ouvrez <span class="ui">Ma fiche</span>, lisez le commentaire du leader, corrigez, puis soumettez à nouveau.</li>
+        <li>Un membre absent deux semaines de suite déclenche une notification « Absences consécutives » : pensez à l'appeler.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2 style="page-break-before: always"><span class="n">2.3</span>Les fiches hebdo (fiches papier du département)</h2>
+  <p>Chaque département a son modèle de fiche : Huissier (assiduité), Faiseur de Disciples, Fiche des Encadreurs, Cellule de prière, Choristes, Audiovisuel. Ouvrez-les avec le bouton <span class="ui">Fiches hebdo</span> de l'onglet <span class="ui">Fiches</span> (ou <span class="ui">Profil</span> → Menu sur téléphone, colonne de gauche sur ordinateur), puis touchez <span class="ui">Nouveau rapport</span>.</p>
+  <div class="pair">
+    <figure class="phone small"><img src="guide-utilisateur/m-types-fiche.jpg" alt="Choix du modèle de fiche" /><figcaption>1. Choisir le modèle</figcaption></figure>
+    <figure class="phone small"><img src="guide-utilisateur/m-mode-fiche.jpg" alt="Choix de la façon de remplir" /><figcaption>2. Choisir comment la remplir</figcaption></figure>
+  </div>
+  <h3>Trois façons de remplir une fiche</h3>
+  <ul>
+    <li><span class="ui">Prendre une photo de la fiche</span> : l'appareil photo s'ouvre. Photographiez la fiche papier bien à plat, puis touchez <span class="ui">Soumettre la fiche</span>.</li>
+    <li><span class="ui">Importer une image</span> : choisissez une ou plusieurs photos déjà dans la galerie (utile si la fiche a plusieurs pages).</li>
+    <li><span class="ui">Remplir manuellement</span> : saisissez la fiche à l'écran. Votre nom et la liste de vos membres sont déjà remplis. <span class="ui">Reprendre la liste de la semaine dernière</span> recopie les noms de la fiche précédente.</li>
+  </ul>
+  <div class="row">
+    <figure class="phone small"><img src="guide-utilisateur/m-fiche-vide.jpg" alt="Message fiche vide" /><figcaption>La fiche vide est refusée.</figcaption></figure>
+    <div class="text">
+      <div class="warn"><b>Une fiche vide est refusée.</b> Les noms pré-remplis ne comptent pas. Il faut au moins une information de la semaine (une présence cochée, une leçon, une remarque…) <b>ou</b> une photo de la fiche papier. Sinon, le message « La fiche est vide » s'affiche et rien n'est envoyé.</div>
+      <ul>
+        <li><span class="ui">Enregistrer le brouillon</span> garde la fiche sans l'envoyer.</li>
+        <li><span class="ui">Télécharger le PDF</span> produit la fiche au format papier officiel, prête à imprimer ou à envoyer.</li>
+        <li>Un numéro peut s'écrire <code>+237 6 90 60 77 13</code> ou <code>690 60 77 13 (parent)</code>.</li>
+        <li>Dans la liste de vos fiches, les trois boutons servent à télécharger, modifier et supprimer.</li>
+      </ul>
+    </div>
+  </div>
+  <h3>Exemple : la fiche des choristes</h3>
+  <p>Elle reprend la fiche papier : pour chaque jour, cochez <b>Bible</b> et/ou <b>Livret</b> (croissance spirituelle), puis les présences du Mardi, du Jeudi, du Vendredi (nuit de solutions ou nuit de prière des ouvriers) et du Dimanche. Sur téléphone, faites glisser le tableau vers la gauche pour voir toutes les colonnes.</p>
+  <div class="shot"><img src="guide-utilisateur/d-choristes.jpg" alt="Fiche des choristes" /></div>
+</section>
+
+<!-- ===================== PARTIE 3 ===================== -->
+<section class="part">
+  <div class="part-head">
+    <div class="kicker">Partie 3</div>
+    <h1>Faiseur de Disciples (Suivi)</h1>
+    <p>Vous intégrez les nouveaux venus et les accompagnez dans les 7 leçons. Vous voyez tout l'annuaire de l'église, pour vérifier qu'une personne n'est pas déjà suivie ailleurs.</p>
+  </div>
+
+  <h2><span class="n">3.1</span>Nouveaux venus et 7 leçons</h2>
+  <div class="pair">
+    <figure class="phone small"><img src="guide-utilisateur/m-nouveaux-venus.jpg" alt="Liste des nouveaux venus" /><figcaption>La liste et la progression</figcaption></figure>
+    <figure class="phone small"><img src="guide-utilisateur/m-lecons.jpg" alt="Les 7 leçons d'un nouveau venu" /><figcaption>Valider une leçon</figcaption></figure>
+  </div>
+  <ol class="steps">
+    <li>Menu <span class="ui">Nouveaux venus</span>, puis <span class="ui">Enregistrer un nouveau venu</span> : prénom, nom, téléphone, zone de résidence, date de première présence. Cochez <span class="ui">Visiteur</span> si la personne est de passage.</li>
+    <li>Touchez une personne pour voir ses 7 leçons. Après chaque leçon suivie, touchez <span class="ui">Valider</span> : la date et votre nom sont enregistrés.</li>
+    <li>Les 7 leçons validées, touchez <span class="ui">Passer en membre régulier</span>.</li>
+  </ol>
+  <div class="tip">Une personne sans progrès depuis 2 semaines déclenche une notification « Stagnation d'un nouveau venu ».</div>
+
+  <h2><span class="n">3.2</span>La Fiche des Encadreurs</h2>
+  <p>Chaque ligne associe <b>une âme</b> à <b>son Faiseur de Disciples</b>. À la soumission, l'âme est automatiquement ajoutée à l'annuaire, sans doublon, et <b>rattachée au faiseur choisi</b>.</p>
+  <div class="shot"><img src="guide-utilisateur/d-fiche-encadreurs.jpg" alt="Fiche des Encadreurs" /></div>
+  <ol class="steps">
+    <li>Dans <span class="ui">Fiches hebdo</span>, créez une <span class="ui">Fiche des Encadreurs</span> et choisissez <span class="ui">Remplir manuellement</span>.</li>
+    <li>Colonne <span class="ui">Faiseur de Disciples</span> : choisissez la personne dans la liste. S'il n'a pas de compte, choisissez <span class="ui">Autre (saisir le nom)</span>.</li>
+    <li>Si l'âme est <b>déjà connue</b>, touchez le bouton carnet à côté de <span class="ui">Noms de l'âme</span>, cherchez-la et touchez <span class="ui">Choisir</span>. La mention « Déjà dans l'annuaire » apparaît. Sinon, tapez son nom et son téléphone.</li>
+    <li>Ajoutez vos commentaires, puis touchez <span class="ui">Soumettre le rapport</span>. Le message de confirmation résume ce qui a été fait : âmes ajoutées, rattachées à leur faiseur, déjà suivies.</li>
+  </ol>
+  <div class="row">
+    <figure style="width:78mm"><div class="shot" style="margin:0"><img src="guide-utilisateur/d-choisir-ame.jpg" alt="Choisir une âme dans l'annuaire" /></div><figcaption>Choisir une âme dans l'annuaire</figcaption></figure>
+    <div class="text">
+      <div class="rule-box"><b>Règles importantes</b><br />
+        • Une ligne où seul le faiseur est rempli ne compte pas : il faut au moins une âme (ou un commentaire).<br />
+        • Sans faiseur choisi, une âme déjà suivie par quelqu'un d'autre ne change pas de faiseur.<br />
+        • Seuls les Faiseurs de Disciples, le Pasteur, la PR et la Secrétaire peuvent déplacer l'âme d'un autre faiseur.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PARTIE 4 ===================== -->
+<section class="part">
+  <div class="part-head">
+    <div class="kicker">Partie 4</div>
+    <h1>Leader</h1>
+    <p>Vous êtes responsable de membres et d'encadreurs. Vous validez leurs fiches et remettez chaque mois un rapport au Pasteur. Vous remplissez aussi votre propre fiche de présence (voir 2.2).</p>
+  </div>
+
+  <h2><span class="n">4.1</span>Votre accueil : membres et encadreurs</h2>
+  <div class="row">
+    <figure class="phone"><img src="guide-utilisateur/m-accueil-leader.jpg" alt="Accueil du leader" /></figure>
+    <div class="text">
+      <ul>
+        <li><b>Membres</b> et <b>Encadreurs</b> : le nombre de personnes dont vous êtes responsable.</li>
+        <li><b>Mes encadreurs</b> : chaque encadreur avec son nombre de membres et l'état de sa fiche de la semaine (<span class="ui">À valider</span>, <span class="ui">Manquant</span>, <span class="ui">Validé</span>). Touchez un nom pour voir sa fiche complète.</li>
+        <li><b>Membres</b> : tous les membres suivis, les vôtres (« Suivi par moi ») et ceux de vos encadreurs, avec le bouton pour appeler.</li>
+        <li><span class="ui">Ajouter</span> : ajoute un membre directement dans votre liste (voir 2.1).</li>
+      </ul>
+      <div class="tip">Les encadreurs qui dépendent de vous sont rattachés à votre nom par la PR ou le Pasteur. Si un encadreur manque dans votre liste, demandez-leur de le rattacher à vous.</div>
+      <h3>L'annuaire de votre département</h3>
+      <p>Menu <span class="ui">Départements</span>, puis votre département : les leaders, les encadreurs et tous les membres du département, avec recherche et appel.</p>
+    </div>
+  </div>
+
+  <h2><span class="n">4.2</span>Valider les fiches ou demander une correction</h2>
+  <div class="shot"><img src="guide-utilisateur/d-valider-fiche.jpg" alt="Validation d'une fiche" /></div>
+  <ol class="steps">
+    <li>Onglet <span class="ui">Fiches</span> : la section <b>À valider</b> liste les fiches soumises par votre équipe.</li>
+    <li>Touchez un nom : la fiche s'ouvre avec la présence de chaque membre.</li>
+    <li>Si tout est juste, touchez <span class="ui">Valider</span>.</li>
+    <li>Sinon, écrivez ce qu'il faut revoir dans <span class="ui">Commentaire au leader</span> (obligatoire), puis <span class="ui">Demander une correction</span>. L'encadreur est prévenu.</li>
+  </ol>
+  <p>Vous ne pouvez pas valider votre propre fiche : c'est un autre leader du département, le Pasteur ou la PR qui la valide.</p>
+
+  <h2><span class="n">4.3</span>Relancer en un geste</h2>
+  <p>Sur l'Accueil et dans <span class="ui">Leaders</span>, à côté d'une personne en retard, deux boutons : <b>message</b> (WhatsApp s'ouvre avec un rappel déjà écrit) et <b>téléphone</b> (appel direct).</p>
+
+  <h2><span class="n">4.4</span>Le rapport mensuel au Pasteur</h2>
+  <div class="row">
+    <figure class="phone"><img src="guide-utilisateur/m-rapport-mensuel.jpg" alt="Rapport mensuel du leader" /></figure>
+    <div class="text">
+      <ol class="steps">
+        <li>Dans <span class="ui">Fiches hebdo</span>, choisissez <span class="ui">Nouveau rapport</span>, puis <span class="ui">Rapport mensuel du leader (au Pasteur)</span>.</li>
+        <li>Le mois, votre département, votre nom, le nombre de membres et d'encadreurs sont déjà remplis. Le tableau <b>Suivi des encadreurs</b> liste votre équipe.</li>
+        <li>Complétez : présence moyenne, nouveaux venus, fiches remises par encadreur, puis le <b>Bilan du mois</b> (activités, difficultés, besoins et sujets de prière, projets).</li>
+        <li>Touchez <span class="ui">Remettre au Pasteur</span>. Le Pasteur reçoit une notification.</li>
+      </ol>
+      <div class="tip">À partir du 25 du mois, une notification vous rappelle de remettre votre rapport s'il ne l'est pas encore.</div>
+      <h3>Les rapports (synthèses)</h3>
+      <p>Menu <span class="ui">Rapports</span>, puis <span class="ui">Nouveau rapport</span> : rédigez une synthèse libre, pré-remplissable à partir des fiches, puis <span class="ui">Transmettre</span>. Un rapport transmis ne se modifie plus.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PARTIE 5 ===================== -->
+<section class="part">
+  <div class="part-head">
+    <div class="kicker">Partie 5</div>
+    <h1>Leader de cellule</h1>
+    <p>Vous animez une cellule de prière de quartier. Ses membres ne sont pas forcément membres de l'église.</p>
+  </div>
+  <div class="pair">
+    <figure class="phone small"><img src="guide-utilisateur/m-cellule.jpg" alt="Page de la cellule" /><figcaption>La cellule et ses membres</figcaption></figure>
+    <figure class="phone small"><img src="guide-utilisateur/m-cellule-fiche.jpg" alt="Fiche de présence de la cellule" /><figcaption>La fiche de présence</figcaption></figure>
+  </div>
+  <ol class="steps">
+    <li>Menu <span class="ui">Cellules</span>, puis votre cellule.</li>
+    <li><b>Membres</b> : <span class="ui">Ajouter</span> (nom, téléphone, membre de l'église ou non). Le crayon modifie un membre, la corbeille le retire.</li>
+    <li>Chaque semaine : <span class="ui">Fiche de présence</span>, pointez <b>chaque</b> membre (Présent, Absent, Justifié), puis <span class="ui">Soumettre</span>. Une fiche incomplète est refusée ; <span class="ui">Brouillon</span> permet de finir plus tard.</li>
+    <li>Le Pasteur ou la PR valide ensuite la fiche.</li>
+  </ol>
+  <p>Vous pouvez aussi remplir le <b>Rapport de cellule de prière</b> (assiduité et évangélisation) dans <span class="ui">Fiches hebdo</span>. Le nom de la cellule et le vôtre y sont repris automatiquement d'une semaine à l'autre.</p>
+</section>
+
+<!-- ===================== PARTIE 6 ===================== -->
+<section class="part">
+  <div class="part-head">
+    <div class="kicker">Partie 6</div>
+    <h1>Pasteur, PR et Secrétaire du pasteur</h1>
+    <p>Vous voyez toute l'église. Le Pasteur et la PR administrent : comptes, départements, validation. La Secrétaire du pasteur consulte tout, sans rien modifier.</p>
+  </div>
+
+  <h2><span class="n">6.1</span>Tableau de bord et objectif d'évangélisation</h2>
+  <div class="shot"><img src="guide-utilisateur/d-accueil-pasteur.jpg" alt="Tableau de bord du Pasteur" /></div>
+  <ul>
+    <li><b>Fiches de la semaine</b> : combien sont rendues, combien sont à relancer, avec la liste des retards et la soumission par département.</li>
+    <li><b>Objectif d'évangélisation</b> (Pasteur uniquement) : touchez <span class="ui">Modifier l'objectif</span> et indiquez le <b>nombre de personnes</b> à atteindre, la <b>date de début</b> et la <b>date de fin</b>.</li>
+  </ul>
+  <div class="rule-box"><b>Comment l'objectif est calculé :</b> ce sont les personnes <b>ajoutées à l'annuaire entre la date de début et la date de fin</b>, pas le total de l'annuaire. La carte montre aussi le temps écoulé, les jours restants, le <b>rythme nécessaire</b> (personnes à ajouter par semaine) et les ajouts mois par mois.</div>
+
+  <h2><span class="n">6.2</span>Créer et gérer les comptes</h2>
+  <div class="shot"><img src="guide-utilisateur/d-creer-compte.jpg" alt="Création d'un compte" /></div>
+  <p>Menu <span class="ui">Leaders</span>, puis <span class="ui">Ajouter un compte</span>. Deux façons :</p>
+  <ul>
+    <li><span class="ui">Créer le compte</span> : saisissez le nom, l'email, le téléphone, le rôle et le département. Pour un encadreur, choisissez aussi son <b>leader responsable</b>. L'application affiche un <b>mot de passe provisoire, une seule fois</b> : envoyez-le avec <span class="ui">Envoyer par WhatsApp</span> ou <span class="ui">Copier le message</span>.</li>
+    <li><span class="ui">Inviter par lien</span> : saisissez l'email, le rôle et le département. Envoyez le lien (WhatsApp, SMS, copier). La personne choisit elle-même son nom, son téléphone et son mot de passe. Le lien est valable 7 jours, pour une seule utilisation. Les invitations en attente peuvent être révoquées (croix rouge).</li>
+  </ul>
+  <p>Sur la fiche d'un compte :</p>
+  <ul>
+    <li><b>Leader responsable</b> (pour un encadreur) : changez-le dans la liste. L'encadreur passe alors dans l'équipe du nouveau leader.</li>
+    <li><span class="ui">Désactiver</span> : la personne ne peut plus se connecter, mais son historique est conservé. <span class="ui">Réactiver</span> rétablit l'accès.</li>
+  </ul>
+  <div class="warn">Seul le <b>Pasteur</b> peut créer un compte PR ou Secrétaire. Un département peut avoir plusieurs leaders : chacun a ses propres encadreurs.</div>
+
+  <h2><span class="n">6.3</span>Départements</h2>
+  <div class="shot"><img src="guide-utilisateur/d-departement-annuaire.jpg" alt="Annuaire d'un département" /></div>
+  <p>Menu <span class="ui">Départements</span> : les 13 départements, avec le nombre de leaders et de membres et l'avancement des fiches de la semaine. Touchez-en un pour voir son <b>annuaire</b> : leaders, encadreurs (avec leur leader) et tous les membres. <span class="ui">Nouveau département</span> et le crayon permettent de créer ou renommer un département.</p>
+
+  <h2><span class="n">6.4</span>Rapports et fiches reçues</h2>
+  <p>Menu <span class="ui">Rapports</span> : les synthèses transmises par les leaders, puis la section <b>Fiches hebdomadaires soumises</b>. Ouvrez une fiche pour la lire, voir les <b>photos</b> de la fiche papier et <span class="ui">Télécharger le PDF</span>. Les rapports mensuels des leaders y figurent aussi. Chaque fiche soumise vous envoie une notification.</p>
+
+  <h2><span class="n">6.5</span>Cellules et nouveaux venus</h2>
+  <p><span class="ui">Cellules</span> : créer une cellule, lui attribuer un leader de cellule (<span class="ui">Leaders</span>, puis <span class="ui">Inviter un leader</span>) et valider les fiches de cellule. <span class="ui">Nouveaux venus</span> : suivre l'intégration de toute l'église.</p>
+
+  <h2><span class="n">6.6</span>Journal de connexions</h2>
+  <div class="row">
+    <figure style="width:82mm"><div class="shot" style="margin:0"><img src="guide-utilisateur/d-connexions.jpg" alt="Journal de connexions" /></div></figure>
+    <div class="text">
+      <p>Menu <span class="ui">Connexions</span> (Pasteur et PR) : toutes les tentatives de connexion, réussies ou échouées, les plus récentes en premier. Utile pour repérer un compte dont quelqu'un cherche le mot de passe.</p>
+      <div class="tip"><b>Secrétaire du pasteur :</b> vous avez accès en lecture à l'annuaire complet, aux leaders, aux départements et à toutes les fiches. Les boutons de création, de validation et de désactivation ne vous sont pas proposés.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PARTIE 7 ===================== -->
+<section class="part">
+  <div class="part-head">
+    <div class="kicker">Partie 7</div>
+    <h1>En cas de problème</h1>
+    <p>Les situations les plus fréquentes, et quoi faire.</p>
+  </div>
+  <dl class="faq">
+    <dt>« Identifiants invalides »</dt>
+    <dd>L'email, le numéro ou le mot de passe est incorrect. Vérifiez les majuscules. Ensuite, utilisez <span class="ui">Mot de passe oublié ?</span> ou demandez un nouveau mot de passe à la PR.</dd>
+    <dt>« Trop de tentatives. Réessayez dans quelques minutes. »</dt>
+    <dd>Après 5 erreurs, le compte est bloqué 15 minutes. Attendez, puis réessayez.</dd>
+    <dt>Le lien d'invitation ne marche plus</dt>
+    <dd>Il est valable 7 jours et ne sert qu'une fois. Demandez une nouvelle invitation.</dd>
+    <dt>« Serveur injoignable » ou « Impossible de joindre le serveur »</dt>
+    <dd>Le réseau est coupé ou trop faible. Vérifiez vos données mobiles ou le Wi-Fi, puis touchez <span class="ui">Réessayer</span>. Vous n'êtes pas déconnecté.</dd>
+    <dt>« Réponse inattendue du réseau (code …) »</dt>
+    <dd>Le réseau a renvoyé autre chose que l'application (portail opérateur, forfait épuisé…). Réessayez dans un instant ou changez de connexion. Si cela persiste, transmettez le code affiché.</dd>
+    <dt>« Fiche incomplète » ou « Aucun membre à pointer »</dt>
+    <dd>Pointez chaque membre avant de soumettre, ou ajoutez d'abord vos membres (voir 2.1). Un brouillon peut rester incomplet.</dd>
+    <dt>« La fiche est vide »</dt>
+    <dd>Ajoutez au moins une information de la semaine, ou une photo de la fiche papier.</dd>
+    <dt>« Doublon possible : ce numéro est déjà enregistré »</dt>
+    <dd>La personne existe déjà. Rattachez-la plutôt que d'en créer une seconde.</dd>
+    <dt>« Chiffres uniquement » sous un téléphone</dt>
+    <dd>Le numéro contient une lettre ou un symbole. Seuls les chiffres, les espaces, un « + » au début et une précision entre parenthèses sont acceptés.</dd>
+    <dt>Je ne vois pas un menu ou un bouton qu'un collègue voit</dt>
+    <dd>C'est lié à votre rôle (tableau « Qui voit quoi ? »). Si c'est une erreur de rôle ou de département, demandez à la PR de corriger votre compte.</dd>
+    <dt>Un encadreur n'apparaît pas dans mon équipe</dt>
+    <dd>Il n'est pas encore rattaché à vous. La PR ou le Pasteur le rattache depuis sa fiche (<b>Leader responsable</b>).</dd>
+    <dt>Je ne reçois pas les notifications</dt>
+    <dd>Activez-les dans <span class="ui">Profil</span> sur chaque téléphone. Sur iPhone, ouvrez l'application depuis son icône installée. Si le téléphone les a bloquées, réautorisez-les dans ses réglages.</dd>
+    <dt>L'application affiche une ancienne version</dt>
+    <dd>Fermez-la complètement, puis rouvrez-la.</dd>
+  </dl>
+  <p class="footer-note">Pour toute question sur votre compte ou vos droits, adressez-vous à la PR. Pour un problème technique persistant, notez le message affiché, l'heure et le téléphone utilisé, et transmettez-les à l'équipe technique.</p>
+</section>
+
+</body>
+</html>

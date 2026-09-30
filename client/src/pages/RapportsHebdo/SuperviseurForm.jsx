@@ -7,6 +7,8 @@ import { listFaiseurs } from '../../api/dirigeants';
 import ReprendreDerniereFiche from './ReprendreDerniereFiche';
 import RapportAttachments from './RapportAttachments';
 import AmePicker from './AmePicker';
+import { useAuth } from '../../hooks/useAuth';
+import { phoneHasInvalid } from './phone';
 
 // faiseurId : compte du Faiseur de Disciples choisi dans la liste (l'âme lui
 // sera rattachée) ; faiseurLibre : nom saisi à la main (personne sans compte).
@@ -16,16 +18,16 @@ const resetRow = (r) => ({
   faiseur: r.faiseur || '', faiseurId: r.faiseurId || '', faiseurLibre: Boolean(r.faiseurLibre),
   telephone: r.telephone || '', nomsAme: r.nomsAme || '', assigneId: r.assigneId || '', commentaires: '',
 });
-const phoneHasInvalid = (v) => /[^0-9\s]/.test(String(v || '').replace(/^\s*\+/, ''));
 const SELECT = 'border-input bg-background text-foreground h-10 w-full rounded-md border px-2 text-sm';
 const OTHER = '__autre';
 
 // Fiche des Encadreurs (Département du Suivi) — anciennement « Superviseurs »,
 // le type reste `superviseur` en base pour ne pas casser les fiches existantes.
 export default function SuperviseurForm({ initial, onSaved }) {
+  const { user } = useAuth();
   const [id, setId] = useState(initial?.id || null);
   const [entete, setEntete] = useState({
-    nomSuperviseur: initial?.entete?.nomSuperviseur || '',
+    nomSuperviseur: initial?.entete?.nomSuperviseur || (initial ? '' : user?.fullName || ''),
     telephone: initial?.entete?.telephone || '',
     date: initial?.entete?.date || '',
   });
@@ -91,7 +93,7 @@ export default function SuperviseurForm({ initial, onSaved }) {
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">
-          Noms &amp; prénoms de l'encadreur <span className="text-destructive-dark">*</span>
+          <span>Noms &amp; prénoms de l'encadreur <span className="text-destructive-dark">*</span></span>
           <Input value={entete.nomSuperviseur} onChange={(e) => setEntete({ ...entete, nomSuperviseur: e.target.value })}
             className={showErrors && nomInvalid ? 'border-destructive-dark focus-visible:ring-destructive-dark' : ''} />
           {showErrors && nomInvalid && <span className="text-xs text-destructive-dark">Ce champ est obligatoire.</span>}

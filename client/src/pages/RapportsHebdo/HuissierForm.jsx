@@ -7,13 +7,13 @@ import ReprendreDerniereFiche from './ReprendreDerniereFiche';
 import RapportAttachments from './RapportAttachments';
 import { fetchOwnAssignes } from './carryForward';
 import { useAuth } from '../../hooks/useAuth';
+import { phoneHasInvalid } from './phone';
 
 const emptyRow = () => ({ nom: '', telephone: '', lieu: '', numeroCulte: '', present: null });
 // Garde l'identité de la personne, efface ce qui change chaque semaine.
 const resetRow = (r) => ({ nom: r.nom || '', telephone: r.telephone || '', lieu: r.lieu || '', numeroCulte: '', present: null });
 
 // Un téléphone valide = uniquement des chiffres (espaces tolérés).
-const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
 
 export default function HuissierForm({ initial, onSaved }) {
   const { user } = useAuth();
@@ -21,7 +21,7 @@ export default function HuissierForm({ initial, onSaved }) {
   const [entete, setEntete] = useState({
     departement: initial?.entete?.departement || 'Huissier',
     date: initial?.entete?.date || '',
-    nomLeader: initial?.entete?.nomLeader || '',
+    nomLeader: initial?.entete?.nomLeader || (initial ? '' : user?.fullName || ''),
   });
   const [lignes, setLignes] = useState(
     initial?.lignes?.length ? initial.lignes : [emptyRow(), emptyRow(), emptyRow()]
@@ -120,7 +120,7 @@ export default function HuissierForm({ initial, onSaved }) {
           <Input type="date" value={entete.date} onChange={(e) => setEntete({ ...entete, date: e.target.value })} />
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Nom du leader <span className="text-destructive-dark">*</span>
+          <span>Nom du leader <span className="text-destructive-dark">*</span></span>
           <Input
             value={entete.nomLeader}
             onChange={(e) => setEntete({ ...entete, nomLeader: e.target.value })}

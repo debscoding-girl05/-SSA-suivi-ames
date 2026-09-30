@@ -7,17 +7,17 @@ import ReprendreDerniereFiche from './ReprendreDerniereFiche';
 import RapportAttachments from './RapportAttachments';
 import { fetchOwnAssignes } from './carryForward';
 import { useAuth } from '../../hooks/useAuth';
+import { phoneHasInvalid } from './phone';
 
 const emptyRow = () => ({ nom: '', quartier: '', telephone: '', lecon: '', observations: '', present: null });
 const resetRow = (r) => ({ nom: r.nom || '', quartier: r.quartier || '', telephone: r.telephone || '', lecon: '', observations: '', present: null });
-const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
 
 // Fiche de Rapport Hebdomadaire du Faiseur de Disciples (Département du Suivi).
 export default function FaiseurDisciplesForm({ initial, onSaved }) {
   const { user } = useAuth();
   const [id, setId] = useState(initial?.id || null);
   const [entete, setEntete] = useState({
-    nomFaiseur: initial?.entete?.nomFaiseur || '',
+    nomFaiseur: initial?.entete?.nomFaiseur || (initial ? '' : user?.fullName || ''),
     date: initial?.entete?.date || '',
   });
   const [lignes, setLignes] = useState(
@@ -80,7 +80,7 @@ export default function FaiseurDisciplesForm({ initial, onSaved }) {
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Nom du faiseur de disciples <span className="text-destructive-dark">*</span>
+          <span>Nom du faiseur de disciples <span className="text-destructive-dark">*</span></span>
           <Input
             value={entete.nomFaiseur}
             onChange={(e) => setEntete({ ...entete, nomFaiseur: e.target.value })}

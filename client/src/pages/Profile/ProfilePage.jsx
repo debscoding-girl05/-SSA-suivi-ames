@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { visibleNavItems } from '../../components/layout/navItems';
 import { Bell, BellRing, Lock, LogOut, ChevronRight, Phone, Building2, Loader2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { roleLabel } from '@/lib/roles';
@@ -44,8 +45,23 @@ export default function ProfilePage() {
     { icon: Lock, label: 'Changer le mot de passe', onClick: () => setPasswordModalOpen(true) },
   ];
 
+  // Pages absentes de la barre du bas sur téléphone : accessibles d'ici.
+  const moreItems = visibleNavItems(user?.role).filter((item) => item.mobile === false);
+
   return (
     <div className="mx-auto flex max-w-md flex-col gap-5">
+      {moreItems.length > 0 && (
+        <nav aria-label="Menu" className="overflow-hidden rounded-2xl border border-border bg-card shadow-card md:hidden">
+          <p className="border-b border-border px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Menu</p>
+          {moreItems.map(({ to, label, icon: Icon }) => (
+            <Link key={to} to={to} className="flex min-h-[48px] items-center gap-3 border-b border-border px-4 py-2.5 text-sm font-medium last:border-0 hover:bg-muted/60">
+              <Icon className="size-5 text-primary" />
+              <span className="flex-1">{label}</span>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </Link>
+          ))}
+        </nav>
+      )}
       {/* Carte profil avec bannière dégradée */}
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <div className="h-20 bg-primary-gradient" />

@@ -44,6 +44,18 @@ test.describe('Mobile (iPhone ~390 px)', () => {
     expect((await manual.boundingBox()).height).toBeGreaterThanOrEqual(44);
   });
 
+  test('pages hors barre du bas : accessibles depuis Profil → Menu et Fiches → Fiches hebdo', async ({ page }) => {
+    await login(page, 'encadreur');
+    await bottomNav(page).getByRole('link', { name: 'Profil' }).click();
+    const menu = page.getByRole('navigation', { name: 'Menu' });
+    await expect(menu.getByRole('link')).toHaveText(['Leaders', 'Départements', 'Nouveaux venus', 'Fiches hebdo']);
+    await menu.getByRole('link', { name: 'Fiches hebdo' }).click();
+    await expect(page.getByRole('heading', { name: 'Rapports hebdomadaires' })).toBeVisible();
+    await bottomNav(page).getByRole('link', { name: 'Fiches' }).click();
+    await page.getByRole('link', { name: 'Fiches hebdo' }).click();
+    await expect(page).toHaveURL(/\/rapports-hebdo/);
+  });
+
   test('navigation par la barre du bas', async ({ page }) => {
     await login(page, 'leader');
     await bottomNav(page).getByRole('link', { name: 'Annuaire' }).click();

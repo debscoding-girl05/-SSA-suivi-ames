@@ -7,9 +7,9 @@ import ReprendreDerniereFiche from './ReprendreDerniereFiche';
 import RapportAttachments from './RapportAttachments';
 import { fetchOwnAssignes } from './carryForward';
 import { useAuth } from '../../hooks/useAuth';
+import { phoneHasInvalid } from './phone';
 
 const LEGENDE = ['', 'P', 'R', 'A', 'E', 'M'];
-const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
 
 const emptyRow = () => ({
   nom: '', telephone: '',
@@ -31,7 +31,7 @@ export default function AudiovisuelForm({ initial, onSaved }) {
     mois: initial?.entete?.mois || '',
     semaineDu: initial?.entete?.semaineDu || '',
     semaineAu: initial?.entete?.semaineAu || '',
-    encadreur: initial?.entete?.encadreur || '',
+    encadreur: initial?.entete?.encadreur || (initial ? '' : user?.fullName || ''),
     nombreMembres: initial?.entete?.nombreMembres ?? '',
     remarquesParticulieres: initial?.entete?.remarquesParticulieres || '',
   });
@@ -98,7 +98,7 @@ export default function AudiovisuelForm({ initial, onSaved }) {
       {/* En-tête */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Nom de l'encadreur <span className="text-destructive-dark">*</span>
+          <span>Nom de l'encadreur <span className="text-destructive-dark">*</span></span>
           <Input value={entete.encadreur} onChange={(e) => setEntete({ ...entete, encadreur: e.target.value })}
             className={showErrors && encadreurInvalid ? 'border-destructive-dark focus-visible:ring-destructive-dark' : ''} />
         </label>

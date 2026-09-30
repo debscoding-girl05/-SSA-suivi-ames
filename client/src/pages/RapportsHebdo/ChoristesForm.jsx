@@ -7,6 +7,7 @@ import ReprendreDerniereFiche from './ReprendreDerniereFiche';
 import RapportAttachments from './RapportAttachments';
 import { fetchOwnAssignes } from './carryForward';
 import { useAuth } from '../../hooks/useAuth';
+import { phoneHasInvalid } from './phone';
 
 // Colonnes, ordre et libellés de la fiche papier officielle.
 const DAYS = [
@@ -17,9 +18,6 @@ const PRES = [
   ['mardi', 'Mardi'], ['jeudi', 'Jeudi'],
   ['vendredi', 'Vendredi (nuit de solutions ou nuit de prière des ouvriers)'], ['dimanche', 'Dimanche'],
 ];
-// Chiffres, espaces et « + » initial, plus une précision entre parenthèses —
-// ex. « +237 690 60 77 13 (parent) ».
-const phoneHasInvalid = (v) => /[^0-9\s]/.test(String(v || '').replace(/\([^)]*\)/g, '').replace(/^\s*\+/, ''));
 // En-têtes gris / noir alternés comme sur la fiche imprimée.
 const GREY = '#595959';
 const BLACK = '#161616';
