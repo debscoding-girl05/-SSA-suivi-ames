@@ -5,8 +5,8 @@ import { Download, Send } from 'lucide-react';
 import { createRapportHebdo, updateRapportHebdo, downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
 import { fetchLastRapportHebdo } from './carryForward';
 import RapportAttachments from './RapportAttachments';
+import { phoneHasInvalid } from './phone';
 
-const phoneHasInvalid = (v) => /[^0-9\s]/.test(v || '');
 
 // Rapport hebdomadaire de cellule de prière (questionnaire).
 export default function CellulePriereForm({ initial, onSaved }) {
@@ -103,12 +103,12 @@ export default function CellulePriereForm({ initial, onSaved }) {
           <Input type="date" value={f.date} onChange={(ev) => set({ date: ev.target.value })} />
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Nom de la cellule <span className="text-destructive-dark">*</span>
+          <span>Nom de la cellule <span className="text-destructive-dark">*</span></span>
           <Input value={f.nomCellule} onChange={(ev) => set({ nomCellule: ev.target.value })}
             className={showErrors && nomCelluleInvalid ? 'border-destructive-dark focus-visible:ring-destructive-dark' : ''} />
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Leader <span className="text-destructive-dark">*</span>
+          <span>Leader <span className="text-destructive-dark">*</span></span>
           <Input value={f.leader} onChange={(ev) => set({ leader: ev.target.value })}
             className={showErrors && leaderInvalid ? 'border-destructive-dark focus-visible:ring-destructive-dark' : ''} />
         </label>

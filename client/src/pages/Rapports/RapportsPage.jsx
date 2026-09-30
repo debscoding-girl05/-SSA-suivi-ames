@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Send } from 'lucide-react';
+import { Send, ClipboardList } from 'lucide-react';
+import { buttonVariants } from '@/components/ui/button-variants';
 import { weekOverview, myRapport } from '../../api/rapports';
 import { useAuth } from '../../hooks/useAuth';
 import { canSubmitReport, isAdminRole } from '@/lib/roles';
@@ -67,11 +68,18 @@ export default function RapportsPage() {
             {overview ? `Suivi des présences · semaine ${overview.week.week} · ${overview.week.year}` : 'Suivi hebdomadaire'}
           </p>
         </div>
-        {canSubmit && (
-          <Button onClick={openSelf}>
-            <Send className="size-4" /> {mine ? 'Ma fiche' : 'Soumettre ma fiche'}
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canSubmit && (
+            <Button onClick={openSelf}>
+              <Send className="size-4" /> {mine ? 'Ma fiche' : 'Soumettre ma fiche'}
+            </Button>
+          )}
+          {/* Les fiches papier du département (photo ou saisie) — seul accès
+              direct sur téléphone, où le menu « Fiches hebdo » n'est pas en bas. */}
+          <Link to="/rapports-hebdo" className={buttonVariants({ variant: 'outline' })}>
+            <ClipboardList className="size-4" /> Fiches hebdo
+          </Link>
+        </div>
       </div>
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
