@@ -11,7 +11,7 @@ import { NotificationBell } from '../NotificationBell';
 // Desktop sidebar (visible ≥ md). Fixed, full-height.
 export default function Sidebar() {
   const { user, logout } = useAuth();
-  const items = visibleNavItems(user?.role);
+  const items = visibleNavItems(user);
 
   return (
     <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-border bg-card/80 backdrop-blur-sm md:flex">

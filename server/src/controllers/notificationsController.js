@@ -13,6 +13,7 @@ const RH_LABELS = {
   choristes: "fiche de suivi hebdomadaire des choristes",
   audiovisuel: "rapport d'assiduit\u00e9 des ouvriers",
   leader_mensuel: "rapport mensuel du leader",
+  chaine_priere: "rapport de la chaîne de prière",
 };
 
 // Mois courant au format AAAA-MM (clé de la fiche mensuelle du leader).

@@ -84,7 +84,9 @@ async function attach(req, res) {
   // suivie — sinon on pourrait rattacher n'importe qui à l'aveugle par id.
   const currentDirigeant = await db.dirigeants.findById(assigne.dirigeantId);
   if (!currentDirigeant || !canView(req.user, currentDirigeant)) {
-    throw ApiError.forbidden("Vous ne pouvez pas rattacher cette personne");
+    throw ApiError.forbidden(
+      `Cette personne est déjà suivie par ${currentDirigeant?.fullName || "quelqu'un d'autre"}. Demandez à votre leader de vous la rattacher.`
+    );
   }
 
   if (assigne.dirigeantId === req.params.id) return res.json(assigne);

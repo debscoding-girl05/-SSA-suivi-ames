@@ -12,24 +12,34 @@ async function newFiche(page, typeLabel) {
 }
 
 test.describe('Fiches hebdo & rapport mensuel', () => {
-  test('choix du type : l’encadreur ne voit pas le rapport mensuel, le leader si', async ({ page }) => {
-    await login(page, 'encadreur');
-    await page.goto('/rapports-hebdo');
-    await page.getByRole('button', { name: 'Nouveau rapport' }).first().click();
-    const types = page.getByRole('dialog').locator('li');
-    await expect(types).toHaveCount(6);
-    await expect(page.getByText('Fiche des Encadreurs')).toBeVisible();
+  test('chacun ne voit que les modèles de son département / rôle', async ({ page }) => {
+    const expectTypes = async (who, labels) => {
+      await login(page, who);
+      await page.goto('/rapports-hebdo');
+      await page.getByRole('button', { name: 'Nouveau rapport' }).first().click();
+      await expect(page.getByRole('dialog').locator('li')).toHaveText(labels);
+      await logout(page);
+    };
+    await expectTypes('encadreur', ['Fiche de suivi hebdomadaire des choristes']);
+    await expectTypes('leader', ['Fiche de suivi hebdomadaire des choristes', 'Rapport mensuel du leader (au Pasteur)']);
+    await expectTypes('suivi', ['Rapport du Faiseur de Disciples', 'Fiche des Encadreurs']);
+    await expectTypes('daniel', ['Rapport de la chaîne de prière']);
+    await expectTypes('cellule', ['Rapport de cellule de prière']);
     await expect(page.getByText(/Superviseurs/)).toHaveCount(0);
-    await expect(page.getByText('Rapport mensuel du leader (au Pasteur)')).toHaveCount(0);
-    await logout(page);
-    await login(page, 'leader');
+  });
+
+  test('département sans fiche papier : pas de menu Fiches hebdo', async ({ page }) => {
+    await login(page, 'esther'); // Jeunes
+    await expect(page.locator('aside nav').getByRole('link', { name: 'Fiches hebdo' })).toHaveCount(0);
+    await page.goto('/fiches');
+    await expect(page.getByRole('link', { name: 'Fiches hebdo' })).toHaveCount(0);
     await page.goto('/rapports-hebdo');
-    await page.getByRole('button', { name: 'Nouveau rapport' }).first().click();
-    await expect(page.getByRole('dialog').locator('li')).toHaveCount(7);
+    await expect(page.getByText(/Aucune fiche hebdo ne concerne votre département/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Nouveau rapport' })).toHaveCount(0);
   });
 
   test('3 façons de remplir + retour au choix du type', async ({ page }) => {
-    await login(page, 'encadreur');
+    await login(page, 'protocole');
     await newFiche(page, "Rapport d'assiduité (Huissier)");
     const d = page.getByRole('dialog');
     await expect(d.getByText('Prendre une photo de la fiche')).toBeVisible();
@@ -42,7 +52,7 @@ test.describe('Fiches hebdo & rapport mensuel', () => {
   });
 
   test('fiche vide : soumission bloquée ; une présence cochée suffit', async ({ page }) => {
-    await login(page, 'encadreur');
+    await login(page, 'protocole');
     await newFiche(page, "Rapport d'assiduité (Huissier)");
     await page.getByText('Remplir manuellement').click();
     const d = page.getByRole('dialog');
@@ -147,7 +157,7 @@ test.describe('Fiches hebdo & rapport mensuel', () => {
   });
 
   test('téléchargement PDF d’une fiche', async ({ page }) => {
-    await login(page, 'encadreur');
+    await login(page, 'protocole');
     await page.goto('/rapports-hebdo');
     const row = page.locator('li', { hasText: "Rapport d'assiduité (Huissier)" }).first();
     const [download] = await Promise.all([page.waitForEvent('download'), row.getByRole('button').nth(0).click()]);
@@ -155,7 +165,7 @@ test.describe('Fiches hebdo & rapport mensuel', () => {
   });
 
   test('brouillon : modifiable puis supprimable', async ({ page }) => {
-    await login(page, 'encadreur');
+    await login(page, 'audiovisuel');
     await newFiche(page, "Rapport d'assiduité des ouvriers (Audiovisuel)");
     await page.getByText('Remplir manuellement').click();
     const d = page.getByRole('dialog');
@@ -168,5 +178,35 @@ test.describe('Fiches hebdo & rapport mensuel', () => {
     const before = await page.locator('li', { hasText: 'Brouillon' }).count();
     await row.getByRole('button').nth(2).click();
     await expect(page.locator('li', { hasText: 'Brouillon' })).toHaveCount(before - 1);
+  });
+
+  test('chaîne de prière : import depuis WhatsApp, pointage, totaux et soumission', async ({ page }) => {
+    await login(page, 'daniel');
+    await newFiche(page, 'Rapport de la chaîne de prière');
+    await page.getByText('Remplir manuellement').click();
+    const d = page.getByRole('dialog', { name: 'Rapport de la chaîne de prière' });
+    await d.getByRole('button', { name: 'Importer depuis WhatsApp' }).click();
+    const imp = page.getByRole('dialog', { name: 'Importer depuis WhatsApp' });
+    await imp.locator('#cp-import').fill(['*Rapport de la chaîne de prière 23h -00h*', '*La semaine du 21/09/26*', '*Those who prayed online*', '*Monday T:25/ Tuesday T:23/Wednesday T29:*',
+      '*➡️Pastors*', 'Prophet Samuel lonsti', 'Pasteur Etoundi (3/3)', '*➡️Minister & Leaders*', 'Min Olivia (3/3)', 'L- Flore Ntamack ( prob avec son téléphone)',
+      '*➡️Members*', 'Philomène (1/3)', 'Ngoa Juliette (3/3)', '*➡️Pastors and leader not connected*', 'Pasteur Solange (0/3)'].join('\n'));
+    await imp.getByRole('button', { name: 'Importer les noms' }).click();
+    await expect(d.getByRole('heading', { name: 'Pasteurs (2)' })).toBeVisible();
+    await expect(d.getByRole('heading', { name: 'Ministres & leaders (2)' })).toBeVisible();
+    await expect(d.getByRole('heading', { name: 'Membres (2)' })).toBeVisible();
+    await expect(d.getByRole('heading', { name: 'Pasteurs et leaders non connectés (1)' })).toBeVisible();
+    await expect(d.getByLabel('Nom, Ministres & leaders 2')).toHaveValue('L- Flore Ntamack');
+    await expect(d.getByLabel('Tranche horaire')).toHaveValue('23h -00h');
+
+    // Vide → refusé ; une présence cochée → totaux et score à jour.
+    await d.getByRole('button', { name: 'Soumettre le rapport' }).click();
+    await expect(d.getByRole('alert')).toContainText('La fiche est vide');
+    await d.getByRole('button', { name: /Lun — Pasteur Etoundi/ }).click();
+    await d.getByRole('button', { name: /Mar — Pasteur Etoundi/ }).click();
+    await d.getByRole('button', { name: /Lun — Philomène/ }).click();
+    await expect(d.getByText('T:2').first()).toBeVisible();
+    await expect(d.locator('tr', { has: page.getByLabel('Nom, Pasteurs 2') }).getByText('2/3')).toBeVisible();
+    await d.getByRole('button', { name: 'Soumettre le rapport' }).click();
+    await expect(page.getByText('Fiche soumise avec succès')).toBeVisible();
   });
 });

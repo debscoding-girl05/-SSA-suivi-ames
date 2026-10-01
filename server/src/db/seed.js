@@ -91,6 +91,25 @@ const DIRIGEANTS = [
     report: null,
   },
   {
+    // Protocole : remplit le rapport d'assiduité (Huissier).
+    email: "protocole@ssa.app", phone: "+237 6 33 44 55 66", password: "dirigeant1234",
+    fullName: "Joël Ndzana", role: "encadreur", department: "Protocole",
+    assignes: [
+      { firstName: "Hervé", lastName: "Bilong", phone: "+237 6 33 00 00 01" },
+      { firstName: "Laure", lastName: "Mekongo", phone: "+237 6 33 00 00 02" },
+    ],
+    report: null,
+  },
+  {
+    // Audiovisuel : remplit le rapport d'assiduité des ouvriers.
+    email: "audiovisuel@ssa.app", phone: "+237 6 44 55 66 77", password: "dirigeant1234",
+    fullName: "Cédric Abanda", role: "encadreur", department: "Audiovisuel",
+    assignes: [
+      { firstName: "Franck", lastName: "Nkoa", phone: "+237 6 44 00 00 01" },
+    ],
+    report: null,
+  },
+  {
     // Leader de cellule de prière (indépendant des départements).
     email: "cellule@ssa.app", phone: "+237 6 22 33 44 55", password: "dirigeant1234",
     fullName: "Frère Pierre", role: "leader_cellule", department: null, assignes: [], report: null,

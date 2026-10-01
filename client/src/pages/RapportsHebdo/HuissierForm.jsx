@@ -19,7 +19,7 @@ export default function HuissierForm({ initial, onSaved }) {
   const { user } = useAuth();
   const [id, setId] = useState(initial?.id || null);
   const [entete, setEntete] = useState({
-    departement: initial?.entete?.departement || 'Huissier',
+    departement: initial?.entete?.departement || user?.departmentName || 'Protocole',
     date: initial?.entete?.date || '',
     nomLeader: initial?.entete?.nomLeader || (initial ? '' : user?.fullName || ''),
   });

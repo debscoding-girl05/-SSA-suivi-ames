@@ -5,6 +5,13 @@ import { SearchInput } from '@/components/ui/search-input';
 import { UserPlus } from 'lucide-react';
 import { createAssigne, updateAssigne, attachAssigne } from '../../api/dirigeants';
 import { listAnnuaire } from '../../api/annuaire';
+import { useAuth } from '../../hooks/useAuth';
+import { readsAllRole } from '@/lib/roles';
+
+// Qui voit au-delà de ses propres membres dans l'annuaire (même règle que le
+// serveur) : la recherche « Déjà dans l'annuaire ? » n'a de sens que pour eux.
+const FD_DEPTS = ['Faiseurs de Disciples', 'Suivi'];
+const seesBeyondOwn = (u) => readsAllRole(u?.role) || u?.role === 'leader' || FD_DEPTS.includes(u?.departmentName);
 
 const LABEL = 'text-sm font-medium';
 const TEXTAREA =
@@ -79,7 +86,9 @@ function AnnuaireSearch({ dirigeantId, onAttached }) {
 
 // Add/edit an assigné for a given dirigeant. `assigne` null = create mode.
 export default function AssigneForm({ dirigeantId, assigne, onSaved, onCancel }) {
+  const { user } = useAuth();
   const isEdit = Boolean(assigne);
+  const showSearch = !isEdit && seesBeyondOwn(user);
   const [form, setForm] = useState({
     firstName: assigne?.firstName || '',
     lastName: assigne?.lastName || '',
@@ -134,8 +143,8 @@ export default function AssigneForm({ dirigeantId, assigne, onSaved, onCancel })
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {!isEdit && <AnnuaireSearch dirigeantId={dirigeantId} onAttached={onSaved} />}
-      {!isEdit && (
+      {showSearch && <AnnuaireSearch dirigeantId={dirigeantId} onAttached={onSaved} />}
+      {showSearch && (
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <UserPlus className="size-3.5" /> Ou nouvelle personne :
         </p>

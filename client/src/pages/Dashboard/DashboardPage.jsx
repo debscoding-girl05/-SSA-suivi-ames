@@ -9,6 +9,8 @@ import ProgressRing from '../../components/ProgressRing';
 import RelanceActions from '../../components/RelanceActions';
 import ObjectifCard from './ObjectifCard';
 import LeaderEquipe from './LeaderEquipe';
+import MesMembres from './MesMembres';
+import MaCellule from './MaCellule';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -65,6 +67,8 @@ export default function DashboardPage() {
 
       {user?.role === 'pasteur' && <ObjectifCard />}
       {user?.role === 'leader' && <LeaderEquipe />}
+      {user?.role === 'encadreur' && <MesMembres />}
+      {user?.role === 'leader_cellule' && <MaCellule />}
 
       {/* Hero — taux de soumission */}
       <div className="flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-soft">

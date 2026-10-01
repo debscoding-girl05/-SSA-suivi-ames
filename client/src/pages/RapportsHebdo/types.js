@@ -17,12 +17,39 @@ export const RH_TYPES = [
   { key: 'cellule_priere', label: 'Rapport de cellule de prière', shortLabel: 'Cellule de prière' },
   { key: 'choristes', label: 'Fiche de suivi hebdomadaire des choristes', shortLabel: 'Suivi des choristes' },
   { key: 'audiovisuel', label: "Rapport d'assiduité des ouvriers (Audiovisuel)", shortLabel: 'Assiduité ouvriers (AV)' },
-  // Remis chaque mois au Pasteur — réservé aux leaders (contrôlé côté serveur).
-  { key: 'leader_mensuel', label: 'Rapport mensuel du leader (au Pasteur)', shortLabel: 'Rapport mensuel', roles: ['leader'] },
+  { key: 'chaine_priere', label: 'Rapport de la chaîne de prière', shortLabel: 'Chaîne de prière' },
+  // Remis chaque mois au Pasteur — réservé aux leaders.
+  { key: 'leader_mensuel', label: 'Rapport mensuel du leader (au Pasteur)', shortLabel: 'Rapport mensuel' },
 ];
 
-// Types proposés à la création selon le rôle.
-export const rhTypesFor = (role) => RH_TYPES.filter((t) => !t.roles || t.roles.includes(role));
+// Qui peut remplir quel modèle : chaque fiche papier appartient à un
+// département (ou à un rôle). Pasteur et PR peuvent tout remplir ; la
+// Secrétaire lit tout sans rien remplir.
+// ⚠️ Même table côté serveur : server/src/utils/ficheTypes.js (qui fait foi).
+const FD_DEPTS = ['Faiseurs de Disciples', 'Suivi'];
+export const TYPE_ACCESS = {
+  huissier: { departments: ['Protocole'] },
+  faiseur_disciples: { departments: FD_DEPTS },
+  superviseur: { departments: FD_DEPTS },
+  choristes: { departments: ['Chorale'] },
+  audiovisuel: { departments: ['Audiovisuel', 'Sécurité Audiovisuelle'] },
+  chaine_priere: { departments: ['Intercession / Prière'] },
+  cellule_priere: { roles: ['leader_cellule'] },
+  leader_mensuel: { roles: ['leader'] },
+};
+const FILLING_ROLES = ['leader', 'encadreur', 'leader_cellule'];
+
+export function canFillType(user, key) {
+  const rule = TYPE_ACCESS[key];
+  if (!rule || !user) return false;
+  if (user.role === 'pasteur' || user.role === 'pr') return true;
+  if (!FILLING_ROLES.includes(user.role)) return false;
+  if (rule.roles) return rule.roles.includes(user.role);
+  return Boolean(user.departmentName && rule.departments.includes(user.departmentName));
+}
+
+// Modèles proposés à la création pour cet utilisateur.
+export const rhTypesFor = (user) => RH_TYPES.filter((t) => canFillType(user, t.key));
 
 export function formatMonthFr(v) {
   const m = /^(\d{4})-(\d{2})$/.exec(String(v || '').trim());
@@ -34,7 +61,30 @@ export const rhLabel = (t) => (RH_TYPES.find((x) => x.key === t) || {}).label ||
 export const rhShortLabel = (t) => (RH_TYPES.find((x) => x.key === t) || {}).shortLabel || t;
 
 // Configuration de la vue lecture par type : champs d'en-tête + colonnes.
+const CP_DAYS = { lundi: 'Lundi', mardi: 'Mardi', mercredi: 'Mercredi', jeudi: 'Jeudi', vendredi: 'Vendredi', samedi: 'Samedi', dimanche: 'Dimanche' };
+export const CP_CATEGORIES = [
+  ['pasteurs', 'Pasteurs'],
+  ['leaders', 'Ministres & leaders'],
+  ['membres', 'Membres'],
+  ['non_connectes', 'Pasteurs et leaders non connectés'],
+];
+const cpJours = (e) => (Array.isArray(e?.jours) && e.jours.length ? e.jours : ['lundi', 'mardi', 'mercredi']);
+
 export const RH_VIEW = {
+  chaine_priere: {
+    header: (e, r) => [
+      ['Tranche horaire', e.tranche || '—'],
+      ['Semaine du', formatDateFr(e.semaineDu)],
+      ['Responsable', e.responsable || r.authorName || '—'],
+      ['Ont prié en ligne', cpJours(e).map((j) => `${CP_DAYS[j] || j} T:${(r.lignes || []).filter((x) => x?.presence?.[j]).length}`).join(' / ')],
+    ],
+    columns: [
+      { key: 'nom', label: 'Nom' },
+      { key: 'categorie', label: 'Catégorie', compute: (row) => (CP_CATEGORIES.find(([k]) => k === row.categorie) || ['membres', 'Membres'])[1] },
+      { key: 'score', label: 'Score', compute: (row, r) => { const j = cpJours(r?.entete); return `${j.filter((d) => row?.presence?.[d]).length}/${j.length}`; } },
+      { key: 'note', label: 'Note' },
+    ],
+  },
   leader_mensuel: {
     header: (e, r) => [
       ['Mois', formatMonthFr(e.mois)],

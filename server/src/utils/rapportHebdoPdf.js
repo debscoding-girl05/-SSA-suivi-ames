@@ -329,7 +329,7 @@ function qLine(doc, num, labelFr, labelEn, value) {
 
 function renderCellulePriere(doc, r) {
   const e = r.entete || {};
-  churchHeader(doc, "Rapport hebdomadaire de cellule de prière");
+  churchHeader(doc, "Rapport hebdomadaire de cellule de prière / House cell weekly report");
 
   infoBox(doc, [
     ["Date", formatDateFr(e.date) || "—"],
@@ -611,6 +611,60 @@ function renderLeaderMensuel(doc, r) {
   pdfFooter(doc);
 }
 
+// ---- Rapport de la CHAÎNE DE PRIÈRE (Intercession / Prière) ----------------
+// Liste des intercesseurs par catégorie, présence par soir et score « x/N »,
+// comme le rapport publié chaque semaine sur WhatsApp.
+const CP_CATEGORIES = [
+  ["pasteurs", "Pasteurs"],
+  ["leaders", "Ministres & leaders"],
+  ["membres", "Membres"],
+  ["non_connectes", "Pasteurs et leaders non connectés"],
+];
+const CP_DAY_LABELS = {
+  lundi: "Lundi", mardi: "Mardi", mercredi: "Mercredi", jeudi: "Jeudi",
+  vendredi: "Vendredi", samedi: "Samedi", dimanche: "Dimanche",
+};
+
+function renderChainePriere(doc, r) {
+  const e = r.entete || {};
+  const jours = Array.isArray(e.jours) && e.jours.length ? e.jours : ["lundi", "mardi", "mercredi"];
+  const rows = Array.isArray(r.lignes) ? r.lignes : [];
+  churchHeader(doc, "Rapport de la chaîne de prière");
+
+  const totals = jours.map((j) => `${CP_DAY_LABELS[j] || j} T:${rows.filter((x) => x?.presence?.[j]).length}`).join("  /  ");
+  infoBox(doc, [
+    ["Tranche horaire", e.tranche || "—"],
+    ["Semaine du", formatDateFr(e.semaineDu) || "—"],
+    ["Responsable", e.responsable || "—"],
+    ["Ont prié en ligne", totals || "—"],
+  ]);
+
+  const x = doc.page.margins.left;
+  const totalW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const wN = 24, wDay = 44, wScore = 44;
+  const wNote = 120;
+  const wNom = totalW - wN - jours.length * wDay - wScore - wNote;
+  const widths = [wN, wNom, ...jours.map(() => wDay), wScore, wNote];
+  const aligns = ["center", "left", ...jours.map(() => "center"), "center", "left"];
+  const head = ["N°", "Nom", ...jours.map((j) => CP_DAY_LABELS[j] || j), "Score", "Note"];
+
+  for (const [key, label] of CP_CATEGORIES) {
+    const list = rows.filter((row) => (row?.categorie || "membres") === key);
+    if (!list.length) continue;
+    sectionTitle(doc, `${label.toUpperCase()} (${list.length})`);
+    let y = drawRow(doc, x, doc.y, widths, head, { header: true, aligns });
+    list.forEach((row, i) => {
+      if (y > doc.page.height - 60) { doc.addPage(); y = doc.page.margins.top; y = drawRow(doc, x, y, widths, head, { header: true, aligns }); }
+      const score = jours.filter((j) => row?.presence?.[j]).length;
+      y = drawRow(doc, x, y, widths, [
+        String(i + 1), row.nom || "", ...jours.map((j) => (row?.presence?.[j] ? "X" : "")), `${score}/${jours.length}`, row.note || "",
+      ], { aligns });
+    });
+    doc.y = y + 6;
+  }
+  pdfFooter(doc);
+}
+
 const RENDERERS = {
   huissier: { title: "rapport_assiduite", render: renderHuissier },
   faiseur_disciples: { title: "rapport_faiseur_disciples", render: renderFaiseurDisciples },
@@ -619,6 +673,7 @@ const RENDERERS = {
   choristes: { title: "fiche_choristes", render: renderChoristes, layout: "landscape", margin: 30 },
   audiovisuel: { title: "rapport_assiduite_ouvriers", render: renderAudiovisuel },
   leader_mensuel: { title: "rapport_mensuel_leader", render: renderLeaderMensuel },
+  chaine_priere: { title: "rapport_chaine_priere", render: renderChainePriere },
 };
 
 async function streamRapportHebdoPdf(rapport, res) {

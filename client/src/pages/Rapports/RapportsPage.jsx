@@ -5,7 +5,8 @@ import { Send, ClipboardList } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button-variants';
 import { weekOverview, myRapport } from '../../api/rapports';
 import { useAuth } from '../../hooks/useAuth';
-import { canSubmitReport, isAdminRole } from '@/lib/roles';
+import { canSubmitReport, isAdminRole, readsAllRole } from '@/lib/roles';
+import { rhTypesFor } from '../RapportsHebdo/types';
 import Modal from '../../components/Modal';
 import RapportForm from './RapportForm';
 import ProgressRing from '../../components/ProgressRing';
@@ -76,9 +77,11 @@ export default function RapportsPage() {
           )}
           {/* Les fiches papier du département (photo ou saisie) — seul accès
               direct sur téléphone, où le menu « Fiches hebdo » n'est pas en bas. */}
-          <Link to="/rapports-hebdo" className={buttonVariants({ variant: 'outline' })}>
-            <ClipboardList className="size-4" /> Fiches hebdo
-          </Link>
+          {(readsAllRole(user?.role) || rhTypesFor(user).length > 0) && (
+            <Link to="/rapports-hebdo" className={buttonVariants({ variant: 'outline' })}>
+              <ClipboardList className="size-4" /> Fiches hebdo
+            </Link>
+          )}
         </div>
       </div>
 

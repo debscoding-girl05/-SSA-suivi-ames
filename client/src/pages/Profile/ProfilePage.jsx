@@ -46,7 +46,7 @@ export default function ProfilePage() {
   ];
 
   // Pages absentes de la barre du bas sur téléphone : accessibles d'ici.
-  const moreItems = visibleNavItems(user?.role).filter((item) => item.mobile === false);
+  const moreItems = visibleNavItems(user).filter((item) => item.mobile === false);
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-5">

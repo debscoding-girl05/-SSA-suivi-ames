@@ -13,6 +13,9 @@ const ACCOUNTS = {
   suivi: ['suivi@ssa.app', 'dirigeant1234'], // Ruth Onana, encadreur Suivi (Faiseurs de Disciples)
   grace: ['grace@ssa.app', 'dirigeant1234'], // leader Évangélisation
   cellule: ['cellule@ssa.app', 'dirigeant1234'], // leader de cellule (Cellule Bastos)
+  protocole: ['protocole@ssa.app', 'dirigeant1234'], // encadreur Protocole → fiche Huissier
+  audiovisuel: ['audiovisuel@ssa.app', 'dirigeant1234'], // encadreur Audiovisuel
+  daniel: ['daniel@ssa.app', 'dirigeant1234'], // encadreur Intercession / Prière → chaîne de prière
 };
 
 const API = 'http://127.0.0.1:3998';
