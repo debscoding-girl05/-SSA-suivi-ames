@@ -39,9 +39,15 @@ async function update(req, res) {
 }
 
 // GET /api/departments/overview?year&week — departments with stats for a week.
+// Vue d'ensemble de l'église : Pasteur, PR, Secrétaire. Un leader ne voit
+// que son département ; les autres rôles, aucun (la simple liste des noms,
+// GET /api/departments, reste ouverte pour les formulaires et filtres).
 async function overview(req, res) {
   const { year, week } = parseWeek(req.query);
-  const data = await db.departments.listWithStats({ year, week });
+  let data = await db.departments.listWithStats({ year, week });
+  if (!db.READ_ALL_ROLES.includes(req.user.role)) {
+    data = req.user.role === "leader" ? data.filter((d) => d.id === req.user.departmentId) : [];
+  }
   res.json({ data, week: { year, week } });
 }
 

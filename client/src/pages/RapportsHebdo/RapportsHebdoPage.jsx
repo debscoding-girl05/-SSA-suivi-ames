@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ClipboardList, Plus, Download, Trash2, Pencil, ChevronRight, Check, Camera, ImageUp, PenLine, ArrowLeft } from 'lucide-react';
+import { ClipboardList, Plus, Download, Trash2, Pencil, Eye, ChevronRight, Check, Camera, ImageUp, PenLine, ArrowLeft } from 'lucide-react';
+import RapportHebdoView from '../Reports/RapportHebdoView';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import { listRapportsHebdo, getRapportHebdo, deleteRapportHebdo, downloadRapportHebdoPdf } from '../../api/rapportsHebdo';
 import { useAuth } from '../../hooks/useAuth';
 import { rhTypesFor, rhLabel } from './types';
-import { readsAllRole } from '@/lib/roles';
+import { readsAllRole, isAdminRole } from '@/lib/roles';
 import HuissierForm from './HuissierForm';
 import FaiseurDisciplesForm from './FaiseurDisciplesForm';
 import SuperviseurForm from './SuperviseurForm';
@@ -43,6 +44,7 @@ export default function RapportsHebdoPage() {
   const [pickedType, setPickedType] = useState(null); // 2e étape : photo / import / saisie
   const [modal, setModal] = useState(null);           // { type, report? }
   const [toast, setToast] = useState('');             // message de succès éphémère
+  const [viewing, setViewing] = useState(null);       // fiche d'un autre, en lecture seule
 
   const load = useCallback(async () => {
     try {
@@ -148,18 +150,30 @@ export default function RapportsHebdoPage() {
                     {r.status === 'soumis' ? 'Soumis' : r.status === 'valide' ? 'Validé' : 'Brouillon'}
                   </span>
                   {r.lignes?.length ? ` · ${r.lignes.length} ligne(s)` : ''}
-                  {isAdmin && (r.entete?.nomLeader || r.entete?.nomFaiseur || r.authorName) ? ` · par ${r.entete?.nomLeader || r.entete?.nomFaiseur || r.authorName}` : ''}
+                  {(isAdmin || r.authorId !== user?.id) && (r.entete?.nomLeader || r.entete?.nomFaiseur || r.authorName) ? ` · par ${r.entete?.nomLeader || r.entete?.nomFaiseur || r.authorName}` : ''}
                 </p>
               </div>
               <div className="flex shrink-0 gap-1">
                 <Button size="sm" variant="ghost" onClick={() => onDownload(r)}><Download className="size-4" /></Button>
-                <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="size-4" /></Button>
-                <Button size="sm" variant="ghost" onClick={() => onDelete(r)}><Trash2 className="size-4 text-destructive-dark" /></Button>
+                {/* Modifier / supprimer : l'auteur, le Pasteur ou la PR. Les autres
+                    (leader qui consulte son équipe, Secrétaire) lisent seulement. */}
+                {r.authorId === user?.id || isAdminRole(user?.role) ? (
+                  <>
+                    <Button size="sm" variant="ghost" aria-label="Modifier" onClick={() => openEdit(r)}><Pencil className="size-4" /></Button>
+                    <Button size="sm" variant="ghost" aria-label="Supprimer" onClick={() => onDelete(r)}><Trash2 className="size-4 text-destructive-dark" /></Button>
+                  </>
+                ) : (
+                  <Button size="sm" variant="ghost" aria-label="Voir" onClick={async () => setViewing(await getRapportHebdo(r.id))}><Eye className="size-4" /></Button>
+                )}
               </div>
             </li>
           ))}
         </ul>
       )}
+
+      <Modal size="xl" open={!!viewing} onClose={() => setViewing(null)} title={viewing ? rhLabel(viewing.type) : ''}>
+        {viewing && <RapportHebdoView rapport={viewing} />}
+      </Modal>
 
       {/* Choix du type de fiche */}
       <Modal open={picker} onClose={() => setPicker(false)} title={pickedType ? rhLabel(pickedType) : 'Quel type de rapport ?'}>

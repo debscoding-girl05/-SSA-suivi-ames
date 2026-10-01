@@ -3,17 +3,18 @@ const ApiError = require("../utils/ApiError");
 const { parseWeek } = require("../utils/week");
 
 const isAdmin = (role) => db.ADMIN_ROLES.includes(role); // pasteur | pr
+const readsAll = (role) => db.READ_ALL_ROLES.includes(role); // + secrétaire (lecture)
 const canAuthor = (role) => role === "leader" || role === "pr";
 
 // Read scope: Pasteur/PR → tout ; Leader → son département ; sinon → rien.
 function scopeFor(user) {
-  if (isAdmin(user.role)) return undefined;
+  if (readsAll(user.role)) return undefined;
   if (user.role === "leader") return { departmentId: user.departmentId ?? -1 };
   return { departmentId: -1 };
 }
 
 function canRead(user, report) {
-  if (isAdmin(user.role)) return true;
+  if (readsAll(user.role)) return true;
   if (user.role === "leader") return user.departmentId != null && report.departmentId === user.departmentId;
   return report.authorId === user.sub;
 }

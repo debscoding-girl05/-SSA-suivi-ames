@@ -12,7 +12,7 @@ async function isFdDept(departmentId) {
 
 // Read scope (within FD/Suivi): admin → all ; leader → son dépt ; encadreur → soi.
 function scopeFor(user) {
-  if (isAdmin(user.role)) return undefined;
+  if (db.READ_ALL_ROLES.includes(user.role)) return undefined; // + Secrétaire (lecture)
   if (user.role === "leader") return { departmentId: user.departmentId ?? -1 };
   return { dirigeantId: user.sub };
 }
