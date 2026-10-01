@@ -23,7 +23,8 @@ export function readsAllRole(role) {
   return isAdminRole(role) || role === 'secretaire';
 }
 
-// Rôles qui soumettent une fiche/un rapport hebdomadaire.
+// Rôles qui soumettent la fiche de présence hebdomadaire (menu Fiches). Le
+// leader de cellule, lui, remplit la fiche de sa cellule.
 export function canSubmitReport(role) {
-  return role === 'leader' || role === 'encadreur' || role === 'leader_cellule';
+  return role === 'leader' || role === 'encadreur';
 }

@@ -11,6 +11,8 @@ import ObjectifCard from './ObjectifCard';
 import LeaderEquipe from './LeaderEquipe';
 import MesMembres from './MesMembres';
 import MaCellule from './MaCellule';
+import MaFiche from './MaFiche';
+import { readsAllRole } from '@/lib/roles';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -23,6 +25,7 @@ export default function DashboardPage() {
     weekOverview().then(setOverview).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
+  const showOverview = readsAllRole(user?.role) || user?.role === 'leader';
   const s = overview?.summary;
   const rendu = (d) => d.status === 'soumis' || d.status === 'valide';
   // À relancer = pas encore rendu (manquant) ou renvoyé pour correction.
@@ -67,9 +70,13 @@ export default function DashboardPage() {
 
       {user?.role === 'pasteur' && <ObjectifCard />}
       {user?.role === 'leader' && <LeaderEquipe />}
+      {user?.role === 'encadreur' && <MaFiche overview={overview} />}
       {user?.role === 'encadreur' && <MesMembres />}
       {user?.role === 'leader_cellule' && <MaCellule />}
 
+      {/* Vue d'ensemble (toute l'église ou l'équipe) : bureau et leaders
+          seulement — l'encadreur a son propre accueil (membres + sa fiche). */}
+      {showOverview && (<>
       {/* Hero — taux de soumission */}
       <div className="flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-soft">
         <div className="min-w-0">
@@ -158,6 +165,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      </>)}
     </div>
   );
 }

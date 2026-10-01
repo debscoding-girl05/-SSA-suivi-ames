@@ -6,8 +6,10 @@ const isAdmin = (role) => db.ADMIN_ROLES.includes(role);
 const PRESENCE = ["present", "absent", "justifie"];
 const str = (v) => (typeof v === "string" ? v.trim() : "");
 
+const readsAll = (role) => db.READ_ALL_ROLES.includes(role);
+
 function scopeFor(user) {
-  if (isAdmin(user.role)) return undefined;
+  if (readsAll(user.role)) return undefined; // Pasteur, PR, Secrétaire (lecture)
   if (user.role === "leader_cellule") return { leaderId: user.sub };
   return null; // autres rôles : aucune cellule
 }
@@ -67,7 +69,7 @@ async function update(req, res) {
 // GET /api/cellules/:id — détail + membres + fiche de la semaine.
 async function getOne(req, res) {
   const cellule = await loadCellule(req.params.id);
-  if (!canManage(req.user, cellule)) throw ApiError.forbidden("Accès refusé");
+  if (!canManage(req.user, cellule) && !readsAll(req.user.role)) throw ApiError.forbidden("Accès refusé");
   const { year, week } = parseWeek(req.query);
   const [membres, fiche] = await Promise.all([
     db.cellules.listMembres(cellule.id),

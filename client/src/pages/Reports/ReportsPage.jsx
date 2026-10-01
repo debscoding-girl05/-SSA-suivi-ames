@@ -11,11 +11,13 @@ import ReportView from './ReportView';
 import RapportHebdoView from './RapportHebdoView';
 import { ClipboardList } from 'lucide-react';
 import { rhLabel, rhShortLabel } from '../RapportsHebdo/types';
+import { readsAllRole } from '@/lib/roles';
 
 export default function ReportsPage() {
   const { user } = useAuth();
   const canAuthor = user?.role === 'leader' || user?.role === 'pr';
-  const isAdmin = user?.role === 'pasteur' || user?.role === 'pr';
+  // Fiches hebdo reçues : Pasteur, PR et Secrétaire (lecture).
+  const isAdmin = readsAllRole(user?.role);
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);

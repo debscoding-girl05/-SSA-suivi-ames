@@ -2166,7 +2166,10 @@ const rapportsHebdo = {
       if (type) rows = rows.filter((r) => r.type === type);
       if (year != null) rows = rows.filter((r) => r.year === Number(year));
       if (week != null) rows = rows.filter((r) => r.week === Number(week));
-      if (scope?.authorId) rows = rows.filter((r) => r.authorId === scope.authorId);
+      if (scope?.authorId) {
+        rows = rows.filter((r) => r.authorId === scope.authorId
+          || (scope.orDepartmentId != null && r.departmentId === scope.orDepartmentId));
+      }
       return rows
         .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
         .map((r) => this._memRow(r));
@@ -2176,7 +2179,16 @@ const rapportsHebdo = {
     if (type) { params.push(type); where.push(`rh.type = $${params.length}`); }
     if (year != null) { params.push(Number(year)); where.push(`rh.year = $${params.length}`); }
     if (week != null) { params.push(Number(week)); where.push(`rh.week = $${params.length}`); }
-    if (scope?.authorId) { params.push(scope.authorId); where.push(`rh.author_id = $${params.length}`); }
+    if (scope?.authorId) {
+      params.push(scope.authorId);
+      const a = params.length;
+      if (scope.orDepartmentId != null) {
+        params.push(scope.orDepartmentId);
+        where.push(`(rh.author_id = $${a} OR rh.department_id = $${params.length})`);
+      } else {
+        where.push(`rh.author_id = $${a}`);
+      }
+    }
     const { rows } = await query(
       `SELECT rh.*, u.full_name AS author_name, d.name AS department_name
          FROM rapports_hebdo rh

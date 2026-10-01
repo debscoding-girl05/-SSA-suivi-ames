@@ -26,14 +26,18 @@ async function withDepartmentName(user) {
   return { ...user, departmentName: dept?.name ?? null };
 }
 
+// Lecture : Pasteur/PR/Secrétaire → tout ; leader → les siennes + celles de
+// son département (il consolide son équipe) ; autres → les siennes.
 function scopeFor(user) {
-  if (readsAll(user.role)) return undefined; // Pasteur/PR/Secrétaire voient tout
+  if (readsAll(user.role)) return undefined;
+  if (user.role === "leader" && user.departmentId != null) return { authorId: user.sub, orDepartmentId: user.departmentId };
   return { authorId: user.sub };
 }
 
 function canRead(user, rapport) {
   if (readsAll(user.role)) return true;
-  return rapport.authorId === user.sub;
+  if (rapport.authorId === user.sub) return true;
+  return user.role === "leader" && user.departmentId != null && rapport.departmentId === user.departmentId;
 }
 
 const EMPTY_FICHE_MESSAGE =

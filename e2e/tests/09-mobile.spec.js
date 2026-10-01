@@ -39,7 +39,7 @@ test.describe('Mobile (iPhone ~390 px)', () => {
     }
     await page.goto('/rapports-hebdo');
     await page.getByRole('button', { name: 'Nouveau rapport' }).first().click();
-    await page.getByText('Fiche de suivi hebdomadaire des choristes').click();
+    await page.getByRole('dialog').getByText('Fiche de suivi hebdomadaire des choristes').click();
     const manual = page.getByRole('button', { name: /Remplir manuellement/ });
     expect((await manual.boundingBox()).height).toBeGreaterThanOrEqual(44);
   });
@@ -48,7 +48,7 @@ test.describe('Mobile (iPhone ~390 px)', () => {
     await login(page, 'encadreur');
     await bottomNav(page).getByRole('link', { name: 'Profil' }).click();
     const menu = page.getByRole('navigation', { name: 'Menu' });
-    await expect(menu.getByRole('link')).toHaveText(['Leaders', 'Départements', 'Nouveaux venus', 'Fiches hebdo']);
+    await expect(menu.getByRole('link')).toHaveText(['Fiches hebdo']);
     await menu.getByRole('link', { name: 'Fiches hebdo' }).click();
     await expect(page.getByRole('heading', { name: 'Rapports hebdomadaires' })).toBeVisible();
     await bottomNav(page).getByRole('link', { name: 'Fiches' }).click();
