@@ -97,4 +97,40 @@ test.describe('Accueil du leader, membres, départements, objectif', () => {
     await expect(card.getByText('Terminée', { exact: true })).toBeVisible();
     await expect(card.getByText(/^0\/40$/)).toBeVisible();
   });
+
+  test('accueil encadreur : « Mes membres » et ajout direct', async ({ page }) => {
+    await login(page, 'esther');
+    const bloc = page.locator('div.rounded-2xl', { has: page.getByRole('heading', { name: /^Mes membres/ }) });
+    await expect(bloc.getByText('Yannick Tchoua')).toBeVisible();
+    await bloc.getByRole('button', { name: 'Ajouter' }).click();
+    const d = page.getByRole('dialog', { name: 'Ajouter un membre' });
+    // Encadreur hors Suivi : pas de recherche dans tout l'annuaire.
+    await expect(d.getByText("Déjà dans l'annuaire ?")).toHaveCount(0);
+    const last = uniq('Accueil');
+    await d.locator('#firstName').fill('Nouveau');
+    await d.locator('#lastName').fill(last);
+    await d.getByRole('button', { name: 'Ajouter', exact: true }).click();
+    await expect(bloc.getByText(`Nouveau ${last}`)).toBeVisible();
+
+    // Doublon suivi par quelqu'un d'autre : message clair au lieu d'un refus muet.
+    await bloc.getByRole('button', { name: 'Ajouter' }).click();
+    await d.locator('#firstName').fill('Samuel');
+    await d.locator('#lastName').fill('Eboa');
+    await d.locator('#phone').fill('+237 6 55 66 77 88');
+    await d.getByRole('button', { name: 'Ajouter', exact: true }).click();
+    await d.getByRole('button', { name: 'Rattacher cette personne à moi' }).click();
+    await expect(d.getByRole('alert')).toContainText('déjà suivie par Marie Nkolo');
+  });
+
+  test('accueil leader de cellule : ajouter un membre à sa cellule', async ({ page }) => {
+    await login(page, 'cellule');
+    await expect(page.getByText('Cellule Bastos')).toBeVisible();
+    await page.getByRole('button', { name: 'Ajouter un membre' }).click();
+    const nom = uniq('Voisin ');
+    await page.locator('#mc-nom').fill(nom);
+    await page.getByRole('dialog').getByRole('button', { name: 'Ajouter' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByText('Cellule Bastos').first().click();
+    await expect(page.getByText(nom)).toBeVisible();
+  });
 });

@@ -22,6 +22,8 @@ const ROW_CONTENT = {
   choristes: (r) => anyTrue(r.croissance) || anyTrue(r.presence) || filled(r.remarques),
   audiovisuel: (r) => ["m", "j", "nuitsPrieres", "progSpecial", "dim", "cpSamedi", "devo", "service", "xtere"].some((k) => filled(r[k])),
   leader_mensuel: (r) => filled(r.fichesRemises) || filled(r.observations),
+  // Chaîne de prière : au moins une présence cochée ou une note.
+  chaine_priere: (r) => anyTrue(r.presence) || filled(r.note),
 };
 
 // Par type : champs d'en-tête qui constituent du contenu.

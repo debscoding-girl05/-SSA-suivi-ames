@@ -60,16 +60,27 @@ const MINIMAL_PAYLOAD = {
   choristes: { entete: { encadreur: "Jean Mballa" }, lignes: [] },
   audiovisuel: { entete: { encadreur: "Jean Mballa" }, lignes: [] },
   leader_mensuel: { entete: { mois: "2026-09", nomLeader: "Jean Mballa" }, lignes: [{ encadreur: "Paul", nbMembres: 6 }] },
+  chaine_priere: { entete: { tranche: "23h - 00h", semaineDu: "2026-09-21", jours: ["lundi", "mardi", "mercredi"] },
+    lignes: [{ nom: "Pasteur Etoundi", categorie: "pasteurs", presence: { lundi: true, mardi: true, mercredi: true } }, { nom: "Philomène", categorie: "membres", presence: { lundi: true } }] },
 };
-// Types réservés à un rôle précis (sinon : l'encadreur de démo).
-const TYPE_ACCOUNT = { leader_mensuel: ["leader@ssa.app", "leader1234"] };
+// Chaque modèle appartient à un département / rôle (utils/ficheTypes.js) :
+// on crée chaque fiche avec un compte de démo qui y a droit.
+const TYPE_ACCOUNT = {
+  huissier: ["protocole@ssa.app", "dirigeant1234"],
+  faiseur_disciples: ["suivi@ssa.app", "dirigeant1234"],
+  superviseur: ["suivi@ssa.app", "dirigeant1234"],
+  cellule_priere: ["cellule@ssa.app", "dirigeant1234"],
+  choristes: ["encadreur@ssa.app", "encadreur1234"],
+  audiovisuel: ["audiovisuel@ssa.app", "dirigeant1234"],
+  chaine_priere: ["daniel@ssa.app", "dirigeant1234"],
+  leader_mensuel: ["leader@ssa.app", "leader1234"],
+};
 
 // --- 1. Create + PDF for every report type -----------------------------
 test("1. Every rapport-hebdo type: create (201) -> GET /pdf returns a real PDF", async () => {
-  const encTok = await login("encadreur@ssa.app", "encadreur1234");
-
   for (const type of Object.keys(RENDERERS)) {
-    const jeanTok = TYPE_ACCOUNT[type] ? await login(...TYPE_ACCOUNT[type]) : encTok;
+    assert.ok(TYPE_ACCOUNT[type], `no fixture account for type ${type}`);
+    const jeanTok = await login(...TYPE_ACCOUNT[type]);
     const payload = MINIMAL_PAYLOAD[type];
     assert.ok(payload, `no fixture payload for type ${type}`);
 
@@ -91,7 +102,7 @@ test("1. Every rapport-hebdo type: create (201) -> GET /pdf returns a real PDF",
 
 // --- 2. Full lifecycle: brouillon -> soumis, update, list scoping ------
 test("2. Rapport hebdo lifecycle: brouillon -> soumis, update persists, scoped list", async () => {
-  const jeanTok = await login("encadreur@ssa.app", "encadreur1234");
+  const jeanTok = await login("protocole@ssa.app", "dirigeant1234"); // Protocole → fiche Huissier
   const marieTok = await login("leader@ssa.app", "leader1234");
 
   const created = await api("POST", "/api/rapports-hebdo", jeanTok, {
@@ -153,7 +164,7 @@ test("3. PDF access: author OK, unrelated encadreur 403, admin OK", async () => 
 
 // --- 4. Attachments: upload, list, download, delete, RBAC, MIME guard --
 test("4. Attachment (photo de la fiche papier): upload -> list -> download -> delete, RBAC + MIME guard", async () => {
-  const jeanTok = await login("encadreur@ssa.app", "encadreur1234");
+  const jeanTok = await login("protocole@ssa.app", "dirigeant1234"); // Protocole → Huissier
   const estherTok = await login("esther@ssa.app", "dirigeant1234");
 
   const created = await api("POST", "/api/rapports-hebdo", jeanTok, {
@@ -214,4 +225,28 @@ test("4. Attachment (photo de la fiche papier): upload -> list -> download -> de
 
   const listAfter = await api("GET", `/api/rapports-hebdo/${rapportId}/attachments`, jeanTok);
   assert.equal(listAfter.body.data.length, 0);
+});
+
+// --- 5. Modèles par département ---------------------------------------
+test("5. Chaque modèle de fiche est réservé à son département / rôle", async () => {
+  const jean = await login("encadreur@ssa.app", "encadreur1234"); // Chorale
+  const daniel = await login("daniel@ssa.app", "dirigeant1234"); // Intercession / Prière
+  const sec = await login("secretaire@ssa.app", "secretaire1234");
+  const pr = await login("pr@ssa.app", "pr1234");
+
+  assert.deepEqual((await api("GET", "/api/rapports-hebdo/types", jean)).body.data, ["choristes"]);
+  assert.deepEqual((await api("GET", "/api/rapports-hebdo/types", daniel)).body.data, ["chaine_priere"]);
+  assert.deepEqual((await api("GET", "/api/rapports-hebdo/types", sec)).body.data, []);
+  assert.ok((await api("GET", "/api/rapports-hebdo/types", pr)).body.data.length >= 8);
+
+  const refused = await api("POST", "/api/rapports-hebdo", jean, { type: "audiovisuel", entete: {}, lignes: [], status: "brouillon" });
+  assert.equal(refused.status, 403);
+  assert.match(refused.body.message, /ne concerne pas votre département/);
+  assert.equal((await api("POST", "/api/rapports-hebdo", sec, { type: "choristes", entete: {}, lignes: [], status: "brouillon" })).status, 403);
+
+  // Chaîne de prière : vide refusée, présences acceptées.
+  const empty = await api("POST", "/api/rapports-hebdo", daniel, { type: "chaine_priere", entete: { jours: ["lundi"] }, lignes: [{ nom: "X", categorie: "membres", presence: {} }], status: "soumis" });
+  assert.equal(empty.status, 400);
+  const ok = await api("POST", "/api/rapports-hebdo", daniel, { type: "chaine_priere", entete: { jours: ["lundi"] }, lignes: [{ nom: "X", categorie: "membres", presence: { lundi: true } }], status: "soumis" });
+  assert.equal(ok.status, 201);
 });

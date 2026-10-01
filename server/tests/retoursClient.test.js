@@ -132,7 +132,7 @@ test("Création de compte : leader rattaché, comptes bureau réservés au Paste
 });
 
 test("Fiche vide : soumission bloquée, brouillon autorisé, photo suffisante", async () => {
-  const jean = await login("encadreur@ssa.app", "encadreur1234");
+  const jean = await login("protocole@ssa.app", "dirigeant1234"); // Protocole → Huissier
   const roster = [{ nom: "Pierre Kamga", telephone: "677445566", lieu: "", numeroCulte: "", present: null }];
 
   assert.equal((await api("POST", "/api/rapports-hebdo", jean, { type: "huissier", entete: { nomLeader: "Jean" }, lignes: roster, status: "soumis" })).status, 400);
@@ -200,10 +200,9 @@ test("Fiche des encadreurs : l'âme choisie est rattachée au Faiseur de Discipl
   const samuel = (await api("GET", "/api/annuaire?search=Eboa", pasteur)).body.data[0];
   const lignes = [{ faiseur: "Ruth Onana", faiseurId: ruthFd.id, assigneId: samuel.id, nomsAme: "Samuel Eboa", telephone: samuel.phone, commentaires: "" }];
 
-  // Un encadreur hors Suivi ne peut pas déplacer l'âme de quelqu'un d'autre.
+  // La fiche des encadreurs ne concerne que Suivi / Faiseurs de Disciples.
   const byEsther = await api("POST", "/api/rapports-hebdo", esther, { type: "superviseur", entete: { nomSuperviseur: "Esther" }, lignes, status: "soumis" });
-  assert.equal(byEsther.status, 201);
-  assert.deepEqual(byEsther.body.annuaire, { added: 0, assigned: 0, existing: 1 });
+  assert.equal(byEsther.status, 403);
 
   // Un Faiseur de Disciples peut : l'âme passe chez le faiseur choisi.
   const byRuth = await api("POST", "/api/rapports-hebdo", ruth, { type: "superviseur", entete: { nomSuperviseur: "Ruth" }, lignes, status: "soumis" });
@@ -212,7 +211,7 @@ test("Fiche des encadreurs : l'âme choisie est rattachée au Faiseur de Discipl
   assert.equal(after.dirigeantId, ruthFd.id);
 
   // Nouvelle âme + faiseur choisi : créée directement chez ce faiseur.
-  const nouvelle = await api("POST", "/api/rapports-hebdo", esther, { type: "superviseur", entete: {}, status: "soumis",
+  const nouvelle = await api("POST", "/api/rapports-hebdo", ruth, { type: "superviseur", entete: {}, status: "soumis",
     lignes: [{ faiseur: "Ruth Onana", faiseurId: ruthFd.id, nomsAme: "BIYONG Rose", telephone: "699 45 45 45", commentaires: "" }] });
   assert.deepEqual(nouvelle.body.annuaire, { added: 1, assigned: 0, existing: 0 });
   const rose = (await api("GET", "/api/annuaire?search=biyong", pasteur)).body.data[0];

@@ -86,7 +86,7 @@ export default function RapportHebdoView({ rapport }) {
                         </td>
                       );
                     }
-                    const v = col.compute ? col.compute(row) : row[col.key];
+                    const v = col.compute ? col.compute(row, rapport) : row[col.key];
                     return <td key={col.key} className="px-3 py-2">{v}</td>;
                   })}
                 </tr>

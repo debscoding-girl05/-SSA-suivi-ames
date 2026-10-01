@@ -14,6 +14,7 @@ import CellulePriereForm from './CellulePriereForm';
 import ChoristesForm from './ChoristesForm';
 import AudiovisuelForm from './AudiovisuelForm';
 import LeaderMensuelForm from './LeaderMensuelForm';
+import ChainePriereForm from './ChainePriereForm';
 import PhotoFicheForm from './PhotoFicheForm';
 
 // Registre des formulaires par type.
@@ -25,12 +26,15 @@ const FORMS = {
   choristes: ChoristesForm,
   audiovisuel: AudiovisuelForm,
   leader_mensuel: LeaderMensuelForm,
+  chaine_priere: ChainePriereForm,
 };
 
 export default function RapportsHebdoPage() {
   const { user } = useAuth();
   const isAdmin = readsAllRole(user?.role);
-  const types = rhTypesFor(user?.role);
+  // Seuls les modèles qui concernent son département / son rôle.
+  const types = rhTypesFor(user);
+  const canCreate = types.length > 0;
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -116,9 +120,11 @@ export default function RapportsHebdoPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Rapports hebdomadaires</h1>
           <p className="text-sm text-muted-foreground">Fiches hebdomadaires par département et rapports mensuels des leaders, exportables en PDF.</p>
         </div>
-        <Button onClick={openPicker}>
-          <Plus className="size-4" /> Nouveau rapport
-        </Button>
+        {canCreate && (
+          <Button onClick={openPicker}>
+            <Plus className="size-4" /> Nouveau rapport
+          </Button>
+        )}
       </div>
 
       {error && <p role="alert" className="rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground">{error}</p>}
@@ -126,8 +132,9 @@ export default function RapportsHebdoPage() {
       {loading ? (
         <div className="h-40 animate-pulse rounded-2xl border border-border bg-card" />
       ) : data.length === 0 ? (
-        <EmptyState icon={ClipboardList} title="Aucun rapport" description="Créez votre premier rapport hebdomadaire."
-          action={<Button size="sm" onClick={openPicker}><Plus className="size-4" /> Nouveau rapport</Button>} />
+        <EmptyState icon={ClipboardList} title="Aucun rapport"
+          description={canCreate ? 'Créez votre premier rapport hebdomadaire.' : 'Aucune fiche hebdo ne concerne votre département. Votre suivi se fait avec la fiche de présence (menu Fiches).'}
+          action={canCreate ? <Button size="sm" onClick={openPicker}><Plus className="size-4" /> Nouveau rapport</Button> : null} />
       ) : (
         <ul className="flex flex-col gap-2">
           {data.map((r) => (

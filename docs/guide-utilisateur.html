@@ -77,12 +77,13 @@
   td.n { color: #b9b5c9; text-align: center; }
   th.c { text-align: center; }
 
-  .toc { columns: 2; column-gap: 10mm; font-size: 10.3pt; margin-top: 4mm; }
-  .toc div { break-inside: avoid; margin-bottom: 4mm; }
+  .toc { columns: 2; column-gap: 10mm; font-size: 9.6pt; line-height: 1.4; margin-top: 3mm; }
+  .toc div { break-inside: avoid; margin-bottom: 2.6mm; }
   .toc b { display: block; color: var(--navy); margin-bottom: 1mm; }
   .toc span { display: block; color: var(--ink-2); padding-left: 3mm; }
 
-  .faq dt { font-weight: 700; margin-top: 3.5mm; page-break-after: avoid; }
+  .faq dt { font-weight: 700; margin-top: 2.6mm; page-break-after: avoid; }
+  .faq { font-size: 10.4pt; }
   .faq dd { margin: 1mm 0 0 0; color: var(--ink-2); }
   .footer-note { margin-top: 8mm; font-size: 9pt; color: var(--muted); border-top: .3mm solid var(--line); padding-top: 3mm; }
 </style>
@@ -111,7 +112,7 @@
     <div><b>1. Premiers pas — tout le monde</b>
       <span>Ouvrir l'application et se connecter</span><span>L'installer sur son téléphone</span><span>Se repérer dans les menus</span><span>Profil, mot de passe et notifications</span><span>L'annuaire</span><span>Quand le réseau est faible</span></div>
     <div><b>2. Encadreur</b>
-      <span>Ajouter et suivre ses membres</span><span>La fiche de présence de la semaine</span><span>Les fiches hebdo : photo, image ou saisie</span></div>
+      <span>Ajouter et suivre ses membres</span><span>La fiche de présence de la semaine</span><span>Les fiches hebdo : photo, image ou saisie</span><span>La chaîne de prière (Intercession)</span></div>
     <div><b>3. Faiseur de Disciples (Suivi)</b>
       <span>Nouveaux venus et 7 leçons</span><span>La Fiche des Encadreurs</span></div>
     <div><b>4. Leader</b>
@@ -130,6 +131,7 @@
     <thead><tr><th></th><th class="c">Pasteur · PR</th><th class="c">Secrétaire</th><th class="c">Leader</th><th class="c">Encadreur</th><th class="c">Leader de cellule</th></tr></thead>
     <tbody>
       <tr><td>Annuaire</td><td class="y">Toute l'église</td><td class="y">Toute l'église</td><td class="y">Son département</td><td class="y">Ses membres*</td><td class="y">Ses membres</td></tr>
+      <tr><td>Fiches hebdo (papier)</td><td class="y">Toutes</td><td class="y">Lit tout</td><td class="y">Celles de son département</td><td class="y">Celles de son département</td><td class="y">Cellule de prière</td></tr>
       <tr><td>Remplir sa fiche de présence</td><td class="n">—</td><td class="n">—</td><td class="y">Oui</td><td class="y">Oui</td><td class="y">Fiche de cellule</td></tr>
       <tr><td>Valider les fiches</td><td class="y">Oui</td><td class="n">—</td><td class="y">Son équipe</td><td class="n">—</td><td class="n">—</td></tr>
       <tr><td>Rapport mensuel au Pasteur</td><td class="n">Reçoit</td><td class="n">Lit</td><td class="y">Rédige</td><td class="n">—</td><td class="n">—</td></tr>
@@ -243,14 +245,14 @@
 
   <h2><span class="n">2.1</span>Ajouter et suivre ses membres</h2>
   <div class="row">
-    <figure class="phone"><img src="guide-utilisateur/m-ajout-membre.jpg" alt="Formulaire d'ajout d'un membre" /></figure>
+    <figure class="phone"><img src="guide-utilisateur/m-accueil-encadreur.jpg" alt="Accueil de l'encadreur : Mes membres" /><figcaption>« Mes membres » sur l'Accueil</figcaption></figure>
     <div class="text">
       <ol class="steps">
-        <li>Sur l'<span class="ui">Accueil</span> ou sur votre fiche (menu <span class="ui">Leaders</span>, votre nom), touchez <span class="ui">Ajouter</span>.</li>
-        <li><b>La personne est peut-être déjà connue.</b> Cherchez-la d'abord dans <span class="ui">Déjà dans l'annuaire ?</span>. Si elle apparaît, touchez <span class="ui">Rattacher à moi</span> : pas de doublon, son historique est gardé.</li>
-        <li>Sinon, remplissez <b>Prénom</b>, <b>Nom</b>, <b>Téléphone</b>, <b>Sexe</b> et <b>Zone de résidence</b>, puis <span class="ui">Ajouter</span>.</li>
+        <li>Dès l'<span class="ui">Accueil</span>, le bloc <b>Mes membres</b> liste les personnes que vous suivez, avec le bouton pour les appeler.</li>
+        <li>Touchez <span class="ui">Ajouter</span>, remplissez <b>Prénom</b>, <b>Nom</b>, <b>Téléphone</b>, <b>Sexe</b> et <b>Zone de résidence</b>, puis <span class="ui">Ajouter</span> : la personne vous est rattachée.</li>
+        <li>Leaders et Faiseurs de Disciples voient en plus <span class="ui">Déjà dans l'annuaire ?</span> : cherchez la personne et touchez <span class="ui">Rattacher à moi</span> plutôt que de la ressaisir.</li>
       </ol>
-      <div class="rule-box"><b>Doublon détecté ?</b> Si le numéro existe déjà, l'application affiche « Doublon possible » avec le nom et la personne qui la suit. Choisissez <span class="ui">Rattacher cette personne à moi</span> plutôt que de créer un doublon.</div>
+      <div class="rule-box"><b>Doublon détecté ?</b> Si le numéro existe déjà, l'application affiche « Doublon possible » avec le nom de la personne qui la suit. Touchez <span class="ui">Rattacher cette personne à moi</span>. Si elle est suivie par quelqu'un d'une autre équipe, l'application vous le dit : demandez alors à votre leader de vous la rattacher.</div>
       <p>Pour modifier ou retirer un membre, utilisez le crayon ou la corbeille à côté de son nom.</p>
     </div>
   </div>
@@ -276,7 +278,20 @@
   </div>
 
   <h2 style="page-break-before: always"><span class="n">2.3</span>Les fiches hebdo (fiches papier du département)</h2>
-  <p>Chaque département a son modèle de fiche : Huissier (assiduité), Faiseur de Disciples, Fiche des Encadreurs, Cellule de prière, Choristes, Audiovisuel. Ouvrez-les avec le bouton <span class="ui">Fiches hebdo</span> de l'onglet <span class="ui">Fiches</span> (ou <span class="ui">Profil</span> → Menu sur téléphone, colonne de gauche sur ordinateur), puis touchez <span class="ui">Nouveau rapport</span>.</p>
+  <p>Chaque fiche papier appartient à un département : vous ne voyez que les modèles qui vous concernent. Si votre département n'a pas de fiche papier, le menu <span class="ui">Fiches hebdo</span> n'apparaît pas et votre suivi se fait avec la fiche de présence (2.2).</p>
+  <table>
+    <thead><tr><th>Modèle</th><th>Qui le remplit</th></tr></thead>
+    <tbody>
+      <tr><td>Rapport d'assiduité (Huissier)</td><td>Protocole</td></tr>
+      <tr><td>Rapport du Faiseur de Disciples · Fiche des Encadreurs</td><td>Faiseurs de Disciples, Suivi</td></tr>
+      <tr><td>Fiche de suivi hebdomadaire des choristes</td><td>Chorale</td></tr>
+      <tr><td>Rapport d'assiduité des ouvriers</td><td>Audiovisuel, Sécurité Audiovisuelle</td></tr>
+      <tr><td>Rapport de la chaîne de prière</td><td>Intercession / Prière</td></tr>
+      <tr><td>Rapport de cellule de prière</td><td>Leaders de cellule</td></tr>
+      <tr><td>Rapport mensuel du leader</td><td>Leaders</td></tr>
+    </tbody>
+  </table>
+  <p>Ouvrez-les avec le bouton <span class="ui">Fiches hebdo</span> de l'onglet <span class="ui">Fiches</span> (ou <span class="ui">Profil</span> → Menu sur téléphone, colonne de gauche sur ordinateur), puis touchez <span class="ui">Nouveau rapport</span>.</p>
   <div class="pair">
     <figure class="phone small"><img src="guide-utilisateur/m-types-fiche.jpg" alt="Choix du modèle de fiche" /><figcaption>1. Choisir le modèle</figcaption></figure>
     <figure class="phone small"><img src="guide-utilisateur/m-mode-fiche.jpg" alt="Choix de la façon de remplir" /><figcaption>2. Choisir comment la remplir</figcaption></figure>
@@ -302,6 +317,23 @@
   <h3>Exemple : la fiche des choristes</h3>
   <p>Elle reprend la fiche papier : pour chaque jour, cochez <b>Bible</b> et/ou <b>Livret</b> (croissance spirituelle), puis les présences du Mardi, du Jeudi, du Vendredi (nuit de solutions ou nuit de prière des ouvriers) et du Dimanche. Sur téléphone, faites glisser le tableau vers la gauche pour voir toutes les colonnes.</p>
   <div class="shot"><img src="guide-utilisateur/d-choristes.jpg" alt="Fiche des choristes" /></div>
+</section>
+
+<section class="part">
+  <h2 style="margin-top:0"><span class="n">2.4</span>Le rapport de la chaîne de prière (Intercession / Prière)</h2>
+  <p>Différent du rapport de cellule : il recense <b>qui a prié</b> chaque soir de la chaîne, par catégorie (Pasteurs, Ministres &amp; leaders, Membres, non connectés), avec le score de chacun (2/3…) et le total par soir.</p>
+  <div class="shot"><img src="guide-utilisateur/d-chaine-priere.jpg" alt="Rapport de la chaîne de prière" /></div>
+  <ol class="steps">
+    <li><span class="ui">Fiches hebdo</span>, puis <span class="ui">Nouveau rapport</span>, puis <span class="ui">Rapport de la chaîne de prière</span>, puis <span class="ui">Remplir manuellement</span>.</li>
+    <li>Vérifiez la <b>tranche horaire</b> (23h - 00h), la <b>semaine du</b> et les <b>soirs de prière</b> (lundi, mardi et mercredi par défaut).</li>
+    <li><b>Première fois :</b> touchez <span class="ui">Importer depuis WhatsApp</span> et collez le dernier rapport publié dans le groupe. Les noms se rangent tout seuls dans les bonnes catégories. <b>Les semaines suivantes :</b> <span class="ui">Reprendre la liste de la semaine dernière</span>.</li>
+    <li>Pour chaque soir, cochez les personnes qui ont prié. Le score (2/3) et le total du soir (« Lundi T:25 ») se calculent seuls. Ajoutez une note si besoin (« problème de téléphone »).</li>
+    <li>Touchez <span class="ui">Soumettre le rapport</span>. Pour le groupe, touchez <span class="ui">Copier pour WhatsApp</span> : le rapport est copié dans le format habituel, prêt à coller.</li>
+  </ol>
+  <div class="row">
+    <figure style="width:84mm"><div class="shot" style="margin:0"><img src="guide-utilisateur/d-chaine-import.jpg" alt="Importer depuis WhatsApp" /></div><figcaption>Importer la liste depuis WhatsApp</figcaption></figure>
+    <div class="text"><div class="tip">Un rapport où personne n'est coché est refusé (« La fiche est vide »). Pour une personne qui n'a pas pu se connecter, laissez les cases vides et indiquez la raison dans la note.</div></div>
+  </div>
 </section>
 
 <!-- ===================== PARTIE 3 ===================== -->
@@ -406,11 +438,11 @@
     <p>Vous animez une cellule de prière de quartier. Ses membres ne sont pas forcément membres de l'église.</p>
   </div>
   <div class="pair">
-    <figure class="phone small"><img src="guide-utilisateur/m-cellule.jpg" alt="Page de la cellule" /><figcaption>La cellule et ses membres</figcaption></figure>
+    <figure class="phone small"><img src="guide-utilisateur/m-accueil-cellule.jpg" alt="Accueil du leader de cellule" /><figcaption>Votre cellule dès l'Accueil</figcaption></figure>
     <figure class="phone small"><img src="guide-utilisateur/m-cellule-fiche.jpg" alt="Fiche de présence de la cellule" /><figcaption>La fiche de présence</figcaption></figure>
   </div>
   <ol class="steps">
-    <li>Menu <span class="ui">Cellules</span>, puis votre cellule.</li>
+    <li>Dès l'<span class="ui">Accueil</span> : votre cellule, l'état de la fiche de la semaine et le bouton <span class="ui">Ajouter un membre</span>. Pour tout le reste, touchez le nom de la cellule (ou menu <span class="ui">Cellules</span>).</li>
     <li><b>Membres</b> : <span class="ui">Ajouter</span> (nom, téléphone, membre de l'église ou non). Le crayon modifie un membre, la corbeille le retire.</li>
     <li>Chaque semaine : <span class="ui">Fiche de présence</span>, pointez <b>chaque</b> membre (Présent, Absent, Justifié), puis <span class="ui">Soumettre</span>. Une fiche incomplète est refusée ; <span class="ui">Brouillon</span> permet de finir plus tard.</li>
     <li>Le Pasteur ou la PR valide ensuite la fiche.</li>

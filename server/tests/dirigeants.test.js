@@ -94,11 +94,11 @@ async function choraleDepartmentId(token) {
 }
 
 // --- 1. List (pasteur) -----------------------------------------------------
-test("1. GET /api/dirigeants (pasteur) → 200, 7 dirigeants, no pasteur/pr, shape + week", async () => {
+test("1. GET /api/dirigeants (pasteur) → 200, 9 dirigeants, no pasteur/pr, shape + week", async () => {
   const token = await pasteurToken();
   const { status, body } = await api("GET", "/api/dirigeants", token);
   assert.equal(status, 200);
-  assert.equal(body.data.length, 7, "should be 7 dirigeants (pasteur/pr excluded)");
+  assert.equal(body.data.length, 9, "should be 9 dirigeants (pasteur/pr excluded)");
   assert.ok(!body.data.some((d) => d.role === "pasteur"), "no pasteur role in the list");
   assert.ok(!body.data.some((d) => d.role === "pr"), "no pr role in the list");
   for (const d of body.data) {
@@ -316,9 +316,9 @@ test("12. GET /api/rapports (pasteur) → summary total=6 soumis=3 manquant=3", 
   const token = await pasteurToken();
   const { status, body } = await api("GET", "/api/rapports", token);
   assert.equal(status, 200);
-  assert.equal(body.summary.total, 7);
+  assert.equal(body.summary.total, 9);
   assert.equal(body.summary.soumis, 3);
-  assert.equal(body.summary.manquant, 4);
+  assert.equal(body.summary.manquant, 6);
   for (const d of body.dirigeants) {
     assert.ok(["soumis", "manquant"].includes(d.status), "status is soumis|manquant");
   }
@@ -359,9 +359,9 @@ test("15. Daniel submits → 201; overview soumis 3→4, manquant 3→2", async 
   assert.equal(submit.body.status, "soumis");
 
   const { body } = await api("GET", "/api/rapports", pasteurTok);
-  assert.equal(body.summary.total, 7);
+  assert.equal(body.summary.total, 9);
   assert.equal(body.summary.soumis, 4);
-  assert.equal(body.summary.manquant, 3);
+  assert.equal(body.summary.manquant, 5);
 });
 
 // --- 16. Submit RBAC: Daniel→Paul 403; pasteur→Paul 201 --------------------

@@ -4,6 +4,7 @@ const { parseWeek, currentWeek } = require("../utils/week");
 const { streamRapportHebdoPdf, RENDERERS } = require("../utils/rapportHebdoPdf");
 const storage = require("../utils/storage");
 const { hasFicheContent } = require("../utils/ficheContent");
+const { canFillType, typesFor } = require("../utils/ficheTypes");
 const { sendPushToUser } = require("../utils/push");
 const { listFaiseurs } = require("./dirigeantsController");
 const { seesWholeAnnuaire } = require("./annuaireController");
@@ -16,8 +17,14 @@ const readsAll = (role) => db.READ_ALL_ROLES.includes(role);
 
 // Types de fiches pris en charge (un modèle par département/rôle).
 const TYPES = new Set(Object.keys(RENDERERS));
-// Fiche mensuelle remise au Pasteur : réservée aux leaders.
-const LEADER_ONLY_TYPES = new Set(["leader_mensuel"]);
+
+// Le jeton ne porte que l'id du département : on retrouve son nom pour
+// appliquer la table des modèles par département (utils/ficheTypes.js).
+async function withDepartmentName(user) {
+  if (user.departmentId == null) return { ...user, departmentName: null };
+  const dept = await db.departments.findById(user.departmentId);
+  return { ...user, departmentName: dept?.name ?? null };
+}
 
 function scopeFor(user) {
   if (readsAll(user.role)) return undefined; // Pasteur/PR/Secrétaire voient tout
@@ -118,6 +125,11 @@ async function list(req, res) {
   res.json({ data });
 }
 
+// GET /api/rapports-hebdo/types — modèles que l'utilisateur peut remplir.
+async function types(req, res) {
+  res.json({ data: typesFor(await withDepartmentName(req.user)) });
+}
+
 // GET /api/rapports-hebdo/:id
 async function getOne(req, res) {
   const rapport = await db.rapportsHebdo.findById(req.params.id);
@@ -130,8 +142,10 @@ async function getOne(req, res) {
 async function create(req, res) {
   const type = String(req.body.type || "");
   if (!TYPES.has(type)) throw ApiError.badRequest("Type de rapport inconnu");
-  if (LEADER_ONLY_TYPES.has(type) && req.user.role !== "leader") {
-    throw ApiError.forbidden("La fiche mensuelle est réservée aux leaders");
+  if (!canFillType(await withDepartmentName(req.user), type)) {
+    throw ApiError.forbidden(type === "leader_mensuel"
+      ? "La fiche mensuelle est réservée aux leaders"
+      : "Ce modèle de fiche ne concerne pas votre département");
   }
 
   const { year, week } = req.body.year && req.body.week ? parseWeek(req.body) : currentWeek();
@@ -269,4 +283,4 @@ async function removeAttachment(req, res) {
   res.status(204).end();
 }
 
-module.exports = { list, getOne, create, update, remove, pdf, listAttachments, uploadAttachment, downloadAttachment, removeAttachment };
+module.exports = { list, types, getOne, create, update, remove, pdf, listAttachments, uploadAttachment, downloadAttachment, removeAttachment };

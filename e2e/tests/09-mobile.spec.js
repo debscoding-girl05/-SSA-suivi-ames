@@ -39,7 +39,7 @@ test.describe('Mobile (iPhone ~390 px)', () => {
     }
     await page.goto('/rapports-hebdo');
     await page.getByRole('button', { name: 'Nouveau rapport' }).first().click();
-    await page.getByText("Rapport d'assiduité (Huissier)").click();
+    await page.getByText('Fiche de suivi hebdomadaire des choristes').click();
     const manual = page.getByRole('button', { name: /Remplir manuellement/ });
     expect((await manual.boundingBox()).height).toBeGreaterThanOrEqual(44);
   });
